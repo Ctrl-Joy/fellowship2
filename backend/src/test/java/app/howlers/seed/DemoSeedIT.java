@@ -100,4 +100,21 @@ class DemoSeedIT {
         assertThat(demo.get("demoData").asBoolean()).isTrue();
         assertThat(demo.get("message").asText()).contains("not real activity");
     }
+
+    @Autowired PackDemoSeeder packs;
+
+    @Test
+    void seedsOnePackRoomAndAFewReactionsOnce() {
+        assertThat(count("SELECT count(*) FROM dm_conversations WHERE kind = 'ROOM' AND name = 'Night shift'")).isEqualTo(1);
+        assertThat(count("""
+                SELECT count(*) FROM dm_participants p JOIN dm_conversations c ON c.id = p.conversation_id
+                WHERE c.name = 'Night shift'""")).isEqualTo(4);
+        assertThat(count("SELECT count(*) FROM dm_participants p JOIN dm_conversations c ON c.id = p.conversation_id WHERE c.name = 'Night shift' AND p.role = 'OWNER'"))
+                .isEqualTo(1);
+        assertThat(count("SELECT count(*) FROM reactions WHERE target_type = 'MESSAGE'")).isEqualTo(2);
+        assertThat(count("SELECT count(*) FROM reactions WHERE target_type = 'POST'")).isEqualTo(3);
+        long messages = count("SELECT count(*) FROM dm_messages");
+        assertThat(packs.seedIfNeeded()).isFalse();
+        assertThat(count("SELECT count(*) FROM dm_messages")).isEqualTo(messages);
+    }
 }

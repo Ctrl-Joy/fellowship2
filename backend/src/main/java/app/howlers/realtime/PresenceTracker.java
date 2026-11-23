@@ -55,8 +55,11 @@ public class PresenceTracker {
         List<Long> partners = jdbc.sql("""
                         SELECT DISTINCT other.user_id FROM dm_participants me
                         JOIN dm_participants other ON other.conversation_id = me.conversation_id AND other.user_id <> me.user_id
-                        WHERE me.user_id = ?""")
-                .param(userId).query(Long.class).list();
+                        WHERE me.user_id = :me
+                          AND NOT EXISTS (SELECT 1 FROM user_blocks b
+                                          WHERE (b.blocker_id = :me AND b.blocked_id = other.user_id)
+                                             OR (b.blocker_id = other.user_id AND b.blocked_id = :me))""")
+                .param("me", userId).query(Long.class).list();
         publisher.toUsers(partners, "PRESENCE", Map.of("userId", userId, "online", online));
     }
 }

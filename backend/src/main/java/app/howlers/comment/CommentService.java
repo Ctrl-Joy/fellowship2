@@ -1,5 +1,6 @@
 package app.howlers.comment;
 
+import app.howlers.automod.AutomodService;
 import app.howlers.comment.dto.CommentDtos.CommentNode;
 import app.howlers.comment.dto.CommentDtos.CreateCommentRequest;
 import app.howlers.comment.dto.CommentDtos.PostRef;
@@ -65,6 +66,9 @@ public class CommentService {
     private final app.howlers.realtime.LiveCounters counters;
     private final SpamGuard spam;
     private final SpamFlags spamFlags;
+    /** Field-injected to keep the constructor stable for the other modules that build on it. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private AutomodService automod;
 
     public CommentService(JdbcClient jdbc, PostService posts, CommunityAccess access, UserDirectory userDirectory,
                           UserRepository users, NotificationService notifications, RateLimiter limiter,
@@ -276,16 +280,33 @@ public class CommentService {
 
         int linkCount = SpamSignals.linksInText(body);
         SpamGuard.Verdict verdict = spam.checkComment(user, access.canModerate(ctx.role(), user), ctx.community().getId(), body, linkCount);
+        // Community automod runs after the global spam checks (D-045); the strongest outcome wins.
+        AutomodService.Verdict auto = automod.check(user, access.canModerate(ctx.role(), user), new AutomodService.Input(
+                ctx.community().getId(), "COMMENT", user.id(), body, body, linkCount));
+        AutomodService.Action outcome = auto.outcome(verdict.held());
+        boolean held = outcome == AutomodService.Action.HOLD;
+        boolean autoRemoved = outcome == AutomodService.Action.REMOVE;
         long id = jdbc.sql("""
                         INSERT INTO comments (post_id, parent_id, author_id, depth, body, link_count, pending, removed)
                         VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
-                .params(postId, req.parentId(), user.id(), depth, body, Math.min(linkCount, Short.MAX_VALUE), verdict.held(), verdict.held())
+                .params(postId, req.parentId(), user.id(), depth, body, Math.min(linkCount, Short.MAX_VALUE), held, held || autoRemoved)
                 .query(Long.class).single();
-        if (verdict.held()) {
+        if (outcome != null) automod.record(auto, outcome, ctx.community(), user.id(), "COMMENT", postId, id, body);
+        if (held) {
             // Held: invisible to everyone but the author and moderators; counters and notifications wait for release.
-            spamFlags.recordHeld(ctx.community().getId(), user.id(), "COMMENT", postId, id, String.join(",", verdict.rules()),
-                    verdict.details(), body.length() <= 300 ? body : body.substring(0, 299) + "…");
+            List<String> rules = new java.util.ArrayList<>(verdict.rules());
+            if (auto.first(AutomodService.Action.HOLD) != null) rules.add("AUTOMOD");
+            String details = String.join("; ", java.util.stream.Stream.of(verdict.details(), AutomodService.holdDetails(auto))
+                    .filter(s -> !s.isBlank()).toList());
+            spamFlags.recordHeld(ctx.community().getId(), user.id(), "COMMENT", postId, id, String.join(",", rules),
+                    details.length() <= 500 ? details : details.substring(0, 499) + "…",
+                    body.length() <= 300 ? body : body.substring(0, 299) + "…");
             realtime.modQueueChanged(ctx.community().getId());
+            metrics.commentCreated(true);
+            return single(id, user);
+        }
+        if (autoRemoved) {
+            // Removed by automod: kept for the author, the appeal and the mod log; no counters or notifications.
             metrics.commentCreated(true);
             return single(id, user);
         }

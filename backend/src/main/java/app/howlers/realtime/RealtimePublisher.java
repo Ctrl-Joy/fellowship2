@@ -56,6 +56,12 @@ public class RealtimePublisher {
         afterCommit(() -> template.convertAndSend("/topic/post." + postId, body));
     }
 
+    /** Reactions on a post or one of its comments changed (D-044). Ids only; clients refetch under the usual checks. */
+    public void reactionsChanged(long postId, String targetType, long targetId) {
+        Map<String, Object> body = Map.of("type", "REACTIONS", "postId", postId, "targetType", targetType, "targetId", targetId);
+        afterCommit(() -> template.convertAndSend("/topic/post." + postId, body));
+    }
+
     public void modQueueChanged(long communityId) {
         afterCommit(() -> template.convertAndSend("/topic/modqueue." + communityId, Map.of("communityId", communityId)));
     }

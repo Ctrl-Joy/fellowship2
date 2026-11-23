@@ -100,6 +100,22 @@ public class NotificationService {
                 "/c/" + slug + "?view=pulse#pulse-" + pulseId);
     }
 
+    /** Reactions to the same post or comment bump one unread notification (D-044). Blocked and muted people are skipped by push. */
+    public void reaction(long recipientId, long actorId, String actorName, String emoji, boolean comment, long postId,
+                         Long commentId, String postTitle) {
+        String link = commentId == null ? "/p/" + postId : "/p/" + postId + "#c-" + commentId;
+        push(recipientId, "REACTION", actorId, "reaction:" + (comment ? "c" + commentId : "p" + postId),
+                "u/" + actorName + " reacted " + emoji + " to your " + (comment ? "comment" : "post “" + clip(postTitle) + "”"), link);
+    }
+
+    /** Automod held the author's content for moderator review (D-045). The reason is the rule's author-facing text. */
+    public void automodHeld(long recipientId, String slug, String what, long postId, Long commentId, String reason) {
+        String link = commentId == null ? "/p/" + postId : "/p/" + postId + "#c-" + commentId;
+        push(recipientId, "AUTOMOD_HELD", null, null,
+                "Your " + what + " in c/" + slug + " is waiting for moderator review" + (reason == null || reason.isBlank() ? "" : ": " + clip(reason)),
+                link);
+    }
+
     private void push(long recipientId, String type, Long actorId, String groupKey, String message, String link) {
         if (actorId != null && actorId == recipientId) return;
         // Blocked and muted people can't notify you (mutes: D-021).
