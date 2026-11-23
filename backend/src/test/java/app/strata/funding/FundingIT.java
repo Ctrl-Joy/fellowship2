@@ -345,19 +345,19 @@ class FundingIT extends IntegrationTest {
         mvc.perform(post("/api/v1/funding/webhooks/demo").contentType(MediaType.APPLICATION_JSON).content(payload))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/funding/webhooks/demo").contentType(MediaType.APPLICATION_JSON).content(payload)
-                .header("Strata-Demo-Signature", DemoPaymentProvider.signatureHeader("another-secret-of-enough-length", payload, now)))
+                .header("Howlers-Demo-Signature", DemoPaymentProvider.signatureHeader("another-secret-of-enough-length", payload, now)))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/funding/webhooks/demo").contentType(MediaType.APPLICATION_JSON).content(payload.replace("cancelled", "created"))
-                .header("Strata-Demo-Signature", sig)).andExpect(status().isBadRequest());
+                .header("Howlers-Demo-Signature", sig)).andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/funding/webhooks/demo").contentType(MediaType.APPLICATION_JSON).content(payload)
-                .header("Strata-Demo-Signature", DemoPaymentProvider.signatureHeader(SECRET, payload, now - 3600)))
+                .header("Howlers-Demo-Signature", DemoPaymentProvider.signatureHeader(SECRET, payload, now - 3600)))
                 .andExpect(status().isBadRequest());
         mvc.perform(post("/api/v1/funding/webhooks/stripe").contentType(MediaType.APPLICATION_JSON).content(payload)
-                .header("Strata-Demo-Signature", sig)).andExpect(status().isNotFound());
+                .header("Howlers-Demo-Signature", sig)).andExpect(status().isNotFound());
         assertThat(subscription(w.member(), sub.id()).status()).isEqualTo("ACTIVE");
 
         mvc.perform(post("/api/v1/funding/webhooks/demo").contentType(MediaType.APPLICATION_JSON).content(payload)
-                        .header("Strata-Demo-Signature", sig))
+                        .header("Howlers-Demo-Signature", sig))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("processed"));
         SubscriptionDto after = subscription(w.member(), sub.id());
         assertThat(after.status()).isEqualTo("CANCELLED");
@@ -365,7 +365,7 @@ class FundingIT extends IntegrationTest {
 
         // The same event again (a replay, or the provider retrying) is acknowledged but not applied twice.
         mvc.perform(post("/api/v1/funding/webhooks/demo").contentType(MediaType.APPLICATION_JSON).content(payload)
-                        .header("Strata-Demo-Signature", sig))
+                        .header("Howlers-Demo-Signature", sig))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.status").value("duplicate"));
         assertThat(jdbc.sql("SELECT count(*) FROM funding_webhook_events WHERE event_id = ?").param(eventId).query(Long.class).single()).isEqualTo(1);
         assertThat(jdbc.sql("SELECT outcome FROM funding_webhook_events WHERE event_id = ?").param(eventId).query(String.class).single())

@@ -6,12 +6,12 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 class EmailTemplatesTest {
-    private final EmailTemplates templates = new EmailTemplates(EmailTemplates.BRAND, "https://strata.example.com/");
+    private final EmailTemplates templates = new EmailTemplates(EmailTemplates.BRAND, "https://howlers.example.com/");
 
     @Test
     void verificationHasLinkExpiryAndNotYouLineInBothParts() {
         OutgoingEmail m = templates.verification("ann@example.com", "ann_k", "tok-123_ABC", Duration.ofHours(24));
-        String link = "https://strata.example.com/verify-email?token=tok-123_ABC";
+        String link = "https://howlers.example.com/verify-email?token=tok-123_ABC";
         assertThat(m.tag()).isEqualTo("verify-email");
         assertThat(m.subject()).isEqualTo("Verify your Howlers email");
         assertThat(m.toName()).isEqualTo("ann_k");
@@ -25,8 +25,8 @@ class EmailTemplatesTest {
     void resetHasLinkExpiryAndNotYouLine() {
         OutgoingEmail m = templates.passwordReset("ann@example.com", "ann_k", "abc", Duration.ofHours(1));
         assertThat(m.tag()).isEqualTo("reset-password");
-        assertThat(m.text()).contains("https://strata.example.com/reset-password?token=abc", "1 hour", "Didn't request this?");
-        assertThat(m.html()).contains("https://strata.example.com/reset-password?token=abc", "1 hour", "Didn't request this?");
+        assertThat(m.text()).contains("https://howlers.example.com/reset-password?token=abc", "1 hour", "Didn't request this?");
+        assertThat(m.html()).contains("https://howlers.example.com/reset-password?token=abc", "1 hour", "Didn't request this?");
     }
 
     @Test

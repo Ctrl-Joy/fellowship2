@@ -37,7 +37,7 @@ public class FundingJobs {
 
     /** Charges every subscription due at {@code now}. Returns the number of new charges. */
     public int chargeDue(Instant now) {
-        // Hosted providers (Stripe) bill cycles themselves and Strata records each paid invoice from the webhook.
+        // Hosted providers (Stripe) bill cycles themselves and Howlers records each paid invoice from the webhook.
         if (runtime.enabled() && runtime.provider().hostedCheckout()) return 0;
         int charged = 0;
         for (long id : funding.dueSubscriptions(now, BATCH)) {

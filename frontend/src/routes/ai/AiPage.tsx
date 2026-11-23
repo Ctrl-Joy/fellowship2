@@ -30,7 +30,7 @@ const RANGES = [
   { value: '365', label: 'Past year' },
 ];
 
-/** Community AI: answers grounded in Strata discussions, with numbered citations to real posts and comments. */
+/** Community AI: answers grounded in Howlers discussions, with numbered citations to real posts and comments. */
 export default function AiPage() {
   useDocumentTitle('Community AI');
   const [params, setParams] = useSearchParams();
@@ -138,7 +138,7 @@ export default function AiPage() {
             <div className="mx-auto max-w-2xl pt-6 text-center">
               <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-brand/15 text-brand"><Sparkles size={24} /></span>
               <h1 className="mt-4 text-2xl font-bold">Ask the community</h1>
-              <p className="mt-1 text-sm text-muted">Answers are built from Strata discussions you can see, and every claim links to the post or comment it came from.</p>
+              <p className="mt-1 text-sm text-muted">Answers are built from Howlers discussions you can see, and every claim links to the post or comment it came from.</p>
               {status.data && (
                 <p className={cn('mx-auto mt-3 inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs', status.data.llmConfigured ? 'bg-accent/10 text-accent' : 'bg-warning/10 text-warning')}>
                   {status.data.llmConfigured ? `Powered by ${status.data.model}` : status.data.note}

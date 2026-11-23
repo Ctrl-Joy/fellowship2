@@ -1,4 +1,4 @@
-# Strata
+# Howlers
 
 A community discussion platform built to turn conversations into knowledge. Familiar if you've used
 threaded-community sites, but with original branding, ranking and product direction.
@@ -44,7 +44,7 @@ illustrative demo data, not real activity. Disable it in production.
 It's created whenever demo seeding is on, including on databases seeded before it existed.
 
 ### Community AI
-Set `ANTHROPIC_API_KEY` (server-side) to get answers from Claude (`claude-opus-5-5` by default; override with
+Set `ANTHROPIC_API_KEY` (server-side) and `AI_MODEL` (the model id from your AI provider) to get answers from a hosted AI model (override with
 `AI_MODEL` / `AI_EFFORT`). Without it, Community AI still works in offline mode: it returns cited summaries of the
 most relevant discussions and says clearly that they aren't generated answers.
 

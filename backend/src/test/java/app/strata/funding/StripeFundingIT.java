@@ -312,7 +312,7 @@ class StripeFundingIT extends IntegrationTest {
         assertReconciles(r);
         assertThatThrownBy(() -> jdbc.sql("DELETE FROM funding_refunds WHERE contribution_id = ?").param(cid).update())
                 .hasMessageContaining("append-only");
-        // A refund Strata knows nothing about is acknowledged and ignored.
+        // A refund Howlers knows nothing about is acknowledged and ignored.
         hook("charge.refunded", StripeEvents.charge("ch_test_unknown", "pi_test_unknown", 500, 500, "usd")).andExpect(status().isOk());
     }
 
@@ -331,7 +331,7 @@ class StripeFundingIT extends IntegrationTest {
         assertThat(stripe.cancelled).contains(sub);
         assertThat(funding.my(w.member()).subscriptions().getFirst().status()).isEqualTo("ENDED");
 
-        // The charge names only its PaymentIntent (2025+ API); Strata asks Stripe which invoice it paid.
+        // The charge names only its PaymentIntent (2025+ API); Howlers asks Stripe which invoice it paid.
         String pi = "pi_test_inv_" + pending;
         stripe.invoiceByPaymentIntent.put(pi, inv);
         hook("charge.refunded", StripeEvents.charge("ch_test_inv_" + pending, pi, 800, 300, "usd")).andExpect(status().isOk());
@@ -362,7 +362,7 @@ class StripeFundingIT extends IntegrationTest {
         assertThat(checkouts.get(w.member(), b).status()).isEqualTo("EXPIRED");
         assertThat(contributions(w.pool().id())).isZero();
 
-        // A paid session whose amount doesn't match what Strata asked for is never recorded.
+        // A paid session whose amount doesn't match what Howlers asked for is never recorded.
         long d = checkouts.contribute(w.pool().id(), w.member(), new ContributeRequest(500L, false, false)).checkout().pendingId();
         String sd = stripe.sessionFor(d);
         hook("checkout.session.completed", StripeEvents.session(sd, "payment", "complete", "paid", d, 1, "usd", "pi_test_tiny", null, null))

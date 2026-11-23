@@ -94,7 +94,7 @@ export function MiniPlayer() {
       ms.metadata = new MediaMetadata({
         title: current.title,
         artist: `c/${current.communitySlug}`,
-        album: chapterTitle ?? 'Strata podcasts',
+        album: chapterTitle ?? 'Howlers podcasts',
         artwork: current.thumbnailUrl ? [{ src: new URL(current.thumbnailUrl, window.location.origin).href, sizes: '512x512' }] : [],
       });
       const el = () => audio.current;

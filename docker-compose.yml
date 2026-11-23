@@ -1,4 +1,4 @@
-# Strata — local/full-stack environment.  `cp .env.example .env && docker compose up --build`
+# Howlers — local/full-stack environment.  `cp .env.example .env && docker compose up --build`
 # Then open http://localhost:${WEB_PORT:-8088}. API docs: http://localhost:${WEB_PORT:-8088}/swagger-ui.html
 services:
   postgres:
@@ -117,7 +117,7 @@ services:
       FUNDING_LIVE_MODE: ${FUNDING_LIVE_MODE:-false}
       FUNDING_COMPLIANCE_ACK: ${FUNDING_COMPLIANCE_ACK:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
+      AI_MODEL: ${AI_MODEL:-}
       AI_EFFORT: ${AI_EFFORT:-medium}
       ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
       ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_multilingual_v2}

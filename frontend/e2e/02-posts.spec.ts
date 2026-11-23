@@ -118,7 +118,7 @@ test.describe('on an existing post', () => {
 
   test('12 · search finds the post', async ({ sessions }) => {
     const page = await sessions.open('dev_ostrander', '/home');
-    const box = page.getByRole('combobox', { name: 'Search Strata' });
+    const box = page.getByRole('combobox', { name: 'Search Howlers' });
     await box.fill(post.title);
     await box.press('Enter');
     await expect(page).toHaveURL(/\/search\?/);

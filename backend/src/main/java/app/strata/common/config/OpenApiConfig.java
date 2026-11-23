@@ -13,7 +13,7 @@ public class OpenApiConfig {
     @Bean
     OpenAPI strataOpenApi() {
         return new OpenAPI()
-                .info(new Info().title("Strata API").version("v1")
+                .info(new Info().title("Howlers API").version("v1")
                         .description("Community platform API. See docs/API.md for conventions."))
                 .components(new Components().addSecuritySchemes("bearer",
                         new SecurityScheme().type(SecurityScheme.Type.HTTP).scheme("bearer").bearerFormat("JWT")))

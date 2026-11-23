@@ -26,10 +26,11 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
- * Claude via the official Anthropic Java SDK. Enabled when ANTHROPIC_API_KEY is configured on the server.
+ * Hosted LLM via the provider's official Java SDK. Enabled when ANTHROPIC_API_KEY and AI_MODEL are configured on the
+ * server.
  *
  * <ul>
- *   <li>Model from AI_MODEL (default {@code claude-opus-5-5}); depth controlled with output_config.effort
+ *   <li>Model from AI_MODEL (required; no default); depth controlled with output_config.effort
  *       (thinking is always on for this model, so no thinking parameter is sent).</li>
  *   <li>The static system prompt carries cache_control so repeated questions reuse the cached prefix; the
  *       sources and question vary per request and live in the final user turn.</li>
@@ -38,29 +39,33 @@ import org.springframework.stereotype.Component;
  * </ul>
  */
 @Component
-public class ClaudeProvider implements AiProvider {
-    private static final Logger log = LoggerFactory.getLogger(ClaudeProvider.class);
+public class HostedLlmProvider implements AiProvider {
+    private static final Logger log = LoggerFactory.getLogger(HostedLlmProvider.class);
 
     private final AppProperties.Ai cfg;
     private final AnthropicClient client;
 
     private final app.strata.common.metrics.StrataMetrics metrics;
 
-    public ClaudeProvider(AppProperties props, app.strata.common.metrics.StrataMetrics metrics) {
+    public HostedLlmProvider(AppProperties props, app.strata.common.metrics.StrataMetrics metrics) {
         this.metrics = metrics;
         this.cfg = props.ai();
         String key = cfg.apiKey();
-        this.client = key == null || key.isBlank() ? null : AnthropicOkHttpClient.builder().apiKey(key).build();
+        boolean hasModel = cfg.model() != null && !cfg.model().isBlank();
+        if (key != null && !key.isBlank() && !hasModel) {
+            log.warn("An AI API key is set but AI_MODEL is empty; AI features stay in offline mode until AI_MODEL is set");
+        }
+        this.client = key == null || key.isBlank() || !hasModel ? null : AnthropicOkHttpClient.builder().apiKey(key).build();
     }
 
     @Override
     public String id() {
-        return "claude";
+        return "hosted";
     }
 
     @Override
     public String label() {
-        return "Claude (" + cfg.model() + ")";
+        return "Hosted AI model";
     }
 
     @Override
@@ -120,7 +125,7 @@ public class ClaudeProvider implements AiProvider {
      * max_tokens to avoid HTTP timeouts, and accumulates it into the final message.
      */
     public LongText generateLong(String system, String userTurn, long maxTokens) {
-        if (client == null) throw new IllegalStateException("Claude is not configured");
+        if (client == null) throw new IllegalStateException("The AI provider is not configured");
         MessageCreateParams params = MessageCreateParams.builder()
                 .model(cfg.model())
                 .maxTokens(maxTokens)

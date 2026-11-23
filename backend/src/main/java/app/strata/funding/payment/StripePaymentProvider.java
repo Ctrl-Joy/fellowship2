@@ -10,11 +10,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Stripe through hosted Checkout (D-034). Card data never reaches Strata: the browser is sent to Stripe's page, and a
- * contribution only counts once Stripe confirms it. Stripe bills recurring cycles itself; Strata records each paid invoice.
+ * Stripe through hosted Checkout (D-034). Card data never reaches Howlers: the browser is sent to Stripe's page, and a
+ * contribution only counts once Stripe confirms it. Stripe bills recurring cycles itself; Howlers records each paid invoice.
  *
  * <p>Webhooks are verified with the SDK's {@link Webhook#constructEvent} (HMAC-SHA256 over {@code t.payload}, constant-time
- * compare, timestamp tolerance), then parsed as plain JSON so Strata never depends on the SDK's typed model for the
+ * compare, timestamp tolerance), then parsed as plain JSON so Howlers never depends on the SDK's typed model for the
  * account's API version. An event from the other mode (a test event sent to a live server, or the reverse) is refused.
  */
 public class StripePaymentProvider implements PaymentProvider {
@@ -183,7 +183,7 @@ public class StripePaymentProvider implements PaymentProvider {
         return s != null ? s : str(invoice.get("subscription"));
     }
 
-    /** The subscription metadata copied onto an invoice (where Strata's pending contribution id travels). */
+    /** The subscription metadata copied onto an invoice (where Howlers' pending contribution id travels). */
     public static Map<String, String> invoiceSubscriptionMetadata(Map<String, Object> invoice) {
         Map<String, String> m = metadata(map(map(invoice.get("parent")).get("subscription_details")).get("metadata"));
         if (m.isEmpty()) m = metadata(map(invoice.get("subscription_details")).get("metadata"));

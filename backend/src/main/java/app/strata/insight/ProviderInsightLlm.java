@@ -1,18 +1,18 @@
 package app.strata.insight;
 
-import app.strata.ai.ClaudeProvider;
-import app.strata.ai.ClaudeProvider.StructuredText;
+import app.strata.ai.HostedLlmProvider;
+import app.strata.ai.HostedLlmProvider.StructuredText;
 import app.strata.common.config.AppProperties;
 import java.util.Map;
 import org.springframework.stereotype.Component;
 
-/** {@link InsightLlm} backed by the shared {@link ClaudeProvider} client (same key, model, effort and fallbacks). */
+/** {@link InsightLlm} backed by the shared {@link HostedLlmProvider} client (same key, model, effort and fallbacks). */
 @Component
 public class ProviderInsightLlm implements InsightLlm {
-    private final ClaudeProvider provider;
+    private final HostedLlmProvider provider;
     private final boolean offline;
 
-    public ProviderInsightLlm(ClaudeProvider provider, AppProperties props) {
+    public ProviderInsightLlm(HostedLlmProvider provider, AppProperties props) {
         this.provider = provider;
         this.offline = "offline".equals(props.ai().provider());
     }

@@ -4,7 +4,7 @@ import app.strata.funding.payment.PaymentProvider.CheckoutRequest;
 import app.strata.funding.payment.PaymentProvider.CheckoutSession;
 
 /**
- * The few Stripe API calls Strata makes. {@link SdkStripeGateway} implements it with the official SDK; tests use a fake,
+ * The few Stripe API calls Howlers makes. {@link SdkStripeGateway} implements it with the official SDK; tests use a fake,
  * so the suite never calls Stripe.
  */
 public interface StripeGateway {

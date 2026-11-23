@@ -1,10 +1,10 @@
-# Strata — product spec
+# Howlers — product spec
 
-**Working brand:** Strata — *communities that build knowledge, in layers.* (Centralised in
+**Working brand:** Howlers — *communities that build knowledge, in layers.* (Centralised in
 `frontend/src/design-system/brand.ts`; replaceable.)
 
 ## Thesis
-Discussion platforms are great at producing conversation and poor at preserving what it teaches. Strata keeps
+Discussion platforms are great at producing conversation and poor at preserving what it teaches. Howlers keeps
 the familiar model (communities, posts, threaded replies, votes) and adds layers that turn threads into
 knowledge: structured argument maps, digests, a library, grounded AI answers, long-form audio, and recognition
 and support for the moderators who keep communities healthy.

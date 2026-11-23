@@ -56,7 +56,7 @@ export function UploadPanel({ maxFileBytes, onEncrypted }: { maxFileBytes?: numb
           onProgress: (p) => patch(job.id, { progress: p }),
         });
         patch(job.id, { phase: 'uploading', progress: 0 });
-        const saved = await uploadFile(container, 'encrypted.strata', {
+        const saved = await uploadFile(container, 'encrypted.howlers', {
           e2ee: true,
           label: label.trim() || undefined,
           signal: job.abort.signal,

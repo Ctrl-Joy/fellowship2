@@ -51,7 +51,7 @@ Reddit's name, logo, mascot, colours or assets. reddit.com could not be opened f
 browser blocks it, and automated sessions get a bot challenge, which we do not bypass), so the layout follows these
 generic patterns rather than copying any page.
 
-**D-013 Community AI = permission-filtered retrieval + Claude, with an offline fallback.**
+**D-013 Community AI = permission-filtered retrieval + a hosted LLM, with an offline fallback.**
 - **Retrieval.** PostgreSQL full-text search over posts and comments, using OR-of-keywords tsqueries built only from
   `[a-z0-9]` tokens, so there's no query injection. Results are ranked by text relevance × log(score) with intent boosts, then
   filtered by a relevance floor, a per-thread diversity cap and an 18k-character budget. For the two strongest matching
@@ -59,8 +59,8 @@ generic patterns rather than copying any page.
   deleted and removed content) is enforced in the SQL, before ranking, so the model never sees what the reader can't.
   pgvector semantic search was deferred: FTS is index-backed and good enough at current scale, and it plugs in behind
   `Retriever` without API changes.
-- **Generation.** `ClaudeProvider` uses the official Anthropic Java SDK (`anthropic-java` 3.12.0) and calls
-  `claude-opus-5-5` at effort `medium`. The static system prompt is cached, and sources go in the final user turn. Server-side
+- **Generation.** `HostedLlmProvider` uses the provider's official Java SDK (`anthropic-java` 3.12.0) and calls the
+  model named in `AI_MODEL` at effort `medium`. The static system prompt is cached, and sources go in the final user turn. Server-side
   refusal fallbacks are on (`fallbacks: "default"`). The key comes from `ANTHROPIC_API_KEY` on the server only (env, or git-ignored `backend/.env.local` in local development).
 - **Offline.** Without a key, `OfflineProvider` returns a cited, stance-grouped summary of the retrieved sentences and
   labels itself as not generated.
@@ -90,7 +90,7 @@ nudge (D-017), with a 15 s poll only while the socket is down.
   in SQL, and `/transcript.vtt` feeds the video subtitle track.
 - **Publishing workflow.** DRAFT → IN_REVIEW → PUBLISHED / ARCHIVED, by community moderators only. Publishing requires media and a
   transcript, and records who published. Media and transcript can't change while published.
-- **AI scripts.** `ScriptDrafter` retrieves permission-filtered sources for a topic and streams a two-host script from Claude
+- **AI scripts.** `ScriptDrafter` retrieves permission-filtered sources for a topic and streams a two-host script from the AI model
   (`createStreaming` + `BetaMessageAccumulator`, since long outputs need streaming). It strips citations that don't map to a source,
   attaches the cited threads as episode sources and stores the result as an *AI draft*. It runs on a small background executor, and
   restarts mark in-flight drafts as failed. The prompt tells the model to write a shorter episode rather than pad to the target length,

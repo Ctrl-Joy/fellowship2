@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class DefaultFileScanner implements FileScanner {
-    /** Marker at the start of every Strata E2EE container ("STRATAE2" + version 1). See frontend crypto.ts. */
+    /** Marker at the start of every Howlers E2EE container ("STRATAE2" + version 1). See frontend crypto.ts. */
     static final byte[] E2EE_MAGIC = {'S', 'T', 'R', 'A', 'T', 'A', 'E', '2', 1};
 
     static final int MAX_ZIP_ENTRIES = 20_000;
@@ -25,7 +25,7 @@ public class DefaultFileScanner implements FileScanner {
     public Result scan(Input in) {
         if (in.e2ee()) {
             if (!startsWith(in.head(), E2EE_MAGIC)) {
-                return Result.rejected("This isn't a Strata encrypted file. Encrypt it in the browser first.");
+                return Result.rejected("This isn't a Howlers encrypted file. Encrypt it in the browser first.");
             }
             return new Result(Status.UNSCANNED, "application/octet-stream",
                     "End-to-end encrypted: the server only has ciphertext, so it can't inspect the content.");

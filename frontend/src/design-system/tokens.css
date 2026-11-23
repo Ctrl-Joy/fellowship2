@@ -1,4 +1,4 @@
-/* Strata design tokens. Values are RGB triplets so Tailwind can apply alpha. See docs/DESIGN_SYSTEM.md */
+/* Howlers design tokens. Values are RGB triplets so Tailwind can apply alpha. See docs/DESIGN_SYSTEM.md */
 :root {
   --bg: 255 255 255;
   --surface: 255 255 255;

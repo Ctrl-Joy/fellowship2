@@ -60,7 +60,7 @@ export default function SearchPage() {
   if (!q.trim()) {
     return (
       <PageColumns>
-        <EmptyState icon={Search} title="Search Strata" description="Use the search bar to find posts, communities and people. Prefix with # to search tags." />
+        <EmptyState icon={Search} title="Search Howlers" description="Use the search bar to find posts, communities and people. Prefix with # to search tags." />
       </PageColumns>
     );
   }

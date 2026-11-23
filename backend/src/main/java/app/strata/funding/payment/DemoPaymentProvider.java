@@ -24,7 +24,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class DemoPaymentProvider implements PaymentProvider {
     public static final String ID = "demo";
-    public static final String SIGNATURE_HEADER = "Strata-Demo-Signature";
+    public static final String SIGNATURE_HEADER = "Howlers-Demo-Signature";
 
     private final byte[] secret;
     private final long toleranceSeconds;
@@ -78,7 +78,7 @@ public class DemoPaymentProvider implements PaymentProvider {
 
     @Override
     public void cancel(String subscriptionRef) {
-        // Nothing to call: demo subscriptions exist only in Strata's own tables.
+        // Nothing to call: demo subscriptions exist only in Howlers' own tables.
     }
 
     @Override

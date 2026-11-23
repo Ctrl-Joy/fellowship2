@@ -198,7 +198,7 @@ async function readBytes(blob: Blob, start: number, end: number): Promise<Uint8A
 export async function decryptMeta(container: Blob, key: CryptoKey): Promise<{ meta: FileMeta; header: Uint8Array; bodyStart: number; chunkSize: number }> {
   const head = await readBytes(container, 0, HEADER_BYTES + 4);
   if (head.length < HEADER_BYTES + 4 || !MAGIC.every((b, i) => head[i] === b)) {
-    throw new DecryptionError('This is not a Strata encrypted file.');
+    throw new DecryptionError('This is not a Howlers encrypted file.');
   }
   if (head[8] !== VERSION) throw new DecryptionError(`Unsupported encrypted file version ${head[8]}.`);
   const view = new DataView(head.buffer, head.byteOffset, head.byteLength);

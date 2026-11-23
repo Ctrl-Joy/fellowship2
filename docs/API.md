@@ -1,4 +1,4 @@
-# Strata API — v1 contract
+# Howlers API — v1 contract
 
 Base path: `/api/v1`. JSON everywhere. OpenAPI UI at `/swagger-ui.html` (JSON at `/v3/api-docs`).
 
@@ -504,7 +504,7 @@ TransparencyReport { pool: PoolSummary, raised, contributionCount, contributorCo
 | POST | `/funding/pools/{id}/close` | owner | `{allocations?: {username, amountMinor}[], note?}`; MANUAL requires amounts to moderators summing exactly to `raised` and a note of ≥10 chars | `TransparencyReport` |
 | GET | `/me/funding` | signed in | my contributions (≤100), subscriptions, open pools in my communities | `{status, contributions, subscriptions, openPools}` |
 | POST | `/me/funding/subscriptions/{id}/cancel` | the contributor | idempotent; past charges stay | `Subscription` |
-| POST | `/funding/webhooks/{provider}` | provider (no JWT) | raw JSON `{id, type, data}` + header `Strata-Demo-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>` | `{status: "processed"\|"duplicate", eventId}` |
+| POST | `/funding/webhooks/{provider}` | provider (no JWT) | raw JSON `{id, type, data}` + header `Howlers-Demo-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>` | `{status: "processed"\|"duplicate", eventId}` |
 
 - **Jobs** (every 60 s; `FUNDING_JOBS_ENABLED`): charge subscriptions whose `nextChargeAt` passed (one cycle per run;
   `(subscription, cycle)` is unique; missed months are skipped, never back-charged) and close pools whose period ended
@@ -579,7 +579,7 @@ ShareMeta { fileName|null, contentType|null /* both null for E2EE */, sizeBytes,
 |---|---|---|
 | GET | `/me/files?q&cursor&limit` | `CursorPage<FileItem>`, newest first; `q` = case-insensitive name search |
 | GET | `/me/files/usage` | `FileUsage` (quota `strata.files.quota-mb`, default 1024; max file `max-file-mb`, default 500) |
-| POST | `/me/files` (multipart `file`, `e2ee?`, `label?`) | 201 `FileItem`. Streamed to storage. 400 `fieldErrors.file` for: over size/quota, blocked executable/script/macro type, content that doesn't match the extension, unsupported type, archive with executables or bomb-like expansion. With `e2ee=true` the body must be a Strata container (`STRATAE2` v1); the client's file name is not stored (`label` or "Encrypted file") |
+| POST | `/me/files` (multipart `file`, `e2ee?`, `label?`) | 201 `FileItem`. Streamed to storage. 400 `fieldErrors.file` for: over size/quota, blocked executable/script/macro type, content that doesn't match the extension, unsupported type, archive with executables or bomb-like expansion. With `e2ee=true` the body must be a Howlers container (`STRATAE2` v1); the client's file name is not stored (`label` or "Encrypted file") |
 | GET | `/me/files/{id}` | `FileItem` |
 | PATCH | `/me/files/{id}` `{name}` | Rename (plain files keep their extension; E2EE renames the label) |
 | DELETE | `/me/files/{id}` | 204. Soft-delete, revoke links, remove stored bytes after commit |

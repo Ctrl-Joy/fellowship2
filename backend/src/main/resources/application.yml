@@ -112,7 +112,7 @@ strata:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
   app:
     public-url: ${APP_PUBLIC_URL:http://localhost:5173}
-    name: Strata
+    name: Howlers
   mail:
     # log | smtp | brevo (D-038). The from address must be a sender (or domain) verified in the provider account.
     mode: ${MAIL_MODE:log}
@@ -193,7 +193,7 @@ strata:
   ai:
     provider: ${AI_PROVIDER:auto}
     api-key: ${ANTHROPIC_API_KEY:}
-    model: ${AI_MODEL:claude-opus-5-5}
+    model: ${AI_MODEL:}
     effort: ${AI_EFFORT:medium}
     max-tokens: ${AI_MAX_TOKENS:16000}
   # Moderator funding (D-022, D-034). demo (simulated) or stripe (hosted Checkout); any other value refuses to start.

@@ -1,5 +1,5 @@
-# Strata behind Caddy: automatic HTTPS (Let's Encrypt / ZeroSSL), HTTP->HTTPS redirect, HTTP/2 and HTTP/3.
-# STRATA_DOMAIN and ACME_EMAIL come from the environment (deploy/.env). DNS A/AAAA records must point at this host
+# Howlers behind Caddy: automatic HTTPS (Let's Encrypt / ZeroSSL), HTTP->HTTPS redirect, HTTP/2 and HTTP/3.
+# HOWLERS_DOMAIN and ACME_EMAIL come from the environment (deploy/.env). DNS A/AAAA records must point at this host
 # and ports 80 and 443 must be reachable for the certificate challenge.
 {
 	email {$ACME_EMAIL}
@@ -7,7 +7,7 @@
 	# acme_ca https://acme-staging-v02.api.letsencrypt.org/directory
 }
 
-{$STRATA_DOMAIN} {
+{$HOWLERS_DOMAIN} {
 	encode zstd gzip
 
 	header {
@@ -35,6 +35,6 @@
 
 # Optional: Grafana on its own subdomain (only when the monitoring profile is running). Protect it with Grafana's
 # own login (GF_SECURITY_ADMIN_PASSWORD); Prometheus itself is never exposed.
-# grafana.{$STRATA_DOMAIN} {
+# grafana.{$HOWLERS_DOMAIN} {
 # 	reverse_proxy grafana:3000
 # }

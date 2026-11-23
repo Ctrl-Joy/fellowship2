@@ -64,7 +64,7 @@ class BrevoMailTransportTest {
     }
 
     private BrevoMailTransport transport(boolean removePixel, String replyTo) {
-        return new BrevoMailTransport(HttpClient.newHttpClient(), baseUrl(), KEY, "no-reply@strata.example.com", "Howlers",
+        return new BrevoMailTransport(HttpClient.newHttpClient(), baseUrl(), KEY, "no-reply@howlers.example.com", "Howlers",
                 replyTo, removePixel, Duration.ofSeconds(5));
     }
 
@@ -76,14 +76,14 @@ class BrevoMailTransportTest {
 
     @Test
     void buildsTheDocumentedPayload() throws Exception {
-        JsonNode n = JSON.readTree(transport(false, "help@strata.example.com").payload(email()));
-        assertThat(n.at("/sender/email").asText()).isEqualTo("no-reply@strata.example.com");
+        JsonNode n = JSON.readTree(transport(false, "help@howlers.example.com").payload(email()));
+        assertThat(n.at("/sender/email").asText()).isEqualTo("no-reply@howlers.example.com");
         assertThat(n.at("/sender/name").asText()).isEqualTo("Howlers");
         assertThat(n.at("/to/0/email").asText()).isEqualTo("ann@example.com");
         assertThat(n.at("/to/0/name").asText()).isEqualTo("ann \"the\" k");
         assertThat(n.at("/to/0/contactPixelTrackingConsent").asBoolean(true)).isFalse();
         assertThat(n.at("/to/0").has("removeTrackingPixel")).isFalse();
-        assertThat(n.at("/replyTo/email").asText()).isEqualTo("help@strata.example.com");
+        assertThat(n.at("/replyTo/email").asText()).isEqualTo("help@howlers.example.com");
         assertThat(n.get("subject").asText()).isEqualTo("Verify your Howlers email");
         assertThat(n.get("htmlContent").asText()).isEqualTo(email().html());
         assertThat(n.get("textContent").asText()).isEqualTo(email().text());
@@ -173,7 +173,7 @@ class BrevoMailTransportTest {
         int port = server.getAddress().getPort();
         server.stop(0);
         BrevoMailTransport t = new BrevoMailTransport(HttpClient.newHttpClient(), "http://127.0.0.1:" + port, KEY,
-                "no-reply@strata.example.com", null, null, false, Duration.ofSeconds(2));
+                "no-reply@howlers.example.com", null, null, false, Duration.ofSeconds(2));
         assertThatThrownBy(() -> t.send(email()))
                 .isInstanceOfSatisfying(MailDeliveryException.class, e -> assertThat(e.retryable()).isTrue());
     }

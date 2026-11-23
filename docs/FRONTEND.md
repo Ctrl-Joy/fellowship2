@@ -1,4 +1,4 @@
-# Strata frontend
+# Howlers frontend
 
 React 18 + TypeScript (strict) + Vite 6 + Tailwind 3. Lives in `frontend/`.
 
@@ -249,7 +249,7 @@ the demo seed and a frontend server that proxies `/api` and `/ws`. Playwright do
 |---|---|
 | `01-account` | 1 register (a fresh `e2e_*` user, one per run), 3 onboarding (topic, community, theme), 2 log out and log in, 4 create a community |
 | `02-posts` | 5 join (leaves first if already a member), 6 create a text post, 7 vote, 8 comment, 9 reply, 10 save, 11 new collection from the post menu, 12 search |
-| `03-knowledge` | 13 Context Mode, 14 Digest (+ refresh), 15 Community AI with one question: passes with a cited answer (live Claude or the offline engine) or the honest notice |
+| `03-knowledge` | 13 Context Mode, 14 Digest (+ refresh), 15 Community AI with one question: passes with a cited answer (the live AI model or the offline engine) or the honest notice |
 | `04-pulse` | 16 create a Pulse (UI, 1 hour), 17 vote (results hidden until you vote) |
 | `05-files` | 18 upload, share link, download signed out (content compared); 18b E2EE: encrypt in the browser, check the upload never contained the name or plaintext, open the `#k=` link in a fresh context, decrypt, read the decrypted Blob inside the page |
 | `06-podcast-funding-leaderboard` | 19 play an episode (the player starts and the position advances; on a fresh database a clearly labelled 20 s WAV test tone is published through the studio API and deleted afterwards), 20 demo contribution (DEMO label asserted), 21 leaderboard (rows and breakdown, or the honest empty state) |

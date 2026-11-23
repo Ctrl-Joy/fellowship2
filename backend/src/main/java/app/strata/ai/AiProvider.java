@@ -11,7 +11,7 @@ import java.util.List;
 public interface AiProvider {
     String id();
 
-    /** Human-readable model label shown with each answer, e.g. "Claude (claude-opus-5-5)". */
+    /** Human-readable model label shown with each answer, e.g. "Hosted AI model". */
     String label();
 
     boolean available();

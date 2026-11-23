@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.List;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
-/** All Strata-specific configuration, bound from {@code strata.*} (environment variables in production). */
+/** All Howlers-specific configuration, bound from {@code strata.*} (environment variables in production). */
 @ConfigurationProperties(prefix = "strata")
 public record AppProperties(Jwt jwt, Cookie cookie, Cors cors, App app, Mail mail, Storage storage,
                             RateLimit rateLimit, Seed seed, Ai ai) {
@@ -46,7 +46,7 @@ public record AppProperties(Jwt jwt, Cookie cookie, Cors cors, App app, Mail mai
     public record Seed(boolean enabled) {}
 
     /**
-     * provider: "auto" (Claude when an API key is present, otherwise offline), "claude", or "offline".
+     * provider: "auto" (the hosted model when an API key and model are set, otherwise offline), "hosted", or "offline".
      * The key is read from the server environment only and never sent to the browser.
      */
     public record Ai(String provider, String apiKey, String model, String effort, long maxTokens) {}

@@ -1,6 +1,6 @@
-# Strata design system
+# Howlers design system
 
-Working brand: **Strata** — "knowledge in layers". The name, tagline, logo mark and colors live in
+Working brand: **Howlers** — "knowledge in layers". The name, tagline, logo mark and colors live in
 `frontend/src/design-system/brand.ts` and `frontend/src/design-system/tokens.css`. Change them there and nowhere else.
 
 ## v3 update (accessibility audit, D-027)

@@ -328,7 +328,7 @@ public class FundingService {
             return null;
         }
         PaymentProvider provider = runtime.require();
-        if (provider.hostedCheckout()) return null; // the provider (Stripe) bills cycles itself; Strata records paid invoices
+        if (provider.hostedCheckout()) return null; // the provider (Stripe) bills cycles itself; Howlers records paid invoices
         if (!provider.id().equals(s.provider())) {
             log.warn("Subscription {} belongs to provider {} but {} is active; not charging", s.id(), s.provider(), provider.id());
             return null;

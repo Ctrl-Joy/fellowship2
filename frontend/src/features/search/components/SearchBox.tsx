@@ -82,7 +82,7 @@ export function SearchBox({ className, onDone }: { className?: string; onDone?: 
   return (
     <div ref={wrap} className={cn('relative', className)}>
       <label htmlFor={`${listId}-input`} className="sr-only">
-        Search Strata
+        Search Howlers
       </label>
       <Search size={18} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-muted" />
       <input
@@ -94,7 +94,7 @@ export function SearchBox({ className, onDone }: { className?: string; onDone?: 
         aria-autocomplete="list"
         aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined}
         autoComplete="off"
-        placeholder="Search Strata"
+        placeholder="Search Howlers"
         value={value}
         onChange={(e) => {
           setValue(e.target.value);

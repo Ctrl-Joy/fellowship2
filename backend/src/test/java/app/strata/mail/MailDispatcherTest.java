@@ -137,7 +137,7 @@ class MailDispatcherTest {
     // --- mode selection ---
 
     private static AppProperties.Mail mail(String mode, String key) {
-        return new AppProperties.Mail(mode, "no-reply@strata.example.com", "Howlers", "",
+        return new AppProperties.Mail(mode, "no-reply@howlers.example.com", "Howlers", "",
                 new AppProperties.Brevo(key, "https://api.brevo.com", false, Duration.ofSeconds(10)));
     }
 

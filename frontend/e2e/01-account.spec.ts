@@ -24,7 +24,7 @@ test.describe.serial('account journey', () => {
 
   test('1 · register a new account', async () => {
     await page.goto('/register');
-    await expect(page.getByRole('heading', { name: 'Join Strata' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Join Howlers' })).toBeVisible();
     await page.getByLabel('Username').fill(username);
     await expect(page.getByText(/available/i)).toBeVisible();
     await page.getByLabel('Email').fill(`${username}@example.test`);

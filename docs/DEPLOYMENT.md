@@ -1,6 +1,6 @@
 # Deployment
 
-How to run Strata in production on a single VPS with Docker Compose behind Caddy (automatic TLS). Everything here
+How to run Howlers in production on a single VPS with Docker Compose behind Caddy (automatic TLS). Everything here
 uses files in `deploy/`. Decisions behind it: D-023 (storage), D-025 (feed cache), D-026 (observability and guard rails).
 
 > **Verification status.** The compose files, Caddyfile, Prometheus and Grafana files were validated as YAML/JSON and
@@ -50,7 +50,7 @@ re-checks the important ones):
 
 | Variable | Meaning |
 |---|---|
-| `STRATA_DOMAIN`, `ACME_EMAIL` | public host name; email for certificate notices |
+| `HOWLERS_DOMAIN`, `ACME_EMAIL` | public host name; email for certificate notices |
 | `DATABASE_PASSWORD` (+ `DATABASE_USER`) | PostgreSQL credentials (≥ 12 chars, not a default) |
 | `REDIS_PASSWORD` | Redis `requirepass` |
 | `JWT_SECRET` | base64 of ≥ 32 random bytes; signs access tokens and download grants. Rotating it signs everyone out |
@@ -67,7 +67,7 @@ Optional:
 |---|---|---|
 | `MAIL_FROM_NAME`, `MAIL_REPLY_TO` | `Howlers`, empty | display name and reply-to address for transactional email |
 | `BREVO_REMOVE_TRACKING_PIXEL` | `false` | Brevo Enterprise only: send without the open pixel |
-| `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_EFFORT` | empty, `claude-opus-5-5`, `medium` | Community AI; without a key, answers are offline cited summaries |
+| `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_EFFORT` | empty, empty, `medium` | Community AI; without a key, answers are offline cited summaries |
 | `ELEVENLABS_API_KEY` | empty | podcast audio generation (D-036); without it the studio says generation is unavailable. Server-side only |
 | `ELEVENLABS_MODEL`, `ELEVENLABS_VOICE_A`, `ELEVENLABS_VOICE_B` | `eleven_multilingual_v2`, Sarah `EXAVITQu4vr4xnAQ5fpe`, George `JBFqnCBsd6RMkjVDRZzb` | TTS model and the premade voices for HOST A / HOST B |
 | `TTS_PROVIDER`, `TTS_DAILY_CHARACTER_BUDGET`, `TTS_MAX_CHARS_PER_EPISODE` | `auto`, `100000`, `60000` | `auto`/`elevenlabs`/`none`; characters per community per UTC day; cap per generation |
@@ -86,7 +86,7 @@ Optional:
 | `LOG_FORMAT` | `ecs` | structured log format: `ecs`, `logstash` or `gelf` |
 | `JAVA_OPTS` | `-XX:MaxRAMPercentage=70 …` | JVM flags |
 | `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_INTERVAL_SECONDS` | `./backups`, 14, 86400 | database dump schedule |
-| `STRATA_BACKEND_IMAGE`, `STRATA_WEB_IMAGE` | local build | use images built by CI instead of building on the server |
+| `HOWLERS_BACKEND_IMAGE`, `HOWLERS_WEB_IMAGE` | local build | use images built by CI instead of building on the server |
 
 ### Email with Brevo (D-038)
 The app sends two emails: email verification (link valid 24 h) and password reset (1 h). Both link to `APP_PUBLIC_URL`.
@@ -126,9 +126,9 @@ Drop the `caddy` service, publish `web` on 127.0.0.1:8088, and put a host nginx 
 ```nginx
 server {
     listen 443 ssl http2;
-    server_name strata.example.com;
-    ssl_certificate     /etc/letsencrypt/live/strata.example.com/fullchain.pem;   # certbot --nginx -d strata.example.com
-    ssl_certificate_key /etc/letsencrypt/live/strata.example.com/privkey.pem;
+    server_name howlers.example.com;
+    ssl_certificate     /etc/letsencrypt/live/howlers.example.com/fullchain.pem;   # certbot --nginx -d howlers.example.com
+    ssl_certificate_key /etc/letsencrypt/live/howlers.example.com/privkey.pem;
     add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
     client_max_body_size 600m;
     location / {
@@ -143,7 +143,7 @@ server {
         proxy_request_buffering off;
     }
 }
-server { listen 80; server_name strata.example.com; return 301 https://$host$request_uri; }
+server { listen 80; server_name howlers.example.com; return 301 https://$host$request_uri; }
 ```
 Certbot's systemd timer renews certificates; add `--deploy-hook "systemctl reload nginx"`.
 
@@ -180,7 +180,7 @@ Certbot's systemd timer renews certificates; add `--deploy-hook "systemctl reloa
   containing `executeInTransaction=false`.
 - **Upgrade steps.** Take a fresh dump (`docker compose ... exec pgbackup sh -c 'pg_dump -Fc -f /backups/pre-upgrade.dump'`),
   then `git pull && docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build backend web`.
-- **Rollback.** Redeploy the previous image tag (`STRATA_BACKEND_IMAGE=…:previous`). Because migrations are additive, the
+- **Rollback.** Redeploy the previous image tag (`HOWLERS_BACKEND_IMAGE=…:previous`). Because migrations are additive, the
   old code runs against the new schema. Flyway won't downgrade; if a migration itself was wrong, restore the
   pre-upgrade dump (accepting the data written since) or ship a forward fix.
 
@@ -219,7 +219,7 @@ WebSocket clients reconnect with backoff and refetch.
   `GET /healthz`. Readiness includes the database and storage (`StorageHealthIndicator`: bucket reachable or
   upload directory writable); Redis is left out on purpose, since rate limits and the feed cache degrade without it.
 - **Metrics.** `GET /actuator/prometheus` on the management port 8081 (internal only). Start Prometheus and Grafana with
-  `--profile monitoring`; Grafana provisions the Prometheus data source and the **Strata overview** dashboard
+  `--profile monitoring`; Grafana provisions the Prometheus data source and the **Howlers overview** dashboard
   (`deploy/grafana/dashboards/strata-overview.json`). To reach Grafana, uncomment the `grafana.` block in the Caddyfile
   (it has its own login) or use an SSH tunnel (`ssh -L 3000:localhost:3000` after publishing it on 127.0.0.1).
 - **Suggested alerts.** `up{job="strata-backend"} == 0` for 2 min; 5xx rate > 2 % for 10 min; HTTP p95 > 1 s for 15 min;

@@ -9,7 +9,7 @@ export default function RegisterPage() {
   const { search } = useLocation();
   return (
     <AuthCard
-      title="Join Strata"
+      title="Join Howlers"
       subtitle="Communities that turn conversation into knowledge."
       footer={<>Already have an account? <Link to={`/login${search}`} className="font-medium text-accent hover:underline">Log in</Link></>}
     >

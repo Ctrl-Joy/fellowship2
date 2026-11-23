@@ -3,7 +3,7 @@ package app.strata.vote;
 import java.time.Instant;
 
 /**
- * Strata's ranking maths. Documented in docs/RANKING.md — keep the two in sync.
+ * Howlers' ranking maths. Documented in docs/RANKING.md — keep the two in sync.
  *
  * <p>Design goals: reward <em>approval ratio</em> over raw volume (Wilson bound), give discussion a small,
  * logarithmic (so un-farmable) boost, and decay with age so the front page turns over.

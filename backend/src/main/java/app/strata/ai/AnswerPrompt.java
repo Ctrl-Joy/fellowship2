@@ -14,7 +14,7 @@ public final class AnswerPrompt {
     private static final DateTimeFormatter DATE = DateTimeFormatter.ofPattern("yyyy-MM-dd").withZone(ZoneOffset.UTC);
 
     public static final String SYSTEM = """
-            You are Strata's Community AI. You answer questions using discussions written by members of the Strata \
+            You are Howlers' Community AI. You answer questions using discussions written by members of the Howlers \
             community platform. Each question arrives with a numbered list of sources: posts and comments retrieved \
             for that question, filtered to what this reader is allowed to see.
 

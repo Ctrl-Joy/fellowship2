@@ -4,7 +4,7 @@ import static app.strata.insight.InsightFixtures.node;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
-import app.strata.ai.ClaudeProvider;
+import app.strata.ai.HostedLlmProvider;
 import app.strata.common.config.AppProperties;
 import app.strata.common.metrics.StrataMetrics;
 import app.strata.insight.InsightDtos.Line;
@@ -34,13 +34,20 @@ class InsightLlmLiveTest {
     private static final Instant T0 = Instant.parse("2026-11-01T09:00:00Z");
 
     private static String key() throws Exception {
+        return setting("ANTHROPIC_API_KEY");
+    }
+
+    /** Reads one setting from LIVE_ENV_FILE or backend/.env.local (the environment wins). Values are never printed. */
+    private static String setting(String name) throws Exception {
+        String fromEnv = System.getenv(name);
+        if (fromEnv != null && !fromEnv.isBlank()) return fromEnv.strip();
         String env = System.getenv("LIVE_ENV_FILE");
         for (String p : new String[]{env, ".env.local", "../../../../backend/.env.local"}) {
             if (p == null || !Files.isRegularFile(Path.of(p))) continue;
             for (String line : Files.readAllLines(Path.of(p))) {
                 String l = line.strip();
-                if (l.startsWith("ANTHROPIC_API_KEY=")) {
-                    String v = l.substring("ANTHROPIC_API_KEY=".length()).strip().replaceAll("^[\"']|[\"']$", "");
+                if (l.startsWith(name + "=")) {
+                    String v = l.substring(name.length() + 1).strip().replaceAll("^[\"']|[\"']$", "");
                     if (!v.isEmpty()) return v;
                 }
             }
@@ -75,10 +82,11 @@ class InsightLlmLiveTest {
     @Test
     void oneDigestAndOneStanceBatchAgainstTheRealModel() throws Exception {
         String key = key();
-        assumeTrue(key != null, "ANTHROPIC_API_KEY not found; set LIVE_ENV_FILE");
+        String model = setting("AI_MODEL");
+        assumeTrue(key != null && model != null, "ANTHROPIC_API_KEY and AI_MODEL not found; set LIVE_ENV_FILE");
         var props = new AppProperties(null, null, null, null, null, null, null, null,
-                new AppProperties.Ai("claude", key, "claude-opus-5-5", "medium", 16000));
-        ClaudeProvider provider = new ClaudeProvider(props, new StrataMetrics(new SimpleMeterRegistry()));
+                new AppProperties.Ai("hosted", key, model, "medium", 16000));
+        HostedLlmProvider provider = new HostedLlmProvider(props, new StrataMetrics(new SimpleMeterRegistry()));
         InsightLlm llm = new ProviderInsightLlm(provider, props);
         ObjectMapper json = new ObjectMapper();
         List<Node> nodes = thread();

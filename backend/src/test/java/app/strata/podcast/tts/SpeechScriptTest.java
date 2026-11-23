@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test;
 
 class SpeechScriptTest {
 
-    /** The shape ScriptDrafter asks Claude for, including the parts that must not be spoken. */
+    /** The shape ScriptDrafter asks the AI model for, including the parts that must not be spoken. */
     static final String SCRIPT = """
             # Rust vs Go: what c/programming actually thinks
             Members compare the two languages for backend services, and the discussion is thinner than you'd hope [2].

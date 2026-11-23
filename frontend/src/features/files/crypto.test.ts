@@ -100,7 +100,7 @@ describe('E2EE file container', () => {
 
   it('rejects data that is not a container', async () => {
     await expect(decryptFile(new Blob([new TextEncoder().encode('%PDF-1.7 hello world, not encrypted at all')]), await generateFileKey()))
-      .rejects.toThrow('not a Strata encrypted file');
+      .rejects.toThrow('not a Howlers encrypted file');
   });
 });
 

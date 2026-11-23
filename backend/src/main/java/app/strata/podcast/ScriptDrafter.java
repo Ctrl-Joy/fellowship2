@@ -3,7 +3,7 @@ package app.strata.podcast;
 import app.strata.ai.AiDtos.Intent;
 import app.strata.ai.AiDtos.Scope;
 import app.strata.ai.AiDtos.Source;
-import app.strata.ai.ClaudeProvider;
+import app.strata.ai.HostedLlmProvider;
 import app.strata.ai.QueryAnalyzer;
 import app.strata.ai.Retriever;
 import app.strata.common.error.ApiException;
@@ -29,7 +29,7 @@ import org.springframework.stereotype.Component;
 /**
  * Drafts a long-form, two-host episode script from a community's own discussions, in the background.
  *
- * <p>Pipeline: retrieve permission-filtered sources for the topic → stream a script from Claude that cites them as
+ * <p>Pipeline: retrieve permission-filtered sources for the topic → stream a script from the AI model that cites them as
  * [n] → strip any citation that doesn't map to a retrieved source → store the script as an AI draft and attach the
  * cited discussions as episode sources. A moderator must still review and publish: nothing is auto-published, and audio
  * is only synthesised when a moderator asks for it ({@code AudioGenerator}, D-036).
@@ -43,24 +43,24 @@ public class ScriptDrafter {
     static final int WORDS_PER_MINUTE = 150;
 
     private final JdbcClient jdbc;
-    private final ClaudeProvider claude;
+    private final HostedLlmProvider llm;
     private final Retriever retriever;
     private final PodcastService podcasts;
     private final RateLimiter limiter;
     private final PodcastJobs executor;
 
-    public ScriptDrafter(JdbcClient jdbc, ClaudeProvider claude, Retriever retriever, PodcastService podcasts, RateLimiter limiter,
+    public ScriptDrafter(JdbcClient jdbc, HostedLlmProvider llm, Retriever retriever, PodcastService podcasts, RateLimiter limiter,
                          PodcastJobs executor) {
         this.executor = executor;
         this.jdbc = jdbc;
-        this.claude = claude;
+        this.llm = llm;
         this.retriever = retriever;
         this.podcasts = podcasts;
         this.limiter = limiter;
     }
 
     public boolean available() {
-        return claude.available();
+        return llm.available();
     }
 
     /** A restart interrupts in-flight drafts; mark them failed so the studio doesn't wait forever. */
@@ -71,7 +71,7 @@ public class ScriptDrafter {
     }
 
     public void start(long episodeId, AuthUser user, String topic, int targetMinutes) {
-        if (!claude.available()) throw ApiException.badRequest("AI script drafting isn't configured on this server");
+        if (!llm.available()) throw ApiException.badRequest("AI script drafting isn't configured on this server");
         PodcastService.Row r = podcasts.load(episodeId);
         Community c = podcasts.requireManager(r, user);
         limiter.check("podcast:draft:" + user.id(), 5, Duration.ofDays(1));
@@ -92,7 +92,7 @@ public class ScriptDrafter {
             int words = minutes * WORDS_PER_MINUTE;
             // ~1.4 tokens per word plus headings and stage directions; capped by the model's output limit.
             long maxTokens = Math.min(64_000, Math.round(words * 1.6) + 2_000);
-            ClaudeProvider.LongText out = claude.generateLong(SYSTEM, userTurn(c.getSlug(), topic, minutes, words, sources), maxTokens);
+            HostedLlmProvider.LongText out = llm.generateLong(SYSTEM, userTurn(c.getSlug(), topic, minutes, words, sources), maxTokens);
             if (out.refused()) {
                 fail(episodeId, "The model declined to draft this topic.");
                 return;
@@ -152,7 +152,7 @@ public class ScriptDrafter {
     }
 
     static final String SYSTEM = """
-            You write scripts for Strata community podcasts: long-form audio shows that explore what members of a \
+            You write scripts for Howlers community podcasts: long-form audio shows that explore what members of a \
             community have actually discussed. You are given numbered sources (posts and comments) from one community.
 
             Rules:

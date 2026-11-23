@@ -1,6 +1,6 @@
 # End-to-end encrypted files: design and threat model
 
-Strata's Files area has an optional **Encrypt in browser** mode. This document says exactly what it protects and
+Howlers' Files area has an optional **Encrypt in browser** mode. This document says exactly what it protects and
 what it does not. The same summary is shown in the app at `/security/e2ee`, and the upload and share screens link to it.
 
 ## How it works
@@ -32,7 +32,7 @@ part of the encryption.
 After an encrypted upload the app shows a **recovery key** once. Optionally (on by default, can be turned off per
 upload), the key is remembered in this browser's `localStorage` so the owner can download and create new links from
 the same device. It is never uploaded. If the owner loses every link, the recovery key and the browser's storage, the
-file can't be decrypted by anyone, including Strata.
+file can't be decrypted by anyone, including Howlers.
 
 ## What it protects against
 - **A curious or compromised server or database at rest.** Someone with read access to our storage, database, backups

@@ -6,9 +6,9 @@ import java.util.Map;
 /**
  * The only way funding code talks to a payment processor. Two kinds exist (docs/DECISIONS.md D-022, D-034):
  * <ul>
- *   <li><b>instant</b> ({@link DemoPaymentProvider}): Strata asks for a charge and gets the result back at once;</li>
+ *   <li><b>instant</b> ({@link DemoPaymentProvider}): Howlers asks for a charge and gets the result back at once;</li>
  *   <li><b>hosted checkout</b> ({@link StripePaymentProvider}): the browser is sent to the provider's own payment page, card
- *       data never reaches Strata, and a contribution only counts once the provider confirms it (webhook or a
+ *       data never reaches Howlers, and a contribution only counts once the provider confirms it (webhook or a
  *       server-side check on return). The provider also drives recurring cycles itself.</li>
  * </ul>
  */
@@ -100,7 +100,7 @@ public interface PaymentProvider {
                            long expiresAtEpochSeconds, String idempotencyKey) {}
 
     /**
-     * What Strata needs from a provider checkout session, whether it came from an API call or a webhook.
+     * What Howlers needs from a provider checkout session, whether it came from an API call or a webhook.
      *
      * @param status         open | complete | expired
      * @param paymentStatus  paid | unpaid | no_payment_required
