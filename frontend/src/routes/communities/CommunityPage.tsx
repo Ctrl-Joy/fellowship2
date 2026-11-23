@@ -17,6 +17,7 @@ import { useCommunity } from '@/features/communities/hooks';
 import { FeedControls, SortMenu } from '@/features/posts/components/FeedControls';
 import { PostList } from '@/features/posts/components/PostList';
 import { CommunityPodcasts } from '@/features/podcasts/components/CommunityPodcasts';
+import { FundingSection } from '@/features/funding/components/FundingSection';
 import { useUiPrefs } from '@/store/uiPrefs';
 import { NewPostsPill } from '@/features/live/NewPostsPill';
 import { useNewPosts } from '@/features/live/useNewPosts';
@@ -27,7 +28,7 @@ import { PageColumns } from '@/layouts/PageColumns';
 import { ApiError } from '@/services/apiError';
 import type { CommunityDetail, CommunitySort, TimeRange } from '@/types/api';
 
-type View = 'posts' | 'about' | 'members' | 'pulse' | 'podcasts';
+type View = 'posts' | 'about' | 'members' | 'pulse' | 'podcasts' | 'funding';
 
 function Header({ c }: { c: CommunityDetail }) {
   const { isAuthed } = useAuth();
@@ -219,6 +220,7 @@ export default function CommunityPage() {
                 { value: 'posts', label: 'Posts' },
                 { value: 'pulse', label: 'Pulse' },
                 { value: 'podcasts', label: 'Podcasts' },
+                { value: 'funding', label: 'Funding' },
                 { value: 'about', label: 'About' },
                 { value: 'members', label: 'Members' },
               ]}
@@ -237,6 +239,7 @@ export default function CommunityPage() {
                 { value: 'posts', label: 'Posts' },
                 { value: 'pulse', label: 'Pulse' },
                 { value: 'podcasts', label: 'Podcasts' },
+                { value: 'funding', label: 'Funding' },
                 { value: 'members', label: 'Members' },
               ]}
             />
@@ -244,6 +247,7 @@ export default function CommunityPage() {
           {view === 'podcasts' && <CommunityPodcasts c={c} />}
           {view === 'posts' && <Posts c={c} />}
           {view === 'pulse' && <PulseSection c={c} />}
+          {view === 'funding' && <FundingSection c={c} />}
           {view === 'about' && <div className="space-y-4 px-4 sm:px-0 lg:hidden">{rail}</div>}
           {view === 'about' && <div className="hidden lg:block"><Posts c={c} /></div>}
           {view === 'members' && (
