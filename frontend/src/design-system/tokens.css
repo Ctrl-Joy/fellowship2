@@ -1,5 +1,9 @@
 /* Howlers design tokens. Values are RGB triplets so Tailwind can apply alpha. See docs/DESIGN_SYSTEM.md */
 :root {
+  /* Logo gradient (top → bottom). Light theme: deeper tones so the wolf stays clear on white (all stops >= 4.5:1). */
+  --logo-1: #6a1bb0;
+  --logo-2: #3a48c9;
+  --logo-3: #0b7896;
   --bg: 255 255 255;
   --surface: 255 255 255;
   --surface-2: 234 237 239;
@@ -20,6 +24,10 @@
   color-scheme: light;
 }
 .dark {
+  /* Logo gradient for dark backgrounds: the bright purple → cyan original. */
+  --logo-1: #8e2fd0;
+  --logo-2: #5a6be6;
+  --logo-3: #36dcf4;
   --bg: 11 14 16;
   --surface: 11 14 16;
   --surface-2: 26 31 35;

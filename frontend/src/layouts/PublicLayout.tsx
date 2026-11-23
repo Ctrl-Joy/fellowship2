@@ -1,6 +1,6 @@
 import { Link, Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { buttonClasses } from '@/components/ui/Button';
-import { HOWLERS, HowlersMark } from '@/design-system/HowlersMark';
+import { HOWLERS, HowlersEmblem, HowlersMark } from '@/design-system/HowlersMark';
 import { useAuth } from '@/features/auth/hooks';
 import { cn } from '@/utils/format';
 import { ThemeToggle } from './ThemeToggle';
@@ -71,9 +71,12 @@ export function PublicFooter({ landing = false }: { landing?: boolean }) {
   return (
     <footer className={cn('border-t', landing ? 'border-white/10 bg-[#07061a]' : 'border-border')}>
       <div className={cn('mx-auto grid gap-10 px-4 py-12 text-sm md:px-6 lg:grid-cols-[1.3fr_2fr]', landing ? 'max-w-[1200px]' : 'max-w-6xl')}>
-        <div className="max-w-xs">
-          <HowlersMark withName />
-          <p className="mt-3 text-muted">{HOWLERS.tagline}.</p>
+        <div className="flex max-w-xs items-center gap-4">
+          <HowlersEmblem size={72} />
+          <div>
+            <span className="font-display text-[17px] font-extrabold uppercase tracking-tight text-text">{HOWLERS.name}</span>
+            <p className="mt-1.5 text-muted">{HOWLERS.tagline}.</p>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-8 sm:grid-cols-4">
           <nav aria-label="Product" className={col}>

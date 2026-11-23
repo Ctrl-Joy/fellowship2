@@ -103,3 +103,12 @@ It is the one place where the "no gradients behind content" and "page titles ≤
   `prefers-reduced-motion`, with all content visible and static.
 - **Brand.** The public header and footer use `HowlersMark` (`design-system/HowlersMark.tsx`) and the tagline
   "Find your pack & howl together". `brand.ts` is renamed separately.
+
+## Logo (Howlers)
+- **Mark:** an original front-facing tribal wolf head built from sharp shards (`design-system/HowlersMark.tsx`), drawn as a
+  left half plus its mirror image so it stays exactly symmetric. `HowlersMark` is the mark with an optional wordmark (header,
+  sidebar, sign-in card, error page via `BrandMark`); `HowlersEmblem` adds "HOWLERS" lettered below (footer).
+- **Colour:** a vertical gradient from the `--logo-1/2/3` tokens. Dark theme keeps the bright purple → blue → cyan
+  (`#8e2fd0`, `#5a6be6`, `#36dcf4`); light theme uses deeper tones (`#6a1bb0`, `#3a48c9`, `#0b7896`, each at least 4.6:1
+  on light surfaces) because the bright cyan drops to 1.7:1 on white.
+- **Favicon:** `public/favicon.svg`, the same wolf on a dark rounded tile so it reads on light and dark browser tabs.
