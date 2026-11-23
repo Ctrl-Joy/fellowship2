@@ -55,9 +55,12 @@ public class PulseService {
     private final UserDirectory users;
     private final NotificationService notifications;
     private final RateLimiter limiter;
+    private final app.strata.realtime.RealtimePublisher realtime;
 
     public PulseService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, UserDirectory users,
-                        NotificationService notifications, RateLimiter limiter) {
+                        NotificationService notifications, RateLimiter limiter,
+                        app.strata.realtime.RealtimePublisher realtime) {
+        this.realtime = realtime;
         this.jdbc = jdbc;
         this.communities = communities;
         this.access = access;
@@ -190,6 +193,8 @@ public class PulseService {
                             ON CONFLICT (pulse_id, user_id) DO UPDATE SET text = EXCLUDED.text, created_at = now()""")
                     .params(id, user.id(), reasoning.strip()).update();
         }
+        int total = jdbc.sql("SELECT total_voters FROM pulses WHERE id = ?").param(id).query(Integer.class).single();
+        realtime.pulseChanged(id, total);
         return get(id, user);
     }
 

@@ -79,8 +79,8 @@ comments so they can review appeals; everyone else sees `[removed]`.
 **D-015 Community Pulse has no stakes, and results show only after you vote.** Pulses are created by moderators. Status is
 derived on read (closes_at / closed early / resolved), so no scheduler is needed. Tallies stay hidden until you vote or the
 pulse closes, so early results don't anchor later voters. Votes reuse the same advisory-lock and relative-counter pattern as
-post votes. Predictions record accuracy only, never money or points (per the brief). Live results refetch every 15 s; a
-WebSocket push is deferred until messaging adds STOMP.
+post votes. Predictions record accuracy only, never money or points (per the brief). Live results arrive as a WebSocket
+nudge (D-017), with a 15 s poll only while the socket is down.
 
 **D-016 Podcasts are upload-first, with AI writing scripts and never audio.** Following the brief's "do not fake generated media":
 - **Media.** An episode needs real uploaded audio or video. Uploads are validated by magic bytes and streamed to storage
@@ -98,3 +98,21 @@ WebSocket push is deferred until messaging adds STOMP.
 - **Listening state.** One row per user and episode holds resume position, completion and history. Play count increments on a
   user's first play only. The player is a single app-wide `<audio>` element, so listening continues across navigation.
 - **Known limit.** Media URLs are unguessable but not access-controlled, the same as images. Private file access arrives with Phase 7.
+
+**D-017 Real-time is a thin STOMP layer over REST, on a single node for now.** Direct messages and live updates use STOMP over
+a plain WebSocket at `/ws` with Spring's in-memory simple broker.
+- **REST stays the source of truth.** Events are small nudges (`{type, payload}`) that patch or invalidate client caches.
+  A client that misses events while reconnecting simply refetches, so there is no replay log to keep consistent.
+- **Auth at the STOMP layer.** Browsers can't set headers on the WebSocket handshake, so the access token travels in the
+  CONNECT frame and is verified there. The handshake itself is open but origin-checked against the CORS allow-list. Every
+  SUBSCRIBE is checked: your own user queue, pulses you can view, mod queues you moderate. Clients may only SEND to `/app/**`.
+- **After commit.** `RealtimePublisher` defers sends until the transaction commits, so no one is told about data they
+  can't read yet, and rolled-back changes are never announced.
+- **Privacy.** Pulse events carry only the voter count (tallies stay hidden until you vote). Presence is pushed only to people
+  you share a conversation with. Typing is forwarded only between participants who may still message each other.
+- **DM rules.** Conversations are keyed by the sorted user-id pair, so get-or-create is idempotent and race-free. Blocks
+  (either direction) always win. `dmPolicy` (EVERYONE / FOLLOWING / NOBODY) governs who may write first, and you can always
+  reply to someone who wrote to you. Messages are plain text, never HTML. They are not end-to-end encrypted and the UI doesn't claim so.
+- **Scaling path.** The broker and presence counts are per instance. Running several backend nodes means switching
+  `enableSimpleBroker` to `enableStompBrokerRelay` (RabbitMQ STOMP plugin) and moving presence counts to Redis. Both are
+  local changes in `WebSocketConfig` and `PresenceTracker`.

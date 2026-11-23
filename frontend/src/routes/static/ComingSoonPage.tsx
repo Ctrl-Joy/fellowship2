@@ -21,11 +21,6 @@ const FEATURES: Record<string, { title: string; phase: string; body: string }> =
     phase: 'Phase 6',
     body: 'Long-form audio and video episodes built from community discussions, with chapters, transcripts and links to every cited source.',
   },
-  messages: {
-    title: 'Messages',
-    phase: 'Later phase',
-    body: 'Real-time one-to-one conversations with read receipts and blocking. We won’t describe it as end-to-end encrypted unless it actually is.',
-  },
   funding: {
     title: 'Moderator support',
     phase: 'Phase 8',

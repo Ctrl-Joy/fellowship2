@@ -1,16 +1,19 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { qk } from '@/services/queryKeys';
+import { useRealtimeStore } from '@/services/realtime';
 import { useAuthStore } from '@/store/authStore';
 import type { AppNotification, CursorPage } from '@/types/api';
 import { notificationsApi } from './api';
 
 export function useUnreadCount() {
   const authed = useAuthStore((s) => s.status === 'authenticated');
+  // NOTIFICATION frames update the count instantly; poll slowly only while the socket is down.
+  const live = useRealtimeStore((s) => s.status === 'connected');
   return useQuery({
     queryKey: qk.unreadCount,
     queryFn: notificationsApi.unreadCount,
     enabled: authed,
-    refetchInterval: 30_000,
+    refetchInterval: live ? false : 60_000,
     refetchIntervalInBackground: false,
   });
 }

@@ -29,9 +29,12 @@ public class UserService {
     private final PasswordEncoder encoder;
     private final JdbcClient jdbc;
     private final NotificationService notifications;
+    private final app.strata.messaging.DmAccess dmAccess;
 
     public UserService(UserRepository users, MembershipDao memberships, CommunityRepository communities, MediaService media,
-                       PasswordEncoder encoder, JdbcClient jdbc, NotificationService notifications) {
+                       PasswordEncoder encoder, JdbcClient jdbc, NotificationService notifications,
+                       app.strata.messaging.DmAccess dmAccess) {
+        this.dmAccess = dmAccess;
         this.users = users;
         this.memberships = memberships;
         this.communities = communities;
@@ -66,6 +69,7 @@ public class UserService {
         if (req.profilePublic() != null) u.setProfilePublic(req.profilePublic());
         if (req.showCommunities() != null) u.setShowCommunities(req.showCommunities());
         if (req.emailNotifications() != null) u.setEmailNotifications(req.emailNotifications());
+        if (req.dmPolicy() != null) u.setDmPolicy(req.dmPolicy());
         return UserMapper.toMe(u);
     }
 
@@ -143,7 +147,8 @@ public class UserService {
                 .map(CommunityMapper::ref).toList();
         return new PublicProfile(u.getId(), u.getUsername(), u.getDisplayName(), u.getAvatarUrl(), u.getBannerUrl(),
                 isPrivate ? null : u.getBio(), u.getCreatedAt(), u.getPostKarma(), u.getCommentKarma(), u.getFollowerCount(),
-                u.getFollowingCount(), following, self, isPrivate, blocked, joined, moderated);
+                u.getFollowingCount(), following, self, isPrivate, blocked,
+                viewer != null && !self && dmAccess.cannotMessageReason(viewer.id(), u.getId()) == null, joined, moderated);
     }
 
     public User requireByUsername(String username) {

@@ -3,6 +3,7 @@ import { MotionConfig } from 'framer-motion';
 import { useEffect, useState, type ReactNode } from 'react';
 import { TooltipProvider } from '@/components/ui/Tooltip';
 import { Toaster } from '@/components/ui/Toast';
+import { RealtimeProvider } from '@/features/realtime/RealtimeProvider';
 import { ApiError } from '@/services/apiError';
 import { refreshSession } from '@/services/apiClient';
 import { useAuthStore } from '@/store/authStore';
@@ -43,7 +44,9 @@ export function Providers({ children }: { children: ReactNode }) {
     <QueryClientProvider client={client}>
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
-          <SessionBoot>{children}</SessionBoot>
+          <SessionBoot>
+            <RealtimeProvider>{children}</RealtimeProvider>
+          </SessionBoot>
           <Toaster />
         </TooltipProvider>
       </MotionConfig>

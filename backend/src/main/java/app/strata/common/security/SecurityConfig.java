@@ -52,6 +52,8 @@ public class SecurityConfig {
                 .authorizeHttpRequests(a -> a
                         .requestMatchers("/actuator/health/**", "/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
+                        // WebSocket handshake; the STOMP CONNECT frame carries and checks the access token.
+                        .requestMatchers("/ws", "/ws/**").permitAll()
                         .requestMatchers(HttpMethod.GET, AUTHENTICATED_GETS).authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/resend-verification").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/sessions/**").authenticated()

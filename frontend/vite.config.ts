@@ -13,6 +13,7 @@ export default defineConfig({
     proxy: {
       '/api': { target: backend, changeOrigin: true },
       '/swagger-ui': { target: backend, changeOrigin: true },
+      '/ws': { target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: true },
     },
   },
   build: {

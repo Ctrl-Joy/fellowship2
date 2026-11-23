@@ -48,6 +48,8 @@ public class User {
     private boolean profilePublic = true;
     private boolean showCommunities = true;
     private boolean emailNotifications = true;
+    @Column(name = "dm_policy", nullable = false, length = 10)
+    private String dmPolicy = "EVERYONE";
 
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -110,6 +112,8 @@ public class User {
     public void setShowCommunities(boolean showCommunities) { this.showCommunities = showCommunities; }
     public boolean isEmailNotifications() { return emailNotifications; }
     public void setEmailNotifications(boolean emailNotifications) { this.emailNotifications = emailNotifications; }
+    public String getDmPolicy() { return dmPolicy; }
+    public void setDmPolicy(String dmPolicy) { this.dmPolicy = dmPolicy; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getDeletedAt() { return deletedAt; }
     public void setDeletedAt(Instant deletedAt) { this.deletedAt = deletedAt; }

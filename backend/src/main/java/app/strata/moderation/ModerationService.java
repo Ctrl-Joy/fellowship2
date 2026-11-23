@@ -66,10 +66,12 @@ public class ModerationService {
     private final UserDirectory directory;
     private final NotificationService notifications;
     private final RateLimiter limiter;
+    private final app.strata.realtime.RealtimePublisher realtime;
 
     public ModerationService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, MembershipDao memberships,
                              PostService posts, UserRepository users, UserDirectory directory, NotificationService notifications,
-                             RateLimiter limiter) {
+                             RateLimiter limiter, app.strata.realtime.RealtimePublisher realtime) {
+        this.realtime = realtime;
         this.jdbc = jdbc;
         this.communities = communities;
         this.access = access;
@@ -109,6 +111,7 @@ public class ModerationService {
         } catch (DuplicateKeyException e) {
             throw ApiException.conflict(null, "You already reported this");
         }
+        realtime.modQueueChanged(ctx.community().getId());
     }
 
     @Transactional(readOnly = true)
@@ -177,6 +180,7 @@ public class ModerationService {
         access.requireModerator(ctx.community(), user);
         if (ctx.post().getDeletedAt() != null) throw ApiException.notFound("Post");
         long communityId = ctx.community().getId();
+        realtime.modQueueChanged(communityId);
         Long author = ctx.post().getAuthorId();
         switch (action) {
             case REMOVE_POST -> {
@@ -221,6 +225,7 @@ public class ModerationService {
         PostContext ctx = posts.context(c.postId(), user);
         access.requireModerator(ctx.community(), user);
         long communityId = ctx.community().getId();
+        realtime.modQueueChanged(communityId);
         if (action == Action.REMOVE_COMMENT) {
             jdbc.sql("UPDATE comments SET removed = TRUE WHERE id = ?").param(commentId).update();
             long id = log(communityId, user, action, c.authorId(), c.postId(), commentId, reason, null);

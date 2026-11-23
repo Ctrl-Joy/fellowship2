@@ -1,5 +1,6 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { http } from '@/services/apiClient';
+import { useRealtimeStore } from '@/services/realtime';
 import type { CursorPage } from '@/types/api';
 import type { CreatePulseBody, Pulse, PulseReason } from '@/types/moderation';
 
@@ -26,9 +27,11 @@ export const pulseKeys = {
   reasons: (id: number) => ['pulses', 'reasons', id] as const,
 };
 
-/** Open pulses refresh every 15 s so results feel live without a socket. */
-export const useActivePulses = (slug: string, enabled = true) =>
-  useQuery({ queryKey: pulseKeys.active(slug), queryFn: () => pulseApi.active(slug), enabled: enabled && !!slug, refetchInterval: 15_000 });
+/** Open pulses are pushed over `/topic/pulse.{id}` (see PulseCard); they poll every 15 s only while the socket is down. */
+export function useActivePulses(slug: string, enabled = true) {
+  const live = useRealtimeStore((s) => s.status === 'connected');
+  return useQuery({ queryKey: pulseKeys.active(slug), queryFn: () => pulseApi.active(slug), enabled: enabled && !!slug, refetchInterval: live ? false : 15_000 });
+}
 
 export const useMyActivePulses = () => useQuery({ queryKey: pulseKeys.mine, queryFn: () => pulseApi.mineActive(5), refetchInterval: 60_000 });
 

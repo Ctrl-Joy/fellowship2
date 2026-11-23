@@ -8,6 +8,7 @@ import { Segmented } from '@/components/ui/Tabs';
 import { toast } from '@/components/ui/Toast';
 import { useAuth } from '@/features/auth/hooks';
 import { Markdown } from '@/features/comments/components/Markdown';
+import { MessageButton } from '@/features/messages/components/MessageButton';
 import { PostList } from '@/features/posts/components/PostList';
 import { useFollow, useProfile, useUserComments, useUserPosts } from '@/features/users/hooks';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -39,6 +40,7 @@ function Header({ p }: { p: PublicProfile }) {
         ) : isAuthed ? (
           <div className="flex items-center gap-2">
           <BlockButton username={p.username} isBlocked={!!p.isBlocked} />
+          {p.canMessage && <MessageButton username={p.username} />}
           <Button
             size="sm"
             variant={p.isFollowing ? 'outline' : 'primary'}

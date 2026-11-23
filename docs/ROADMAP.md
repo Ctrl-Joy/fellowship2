@@ -21,7 +21,7 @@ block/mute, mod queue, remove/approve/lock/pin, bans and timed suspensions, appe
 communities, flags, audit log), spam heuristics (link velocity, duplicate content), topic reputation v1
 (vote events × topic, quality-weighted, anti-farming caps). Moderator UI in community settings.
 
-## Phase 4: Knowledge ✅ (Collections, Context Mode, Digest, Community Pulse; live results poll every 15 s rather than WebSocket)
+## Phase 4: Knowledge ✅ (Collections, Context Mode, Digest, Community Pulse with live updates over WebSocket)
 Smart Collections (collections, items for posts/comments, notes, tags, ordering, sharing), Context Mode
 (stance labels on comments, argument map built from labels + votes, user-correctable AI suggestions),
 Thread Digest (cached, versioned by thread change, every claim links to a source comment), Community Pulse
@@ -37,6 +37,11 @@ ids, conversations, feedback.
 S3/MinIO storage driver and presigned uploads, podcast shows/episodes/chapters/transcripts/sources, audio and
 video player (speed, chapters, resume, queue), discovery. Upload-first publishing; AI script/TTS generation only
 when providers are configured, otherwise marked unavailable.
+
+## Messages & real-time ✅ (cross-cutting)
+One-to-one direct messages (text + images, read receipts, typing, presence, soft delete, search, `dmPolicy`, block
+enforcement) and a STOMP-over-WebSocket channel that also pushes notification badges, Pulse updates and mod-queue changes.
+Single-node broker and presence; see D-017 for the multi-node path. Group chats are not planned yet.
 
 ## Phase 7: Files & privacy ☐
 Private file assets, share links (expiry, password, revocation, access log), validation and scanning hook.

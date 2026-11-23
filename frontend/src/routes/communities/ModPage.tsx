@@ -4,7 +4,9 @@ import { buttonClasses } from '@/components/ui/Button';
 import { Avatar, Skeleton } from '@/components/ui/Display';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { useCommunity } from '@/features/communities/hooks';
-import { useModStats } from '@/features/moderation/api';
+import { useQueryClient } from '@tanstack/react-query';
+import { modKeys, useModStats } from '@/features/moderation/api';
+import { useTopic } from '@/features/realtime/RealtimeProvider';
 import { AppealsTab, BansTab, LogTab } from '@/features/moderation/components/DashboardTabs';
 import { QueueTab } from '@/features/moderation/components/QueueTab';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -30,6 +32,13 @@ export default function ModPage() {
   const community = useCommunity(slug);
   const stats = useModStats(slug);
   useDocumentTitle(`Mod tools · c/${slug}`);
+  const qc = useQueryClient();
+  // Only moderators may subscribe; wait until the community says so (an unauthorized SUBSCRIBE is rejected).
+  const modCommunityId = community.data?.viewer.canModerate ? community.data.id : null;
+  useTopic(modCommunityId != null ? `/topic/modqueue.${modCommunityId}` : null, () => {
+    void qc.invalidateQueries({ queryKey: modKeys.queue(slug) });
+    void qc.invalidateQueries({ queryKey: modKeys.stats(slug) });
+  });
 
   const forbidden = stats.error instanceof ApiError && stats.error.status === 403;
   if (forbidden || (community.data && !community.data.viewer.canModerate)) {

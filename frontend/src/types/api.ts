@@ -174,6 +174,8 @@ export interface UserSettings {
   profilePublic: boolean;
   showCommunities: boolean;
   emailNotifications: boolean;
+  /** Who may start a direct conversation with you. */
+  dmPolicy?: 'EVERYONE' | 'FOLLOWING' | 'NOBODY';
 }
 export interface Me {
   id: ID;
@@ -206,6 +208,8 @@ export interface PublicProfile {
   isFollowing: boolean;
   isSelf: boolean;
   isBlocked?: boolean;
+  /** Whether the viewer may send this person a direct message. */
+  canMessage?: boolean;
   communities: CommunityRef[];
   moderatorOf: CommunityRef[];
 }

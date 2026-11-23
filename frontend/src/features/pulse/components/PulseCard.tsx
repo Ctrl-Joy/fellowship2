@@ -1,4 +1,5 @@
 import { BarChart3, Check, ChevronDown, Clock, MoreHorizontal, Trophy, Users } from 'lucide-react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Bar, BarChart, Cell, LabelList, ResponsiveContainer, XAxis, YAxis } from 'recharts';
@@ -8,10 +9,11 @@ import { Textarea } from '@/components/ui/Field';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/Menu';
 import { toast } from '@/components/ui/Toast';
 import { useAuth } from '@/features/auth/hooks';
+import { useTopic } from '@/features/realtime/RealtimeProvider';
 import { errorMessage } from '@/services/apiError';
 import type { Pulse } from '@/types/moderation';
 import { cn, pluralize, timeAgo } from '@/utils/format';
-import { pulseApi, usePulseMutation, usePulseReasons } from '../api';
+import { pulseApi, pulseKeys, usePulseMutation, usePulseReasons } from '../api';
 import { pulseResults, pulseStatusLabel, TYPE_LABELS } from '../helpers';
 
 function Results({ p }: { p: Pulse }) {
@@ -84,8 +86,11 @@ export function PulseCard({ p, compact }: { p: Pulse; compact?: boolean }) {
   const close = usePulseMutation(() => pulseApi.close(p.id));
   const resolve = usePulseMutation((optionId: number) => pulseApi.resolve(p.id, optionId));
   const remove = usePulseMutation(() => pulseApi.remove(p.id));
+  const qc = useQueryClient();
 
   const open = p.status === 'OPEN' && new Date(p.closesAt).getTime() > Date.now();
+  // Live updates: the frame carries no tallies (hidden results stay hidden), so just refetch.
+  useTopic(open ? `/topic/pulse.${p.id}` : null, () => void qc.invalidateQueries({ queryKey: pulseKeys.all }));
   const voted = p.myOptionIds.length > 0;
   const showForm = open && p.viewer.canVote && (!voted || changing);
   const canSeeResults = p.resultsVisible && !showForm;

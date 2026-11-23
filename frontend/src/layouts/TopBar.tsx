@@ -4,6 +4,7 @@ import { buttonClasses, IconButton } from '@/components/ui/Button';
 import { BrandMark } from '@/design-system/BrandMark';
 import { brand } from '@/design-system/brand';
 import { useAuth } from '@/features/auth/hooks';
+import { MessagesLink } from '@/features/messages/components/MessagesLink';
 import { NotificationBell } from '@/features/notifications/components/NotificationBell';
 import { SearchBox } from '@/features/search/components/SearchBox';
 import { ThemeToggle } from './ThemeToggle';
@@ -33,6 +34,7 @@ export function TopBar({ onOpenDrawer, onOpenSearch }: { onOpenDrawer: () => voi
               <Link to="/submit" className={buttonClasses('ghost', 'sm', 'hidden h-10 px-3 text-text sm:inline-flex')}>
                 <Plus size={20} /> Create
               </Link>
+              <MessagesLink />
               <NotificationBell />
               <UserMenu />
             </>

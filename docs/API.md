@@ -341,3 +341,54 @@ Capabilities { aiScriptDrafting: boolean, audioGeneration: false, videoGeneratio
 
 Media files are served from `/api/v1/files/**` with HTTP Range support (seeking). Their URLs are unguessable, but they are
 not access-controlled, so episodes in private communities have the same limit as images (see DECISIONS).
+
+## Direct messages (one-to-one)
+All endpoints require sign-in. You can't message someone you've blocked, or who has blocked you, and the recipient's
+`dmPolicy` setting applies: `EVERYONE` (default), `FOLLOWING` (only people they follow) or `NOBODY`.
+
+```ts
+DmMessage { id, conversationId, senderId, body: string /* plain text, ≤4000; "" when deleted */,
+            media: { id, url, width|null, height|null }[], createdAt, deleted: boolean }
+ConversationSummary { id, other: UserSummary|null /* null if their account was deleted */,
+            lastMessage: { id, senderId, excerpt, createdAt, deleted } | null,
+            unreadCount, otherLastReadMessageId: number|null /* for "Seen" receipts */,
+            online: boolean, canMessage: boolean, cannotMessageReason: string|null, updatedAt }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/me/conversations?q=` | your conversations, most recent first. `q` matches the other username/display name or message text |
+| POST | `/me/conversations` | `{username}` → `ConversationSummary` (get-or-create). 403 when blocked or not allowed by their `dmPolicy`; 400 for yourself |
+| GET | `/me/conversations/{id}` | `ConversationSummary` |
+| GET | `/me/conversations/{id}/messages?before=<messageId>&limit=30` | `{items: DmMessage[] /* oldest → newest */, hasMore}` |
+| POST | `/me/conversations/{id}/messages` | `{body?, mediaIds?: number[] (≤4, your own uploads from POST /media)}` → `DmMessage`. Needs body or media. 60/min |
+| POST | `/me/conversations/{id}/read` | `{messageId}` → 204 (marks everything up to it read; sends a READ receipt) |
+| DELETE | `/me/messages/{id}` | your own message → 204 (soft delete, shown as "Message deleted") |
+| GET | `/me/messages/unread-count` | `{count}` = unread messages across conversations |
+
+`Me.settings` gains `dmPolicy`; `PATCH /users/me/settings` accepts `{dmPolicy}`. `PublicProfile` gains `canMessage: boolean`.
+
+## Real-time (WebSocket + STOMP)
+Endpoint: `ws(s)://<host>/ws` (plain WebSocket, STOMP 1.2). Send the access token in the CONNECT frame:
+`Authorization: Bearer <accessToken>`. Invalid or expired tokens are rejected, so reconnect with a fresh token after refresh.
+REST stays the source of truth. Events tell the client what changed, and the client updates its cache or refetches.
+
+**Personal events**: subscribe to `/user/queue/events`. Every frame is `{ type, payload }`:
+| type | payload |
+|---|---|
+| `MESSAGE` | `DmMessage` (also echoed to your own other tabs) |
+| `MESSAGE_DELETED` | `{conversationId, messageId}` |
+| `READ` | `{conversationId, userId, messageId}` |
+| `TYPING` | `{conversationId, userId}` (the UI shows "typing…" for ~5 s after the last one) |
+| `PRESENCE` | `{userId, online}` (only for people you have a conversation with) |
+| `NOTIFICATION` | `{unreadCount}` (refetch the inbox) |
+| `UNREAD_MESSAGES` | `{count}` |
+
+**Send typing**: `SEND /app/typing` with body `{conversationId}` (rate-limited and ignored unless you're a participant).
+
+**Topics** (each SUBSCRIBE is permission-checked, and unauthorized ones are rejected with an ERROR frame):
+| destination | who may subscribe | frame body |
+|---|---|---|
+| `/topic/pulse.{pulseId}` | anyone who can view the pulse | `{pulseId, totalVoters}` (refetch the pulse; tallies aren't pushed so hidden results stay hidden) |
+| `/topic/modqueue.{communityId}` | that community's moderators | `{communityId}` (refetch queue/stats) |
+
+Presence and the simple broker are per-instance (single-node deployment). See DECISIONS for the multi-node path.

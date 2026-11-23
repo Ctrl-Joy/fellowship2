@@ -12,7 +12,7 @@ public final class UserMapper {
                 u.getBio(), u.isEmailVerified(), u.isOnboardingCompleted(), u.getRole(), u.getPostKarma(),
                 u.getCommentKarma(), u.getCreatedAt(),
                 new Settings(u.getTheme(), u.isShowNsfw(), u.isProfilePublic(), u.isShowCommunities(),
-                        u.isEmailNotifications()));
+                        u.isEmailNotifications(), u.getDmPolicy()));
     }
 
     /** Deleted accounts are rendered as null authors by callers; this maps live accounts only. */

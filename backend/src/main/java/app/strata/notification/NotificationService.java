@@ -15,15 +15,17 @@ import org.springframework.transaction.annotation.Transactional;
 /**
  * In-app notifications. Similar unread events share a {@code group_key} and bump a counter instead of
  * adding rows ("3 new replies on …"), which keeps busy threads from flooding the inbox.
- * Delivery is pull-based (unread-count polling) in this phase; WebSocket push arrives with messaging.
+ * Delivery: the inbox is pulled over REST; a NOTIFICATION event over WebSocket tells open clients to refetch.
  */
 @Service
 public class NotificationService {
     private final JdbcClient jdbc;
     private final UserDirectory userDirectory;
+    private final app.strata.realtime.RealtimePublisher realtime;
 
-    public NotificationService(JdbcClient jdbc, UserDirectory userDirectory) {
+    public NotificationService(JdbcClient jdbc, UserDirectory userDirectory, app.strata.realtime.RealtimePublisher realtime) {
         this.jdbc = jdbc;
+        this.realtime = realtime;
         this.userDirectory = userDirectory;
     }
 
@@ -96,6 +98,7 @@ public class NotificationService {
         if (groupKey == null) {
             jdbc.sql("INSERT INTO notifications (user_id, type, actor_id, message, link) VALUES (?, ?, ?, ?, ?)")
                     .params(recipientId, type, actorId, message, link).update();
+            announce(recipientId);
             return;
         }
         jdbc.sql("""
@@ -105,6 +108,12 @@ public class NotificationService {
                 DO UPDATE SET count = notifications.count + 1, created_at = now(),
                               actor_id = EXCLUDED.actor_id, message = EXCLUDED.message, link = EXCLUDED.link""")
                 .params(recipientId, type, actorId, groupKey, message, link).update();
+        announce(recipientId);
+    }
+
+    /** Live badge update; sent after commit, and harmless when the user has no open socket. */
+    private void announce(long recipientId) {
+        realtime.toUser(recipientId, "NOTIFICATION", java.util.Map.of("unreadCount", unreadCount(recipientId)));
     }
 
     private static String clip(String s) {

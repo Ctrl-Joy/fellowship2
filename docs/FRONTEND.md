@@ -57,8 +57,8 @@ src/
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
 
 ## Not built yet (shown honestly)
-AI Assistant, Collections, Podcasts, Messages, Moderator funding and Leaderboard appear under “Coming next” in the nav and
-all route to one `/soon/:feature` page that collects no data. Reporting/moderation actions, Context Mode and Digest have no UI yet.
+Moderator funding and Leaderboard appear under “Coming next” in the nav and route to one `/soon/:feature` page that collects
+no data. Everything else listed in the nav (AI, Collections, Podcasts, Messages, moderation, Context Mode, Digest) is built.
 
 ## Notes
 - Post bodies are authored as HTML in TipTap and rendered from the server's sanitized `bodyHtml`. Comments are markdown rendered
@@ -98,3 +98,28 @@ playing across navigation. Video plays inline on the episode page only.
 - **Media Session:** metadata and handlers provide lock-screen and headset controls.
 - **Resume:** playback starts from the server position, falling back to the position saved on this device; finished
   episodes restart from the beginning.
+
+## Messages & real-time
+- **Connection** (`services/realtime.ts`, `features/realtime/RealtimeProvider.tsx`): `@stomp/stompjs` 7.5.0 over a plain
+  WebSocket at `ws(s)://<host>/ws` (Vite proxies `/ws` with `ws: true`; nginx upgrades it with a 1 h read timeout). It connects
+  only while signed in, sends `Authorization: Bearer` in CONNECT (read fresh in `beforeConnect`), refreshes the token after a
+  rejected CONNECT, and backs off exponentially from 1 s to 30 s. It reconnects when the signed-in user changes and disconnects on
+  logout. A same-user token refresh keeps the open socket, because the server authenticates at CONNECT.
+- **Events** on `/user/queue/events` update React Query caches: MESSAGE / MESSAGE_DELETED patch the thread pages; READ moves
+  the "Seen" marker (or clears my unread count from another tab); TYPING feeds a zustand store with a 5 s expiry; PRESENCE flips
+  online dots; NOTIFICATION / UNREAD_MESSAGES set the badge counts. Polling (notifications 60 s, DM unread 60 s, threads 15 s,
+  pulses 15 s) runs **only while the socket is down**.
+- **Hooks**: `useRealtimeStatus()` and `useTopic(destination | null, cb)` (subscriptions survive reconnects). PulseCard subscribes
+  to `/topic/pulse.{id}` while the pulse is open; the mod dashboard subscribes to `/topic/modqueue.{communityId}` only once the
+  community confirms that you're a moderator, because an unauthorized SUBSCRIBE is rejected.
+- **UI**: `/messages` and `/messages/:id` show two panes on desktop and one at a time on mobile. The list has online dots, an
+  excerpt, time, an unread badge, debounced `?q=` search and a New message dialog with username autocomplete. The thread groups
+  messages by day and by sender in 5-minute runs, puts my messages on the right in the brand colour, shows "Seen" under the newest
+  message they've read, a typing indicator, and "Message deleted". Older messages load when you scroll to the top, and the scroll
+  position is kept. Sends are optimistic, with Retry/Discard on failure; images upload through `POST /media` (≤4). The composer
+  grows as you type, Enter sends and Shift+Enter adds a line. TYPING goes out at most once per 2 s. When `canMessage` is false,
+  the composer is replaced by `cannotMessageReason`. The thread is marked read while it's visible.
+- **Entry points**: a top-bar icon with the unread count; Messages in the left nav (`/soon/messages` redirects); a Message
+  button on profiles when `canMessage`; Settings → Preferences → "Who can message you" (`dmPolicy`).
+- Pure logic lives in `features/messages/helpers.ts` (grouping, appendMessage/applyDelete/applyRead, page helpers,
+  `seenMessageId`, throttle) and `features/realtime/typingStore.ts`, all covered by `helpers.test.ts`.
