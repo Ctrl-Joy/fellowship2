@@ -42,6 +42,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PostService {
+    private final app.strata.common.metrics.StrataMetrics metrics;
     private final PostRepository posts;
     private final PostQueryService queries;
     private final CommunityRepository communities;
@@ -59,7 +60,9 @@ public class PostService {
     public PostService(PostRepository posts, PostQueryService queries, CommunityRepository communities,
                        CommunityAccess access, MediaAssetRepository mediaAssets, HtmlSanitizer sanitizer,
                        JdbcClient jdbc, RateLimiter limiter, NotificationService notifications, UserRepository users,
-                       app.strata.realtime.RealtimePublisher realtime, SpamGuard spam, SpamFlags spamFlags) {
+                       app.strata.realtime.RealtimePublisher realtime, SpamGuard spam, SpamFlags spamFlags,
+                       app.strata.common.metrics.StrataMetrics metrics) {
+        this.metrics = metrics;
         this.realtime = realtime;
         this.spam = spam;
         this.spamFlags = spamFlags;
@@ -129,6 +132,9 @@ public class PostService {
             List<Long> ids = List.copyOf(new LinkedHashSet<>(req.mediaIds()));
             media = mediaAssets.findByIdInAndOwnerId(ids, user.id());
             if (media.size() != ids.size()) throw ApiException.field("mediaIds", "Unknown image upload");
+            if (media.stream().anyMatch(MediaAsset::isPrivate)) {
+                throw ApiException.field("mediaIds", "Images sent in direct messages can't be used in posts");
+            }
             Map<Long, MediaAsset> byId = new java.util.HashMap<>();
             media.forEach(m -> byId.put(m.getId(), m));
             media = ids.stream().map(byId::get).toList();
@@ -160,8 +166,10 @@ public class PostService {
             spamFlags.recordHeld(c.getId(), user.id(), "POST", post.getId(), null, String.join(",", verdict.rules()),
                     verdict.details(), clip(title, 300));
             realtime.modQueueChanged(c.getId());
+            metrics.postCreated(type.name(), true);
             return post.getId();
         }
+        metrics.postCreated(type.name(), false);
         publish(post.getId(), c, user.id(), user.username(), text);
         return post.getId();
     }

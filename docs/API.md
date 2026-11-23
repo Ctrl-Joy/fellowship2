@@ -614,3 +614,45 @@ everywhere). `PostDetail.viewer` keeps its wider shape `{canEdit, canDelete, can
 
 ### Onboarding skip
 | POST | `/onboarding/skip` | → `Me` with `onboardingCompleted: true`; nothing else changes. The guided setup isn't offered again |
+
+## Infrastructure changes (Phase 10, D-023 to D-026)
+
+### Image variants
+```ts
+Thumbnails { w320: string|null, w960: string|null }   // resized copies; null = not made (small, GIF, WebP, older uploads)
+```
+- `POST /media` → `{id, url, width, height, contentType, thumbnails: Thumbnails|null}`.
+- `PostSummary.media[]` / `PostDetail.media[]` (`MediaRef`) gain `thumbnails: Thumbnails|null`.
+- `GET /files/{key}?w=320|960` serves the variant when it exists, otherwise the original (same headers, Range works).
+  Use it for plain image URLs such as `avatarUrl`, `bannerUrl` and `iconUrl`. Any other `w` value is ignored; a
+  non-numeric one is a 400. `private/` keys are never served here (404).
+
+### Private DM images
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/me/dm-media` | multipart `file` (PNG/JPEG/WebP/GIF, ≤10 MB, 60/h) → 201 `DmMedia`. Stored under `private/`; attach it with `mediaIds` when sending |
+| GET | `/dm-media/{grant}?w=320\|960` | public route (an `<img>` can't send the token). The grant names the image and the reader; 404 unless the reader uploaded it or is a participant of a conversation where it's attached to a message that isn't deleted. `Cache-Control: private, max-age=<seconds until expiry>`, nosniff, `default-src 'none'` |
+
+```ts
+DmMedia { id, url, width|null, height|null, thumbnails: Thumbnails|null,
+          signed: boolean,          // true: participant-only URL that expires; false: legacy public URL
+          expiresAt: string|null }  // 30-60 min ahead; refetch the messages for fresh URLs
+```
+`DmMessage.media` is now `DmMedia[]`. URLs are signed for the requesting participant, so the realtime `MESSAGE` event
+is built per recipient. Images sent before this change keep their public `/files/media/...` URL (`signed: false`).
+`POST /me/conversations/{id}/messages` still accepts your public uploads from `POST /media`; DM images can't be used in
+posts (`POST /posts` → 400 on a `private/` media id). DM grants aren't accepted by `/downloads/{grant}`.
+
+### Feeds
+No contract change. First pages of Popular/Latest/Rising/Top and of public community feeds may be up to 30 s old in
+**order** (new posts appear within the TTL); all per-viewer fields, scores and counts are always fresh (D-025).
+
+### Demo data notice
+| GET | `/demo/status` | public → `{demoData: boolean, message: string|null}`. `true` when the database contains the fictional demo accounts (the UI shows a dismissible notice) |
+
+### Operations
+| Path | Port | Notes |
+|---|---|---|
+| `/livez`, `/readyz` | main (8080) | liveness/readiness probes, public, no details |
+| `/actuator/health`, `/actuator/info` | main outside prod; management (8081) in prod | |
+| `/actuator/prometheus` | management port (8081) in prod only | never published by the proxy; not exposed outside prod |

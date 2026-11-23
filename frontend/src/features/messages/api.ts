@@ -2,7 +2,7 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { http } from '@/services/apiClient';
 import { useRealtimeStore } from '@/services/realtime';
 import { useAuthStore } from '@/store/authStore';
-import type { ConversationSummary, DmMessage, MessagePage } from '@/types/messages';
+import type { ConversationSummary, DmMedia, DmMessage, MessagePage } from '@/types/messages';
 import { applyRead, pagesAppend, pagesDelete, type MessagePages } from './helpers';
 
 export const PAGE_SIZE = 30;
@@ -18,6 +18,8 @@ export const dmApi = {
   read: (id: number, messageId: number) => http.post<void>(`/me/conversations/${id}/read`, { messageId }),
   remove: (messageId: number) => http.del<void>(`/me/messages/${messageId}`),
   unreadCount: () => http.get<{ count: number }>('/me/messages/unread-count'),
+  /** DM images go to private storage and come back with a participant-only signed URL (D-024). */
+  uploadMedia: (file: File) => http.upload<DmMedia>('/me/dm-media', file),
 };
 
 export const dmKeys = {

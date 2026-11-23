@@ -10,7 +10,12 @@ import java.util.List;
 public final class DmDtos {
     private DmDtos() {}
 
-    public record DmMedia(long id, String url, Integer width, Integer height) {}
+    /**
+     * {@code url} is a participant-only signed URL for images uploaded through {@code /me/dm-media} (valid 30 to 60 min;
+     * refetch the messages for fresh ones), or the legacy public media URL for older attachments (D-024).
+     */
+    public record DmMedia(long id, String url, Integer width, Integer height, app.strata.storage.Thumbnails thumbnails,
+                          boolean signed, java.time.Instant expiresAt) {}
 
     public record DmMessage(long id, long conversationId, Long senderId, String body, List<DmMedia> media,
                             Instant createdAt, boolean deleted) {}

@@ -11,6 +11,7 @@ import { errorMessage } from '@/services/apiError';
 import type { Collection, CollectionItem } from '@/types/knowledge';
 import { cn, compactNumber, timeAgo } from '@/utils/format';
 import { collectionsApi, useCollectionMutation } from '../api';
+import { sizedUrl } from '@/utils/images';
 import { parseTags } from '../tags';
 
 interface Props {
@@ -77,7 +78,7 @@ export function LibraryItem({ item, collections, layout, reorder, readOnly, onTa
           )}
           <div className="mt-1.5 text-xs text-faint">{compactNumber(p.score)} upvotes · {compactNumber(p.commentCount)} comments</div>
         </div>
-        {thumb && layout === 'list' && <img src={thumb} alt="" className="h-20 w-20 shrink-0 rounded-xl object-cover" />}
+        {thumb && layout === 'list' && <img src={sizedUrl(thumb, 320)} alt="" loading="lazy" decoding="async" className="h-20 w-20 shrink-0 rounded-xl object-cover" />}
       </div>
 
       {editing ? (

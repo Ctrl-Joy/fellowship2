@@ -16,7 +16,8 @@ import java.util.List;
 public final class PostDtos {
     private PostDtos() {}
 
-    public record MediaRef(long id, String url, Integer width, Integer height) {}
+    /** {@code thumbnails} holds the resized variants (D-024), or null when only the original exists. */
+    public record MediaRef(long id, String url, Integer width, Integer height, app.strata.storage.Thumbnails thumbnails) {}
 
     public record PollOptionDto(long id, String label, int votes) {}
 

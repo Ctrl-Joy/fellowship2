@@ -293,6 +293,8 @@ public class ShareService {
                     .orElseThrow(() -> ApiException.notFound("File"));
             return new Download(files.serve(f), true);
         }
+        // Other grant kinds (D = DM images) are only valid on their own endpoint.
+        if (g.kind() != DownloadGrants.Kind.L) throw ApiException.notFound("Download");
         String visitor = visitorHash(ip);
         LinkRow l = linkById(g.targetId());
         FileRow f = requireUsable(l, g.viewerId(), visitor);

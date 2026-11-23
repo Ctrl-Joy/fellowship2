@@ -44,25 +44,38 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Feed rows carry `viewer.canModerate` (one batched query per page); mod actions in feed card menus | ✅ | ✅ | TrustAndSafetyIT |
 | Onboarding skip persists | ✅ | ✅ | TrustAndSafetyIT |
 | Smart Collections: private by default, notes, tags, search, type filter, move, reorder (drag + arrows), share link / revoke, shared view | ✅ | ✅ | KnowledgeLayerIT, tags.test.ts, browser |
+| S3/MinIO storage driver (`STORAGE_DRIVER=s3`): private bucket (no ACLs, reads proxied), streamed uploads with 8 MB multipart parts and abort on failure, ranged reads turned into S3 Range GETs, zip scan staging, MinIO + bucket init in docker-compose (D-023) | ✅ | — | S3StorageServiceTest (6, in-memory S3Client + Spring's Range converter); **not run against a real MinIO** |
+| Image variants: 320/960 px PNG/JPEG copies without metadata, EXIF orientation applied, GIF/WebP original only; `thumbnails` in media DTOs, `?w=` on `/files/**`; `srcset`/`sizes`, lazy loading and async decoding in post cards, rows, post page, avatars/icons, rail and collection thumbnails (D-024) | ✅ | ✅ | ImageVariantsTest (3), ImageVariantsIT, images.test.ts |
+| Private DM images: `/me/dm-media` uploads under `private/`, per-reader signed URLs re-checked on every request (participant, message not deleted), per-recipient realtime payloads, refetch on expiry; DM images can't go into posts (D-024) | ✅ | ✅ | DmMediaIT |
+| Redis first-page feed id cache (Popular/Latest/Rising/Top, public community feeds), per-viewer filter + hydration, 30 s TTL, step-aside when Redis is down (D-025) | ✅ | — | FeedCacheIT (3) |
+| Observability: Prometheus registry, custom metrics (votes, posts, comments, DMs, WebSocket sessions, AI latency/tokens, spam flags, feed cache), management port 8081 in prod, `/livez` `/readyz`, ECS JSON logs with traceId, Grafana dashboard (D-026) | ✅ | — | DemoSeedIT (scrapes `/actuator/prometheus`); dashboard JSON validated, not loaded into Grafana |
+| Production guard rails: prod refuses dev JWT/webhook secrets, weak DB password, missing visitor salt, insecure cookies, default S3 secret, public metrics; HSTS; CSP checked (`ws(s)://$host`, inline styles for Recharts); `docs/DEPLOYMENT.md`, `deploy/docker-compose.prod.yml`, `deploy/Caddyfile`, Prometheus + Grafana provisioning | ✅ | — | ProductionSafetyCheckTest (3); compose/Caddy/Grafana files YAML/JSON-validated only (**not executed**) |
+| Richer demo seed: moderator teams in 3 communities with reports, removals, approvals and two appeals (one overturned) written through the moderation service, recomputed leaderboard, two shared collections, a demo funding pool with 5 demo contributions; idempotent, `strata.seed.activity`; dismissible "Demo data" notice from `GET /demo/status` | ✅ | ✅ | DemoSeedIT (own embedded PostgreSQL), demo api.test.ts |
 
 ## Tests (latest run)
-- Backend `./mvnw test`: **102 passed, 0 failed** (AdminIT 3, CommunityAiIT 4, ApiSecurityIT 6, TextSafetyTest 3, DefaultFileScannerTest 4, FilesIT 4, FundingIT 6, FundingUnitTest 7, KnowledgeLayerIT 4, TextSignalsTest 3, DirectMessagesIT 4, RealtimeIT 5, ModerationAndPulseIT 4, PodcastIT 3, TranscriptParserTest 5, ModeratorScoreMathTest 5, ReputationAndRecognitionIT 4, ReputationMathTest 8, SpamSignalsTest 3, TrustAndSafetyIT 10, ScoreMathTest 6, VoteConcurrencyIT 1).
-- Frontend `npx vitest run`: **125 passed** across 18 files; `npm run build` passes with zero type errors.
+- Backend `./mvnw test`: **120 passed, 0 failed** (Phase 10 added ProductionSafetyCheckTest 3, FeedCacheIT 3, DmMediaIT 1,
+  DemoSeedIT 1, ImageVariantsIT 1, ImageVariantsTest 3, S3StorageServiceTest 6; previously: AdminIT 3, CommunityAiIT 4, ApiSecurityIT 6, TextSafetyTest 3, DefaultFileScannerTest 4, FilesIT 4, FundingIT 6, FundingUnitTest 7, KnowledgeLayerIT 4, TextSignalsTest 3, DirectMessagesIT 4, RealtimeIT 5, ModerationAndPulseIT 4, PodcastIT 3, TranscriptParserTest 5, ModeratorScoreMathTest 5, ReputationAndRecognitionIT 4, ReputationMathTest 8, SpamSignalsTest 3, TrustAndSafetyIT 10, ScoreMathTest 6, VoteConcurrencyIT 1).
+- Frontend `npx vitest run`: **132 passed** across 20 files (Phase 10 added images.test.ts and demo/api.test.ts); `npm run build` passes with zero type errors.
 - API smoke script (47 checks across auth, communities, posts, polls, votes, comments, feeds, search,
   notifications, permissions): **47/47 after fixing the Rising-feed SQL bug it found**.
 
 ## Known gaps / not yet verified
 - `docker compose up` and the Dockerfiles were **not executed**: Docker isn't installed on the dev machine.
-  CI builds the images.
+  CI builds the images. The same goes for `deploy/docker-compose.prod.yml`, the Caddyfile, MinIO and its init step,
+  Prometheus and Grafana (YAML/JSON-validated and reviewed only), and the S3 driver against a real MinIO/S3 (unit-tested
+  against an in-memory S3 client).
 - Pinning and locking posts exist in the schema, but they have no endpoints yet (Phase 3 moderation).
 - No Playwright suite yet (Phase 10). No ESLint (the frontend `lint` script is a type-check only).
 - Email delivery is log-mode unless SMTP is configured.
 - Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
-- Not built yet: real payment provider for moderator funding (demo-only by design, D-022), podcast audio/video generation (no TTS provider configured), S3 storage driver, Playwright end-to-end suite.
+- Not built yet: real payment provider for moderator funding (demo-only by design, D-022), podcast audio/video generation (no TTS provider configured), Playwright end-to-end suite, accessibility audit.
 - Real-time broker and presence are in-memory, per instance (D-017): fine for one backend node, not for several.
-- DM images use the same unguessable-but-public media URLs as post images (see D-016, D-019 for the fix plan); messages are not end-to-end encrypted.
+- DM images sent since Phase 10 are private (participant-signed URLs, D-024). Images sent earlier keep their
+  unguessable-but-public `/files/media/...` URLs (no data migration). Messages are not end-to-end encrypted.
+- Image originals keep their EXIF metadata (only the 320/960 variants are stripped); WebP and GIF get no variants.
+- Feed first pages can be up to 30 s old in order (new posts); counts, votes and removals are always fresh (D-025).
 - Files: scanning is structural (type, denylist, archive heuristics), not antivirus; legacy OLE Office files may carry macros. E2EE decryption holds the whole file in memory. Private-file pages were not exercised in a browser in this phase (tests and build only).
 - Mod tools on individual posts and comments appear on the post page only. Feed rows don't carry moderator rights, so feeds don't show them; the mod queue covers them. The UI lists them under "Coming next" and routes them to one
   informational page, with no non-functional controls.

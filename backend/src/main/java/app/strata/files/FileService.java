@@ -124,7 +124,24 @@ public class FileService {
                 return null;
             }
         }).orElse(null);
-        FileScanner.Result scan = scanner.scan(new FileScanner.Input(name, head, file.getSize(), local, e2ee));
+        // Object storage (S3/MinIO) has no local path; zip archives are staged to a temp file so the archive checks still run.
+        Path staged = null;
+        if (local == null && !e2ee && head.length >= 4 && head[0] == 'P' && head[1] == 'K') {
+            staged = stageLocally(key);
+            local = staged;
+        }
+        FileScanner.Result scan;
+        try {
+            scan = scanner.scan(new FileScanner.Input(name, head, file.getSize(), local, e2ee));
+        } finally {
+            if (staged != null) {
+                try {
+                    java.nio.file.Files.deleteIfExists(staged);
+                } catch (IOException ignored) {
+                    // temp file, best effort
+                }
+            }
+        }
         if (scan.status() == FileScanner.Status.REJECTED) {
             storage.delete(key);
             throw ApiException.field("file", scan.reason());
@@ -135,6 +152,19 @@ public class FileService {
                 .params(user.id(), name, scan.contentType(), file.getSize(), key, sha, e2ee, scan.status().name(), truncate(scan.reason(), 300))
                 .query(Long.class).single();
         return get(user, id);
+    }
+
+    private Path stageLocally(String key) {
+        try {
+            Path tmp = java.nio.file.Files.createTempFile("strata-scan-", ".bin");
+            try (InputStream in = storage.get(key).orElseThrow(() -> new IOException("stored object missing")).stream()) {
+                java.nio.file.Files.copy(in, tmp, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+            }
+            return tmp;
+        } catch (IOException e) {
+            storage.delete(key);
+            throw ApiException.badRequest("Upload failed");
+        }
     }
 
     /** If the transaction rolls back after the bytes were stored, remove them again. */

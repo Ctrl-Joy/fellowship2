@@ -41,10 +41,12 @@ public class VoteService {
     private final NotificationService notifications;
     private final app.strata.realtime.LiveCounters counters;
     private final app.strata.reputation.ReputationQueue reputation;
+    private final app.strata.common.metrics.StrataMetrics metrics;
 
     public VoteService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, RateLimiter limiter,
                        NotificationService notifications, app.strata.realtime.LiveCounters counters,
-                       app.strata.reputation.ReputationQueue reputation) {
+                       app.strata.reputation.ReputationQueue reputation, app.strata.common.metrics.StrataMetrics metrics) {
+        this.metrics = metrics;
         this.counters = counters;
         this.reputation = reputation;
         this.jdbc = jdbc;
@@ -67,7 +69,10 @@ public class VoteService {
 
         int old = jdbc.sql("SELECT value FROM post_votes WHERE post_id = ? AND user_id = ?").params(postId, user.id())
                 .query(Integer.class).optional().orElse(0);
-        if (old != value) writeVote("post_votes", "post_id", postId, user.id(), old, value);
+        if (old != value) {
+            writeVote("post_votes", "post_id", postId, user.id(), old, value);
+            metrics.vote("post", value);
+        }
 
         int du = (value == 1 ? 1 : 0) - (old == 1 ? 1 : 0);
         int dd = (value == -1 ? 1 : 0) - (old == -1 ? 1 : 0);
@@ -106,7 +111,10 @@ public class VoteService {
 
         int old = jdbc.sql("SELECT value FROM comment_votes WHERE comment_id = ? AND user_id = ?").params(commentId, user.id())
                 .query(Integer.class).optional().orElse(0);
-        if (old != value) writeVote("comment_votes", "comment_id", commentId, user.id(), old, value);
+        if (old != value) {
+            writeVote("comment_votes", "comment_id", commentId, user.id(), old, value);
+            metrics.vote("comment", value);
+        }
 
         int du = (value == 1 ? 1 : 0) - (old == 1 ? 1 : 0);
         int dd = (value == -1 ? 1 : 0) - (old == -1 ? 1 : 0);

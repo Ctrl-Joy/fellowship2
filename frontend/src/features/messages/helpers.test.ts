@@ -84,7 +84,7 @@ describe('message reducers', () => {
   });
 
   it('applyDelete clears the body and media and is a no-op for unknown ids', () => {
-    const a = [msg(1, 1, 0, { media: [{ id: 9, url: '/x.png', width: 1, height: 1 }] }), msg(2, 2, 1)];
+    const a = [msg(1, 1, 0, { media: [{ id: 9, url: '/x.png', width: 1, height: 1, signed: false, expiresAt: null }] }), msg(2, 2, 1)];
     const d = applyDelete(a, 1);
     expect(d[0]).toMatchObject({ deleted: true, body: '', media: [] });
     expect(d[1]).toBe(a[1]);

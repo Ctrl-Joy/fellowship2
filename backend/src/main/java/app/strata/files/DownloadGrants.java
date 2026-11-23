@@ -24,7 +24,8 @@ import org.springframework.stereotype.Component;
 public class DownloadGrants {
     static final Duration TTL = Duration.ofMinutes(5);
 
-    public enum Kind { O, L } // O = owner download of a file, L = download through a share link
+    /** O = owner download of a file, L = download through a share link, D = a direct-message image (D-024). */
+    public enum Kind { O, L, D }
 
     public record Grant(Kind kind, long targetId, Long viewerId, Instant expiresAt) {}
 
@@ -47,6 +48,20 @@ public class DownloadGrants {
 
     public Instant expiry() {
         return clock.instant().plus(TTL);
+    }
+
+    /**
+     * An expiry at least {@code minTtl} away, rounded up to a multiple of {@code minTtl}. Grants issued within the same
+     * window are identical strings, so the browser cache can reuse an image across message refetches.
+     */
+    public Instant bucketedExpiry(Duration minTtl) {
+        long step = Math.max(60, minTtl.toSeconds());
+        long min = clock.instant().getEpochSecond() + step;
+        return Instant.ofEpochSecond(((min + step - 1) / step) * step);
+    }
+
+    public Instant now() {
+        return clock.instant();
     }
 
     public String issue(Kind kind, long targetId, Long viewerId, Instant expiresAt) {

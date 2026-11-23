@@ -46,6 +46,7 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class CommentService {
+    private final app.strata.common.metrics.StrataMetrics metrics;
     public static final int MAX_DEPTH = 10;
     private static final String COLS = """
             c.id, c.post_id, c.parent_id, c.depth, c.body, c.author_id, c.score, c.best_rank, c.controversy,
@@ -68,7 +69,8 @@ public class CommentService {
     public CommentService(JdbcClient jdbc, PostService posts, CommunityAccess access, UserDirectory userDirectory,
                           UserRepository users, NotificationService notifications, RateLimiter limiter,
                           app.strata.realtime.RealtimePublisher realtime, app.strata.realtime.LiveCounters counters,
-                          SpamGuard spam, SpamFlags spamFlags) {
+                          SpamGuard spam, SpamFlags spamFlags, app.strata.common.metrics.StrataMetrics metrics) {
+        this.metrics = metrics;
         this.spam = spam;
         this.spamFlags = spamFlags;
         this.realtime = realtime;
@@ -284,8 +286,10 @@ public class CommentService {
             spamFlags.recordHeld(ctx.community().getId(), user.id(), "COMMENT", postId, id, String.join(",", verdict.rules()),
                     verdict.details(), body.length() <= 300 ? body : body.substring(0, 299) + "…");
             realtime.modQueueChanged(ctx.community().getId());
+            metrics.commentCreated(true);
             return single(id, user);
         }
+        metrics.commentCreated(false);
         publish(postId, id, req.parentId(), parentAuthor, post, user.id(), user.username(), body);
         return single(id, user);
     }

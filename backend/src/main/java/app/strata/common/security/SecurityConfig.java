@@ -49,9 +49,13 @@ public class SecurityConfig {
                 .headers(h -> h
                         .contentTypeOptions(c -> {})
                         .frameOptions(f -> f.deny())
-                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN)))
+                        .referrerPolicy(r -> r.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
+                        // Sent only on HTTPS requests (X-Forwarded-Proto from the TLS proxy counts), never on plain HTTP dev.
+                        .httpStrictTransportSecurity(hsts -> hsts.maxAgeInSeconds(31_536_000).includeSubDomains(true)))
                 .authorizeHttpRequests(a -> a
-                        .requestMatchers("/actuator/health/**", "/actuator/health", "/actuator/info").permitAll()
+                        .requestMatchers("/actuator/health/**", "/actuator/health", "/actuator/info", "/livez", "/readyz").permitAll()
+                        // Only exposed in prod, and only on the unpublished management port (D-026).
+                        .requestMatchers("/actuator/prometheus").permitAll()
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // WebSocket handshake; the STOMP CONNECT frame carries and checks the access token.
                         .requestMatchers("/ws", "/ws/**").permitAll()

@@ -9,15 +9,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.Optional;
-import java.util.regex.Pattern;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
-import org.springframework.stereotype.Service;
 
-@Service
+/** Filesystem driver ({@code strata.storage.driver=local}), created by {@link StorageConfig}. */
 public class LocalStorageService implements StorageService {
-    /** Keys are generated server-side; this guards against traversal if one is ever user-influenced. */
-    private static final Pattern SAFE_KEY = Pattern.compile("^[a-z]+/[A-Za-z0-9_-]{8,64}\\.(png|jpg|webp|gif|mp3|m4a|ogg|wav|mp4|webm|bin)$");
     private final Path root;
 
     public LocalStorageService(AppProperties props) throws IOException {
@@ -56,7 +52,7 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public Optional<StoredObject> get(String key) {
-        if (!SAFE_KEY.matcher(key).matches()) return Optional.empty();
+        if (!StorageService.isSafeKey(key)) return Optional.empty();
         Path p = resolve(key);
         if (!Files.isRegularFile(p)) return Optional.empty();
         try {
@@ -68,7 +64,7 @@ public class LocalStorageService implements StorageService {
 
     @Override
     public Optional<Resource> resource(String key) {
-        if (!SAFE_KEY.matcher(key).matches()) return Optional.empty();
+        if (!StorageService.isSafeKey(key)) return Optional.empty();
         Path p = resolve(key);
         return Files.isRegularFile(p) ? Optional.of(new FileSystemResource(p)) : Optional.empty();
     }
@@ -88,7 +84,7 @@ public class LocalStorageService implements StorageService {
     }
 
     private Path resolve(String key) {
-        if (!SAFE_KEY.matcher(key).matches()) throw new IllegalArgumentException("Invalid storage key");
+        if (!StorageService.isSafeKey(key)) throw new IllegalArgumentException("Invalid storage key");
         Path p = root.resolve(key).normalize();
         if (!p.startsWith(root)) throw new IllegalArgumentException("Invalid storage key");
         return p;

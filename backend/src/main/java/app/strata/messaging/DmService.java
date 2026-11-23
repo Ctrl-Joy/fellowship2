@@ -43,9 +43,14 @@ public class DmService {
     private final RateLimiter limiter;
     private final RealtimePublisher realtime;
     private final PresenceTracker presence;
+    private final DmMediaUrls mediaUrls;
+    private final app.strata.common.metrics.StrataMetrics metrics;
 
     public DmService(JdbcClient jdbc, DmAccess access, UserDirectory users, StorageService storage, RateLimiter limiter,
-                     RealtimePublisher realtime, PresenceTracker presence) {
+                     RealtimePublisher realtime, PresenceTracker presence, DmMediaUrls mediaUrls,
+                     app.strata.common.metrics.StrataMetrics metrics) {
+        this.metrics = metrics;
+        this.mediaUrls = mediaUrls;
         this.jdbc = jdbc;
         this.access = access;
         this.users = users;
@@ -156,7 +161,7 @@ public class DmService {
         boolean more = rows.size() > limit;
         List<DmMessage> page = new ArrayList<>(more ? rows.subList(0, limit) : rows);
         Collections.reverse(page);
-        Map<Long, List<DmMedia>> media = mediaFor(page.stream().filter(m -> !m.deleted()).map(DmMessage::id).toList());
+        Map<Long, List<DmMedia>> media = mediaFor(page.stream().filter(m -> !m.deleted()).map(DmMessage::id).toList(), user.id());
         List<DmMessage> items = page.stream().map(m -> withMedia(m, media.getOrDefault(m.id(), List.of()))).toList();
         return new MessagePage(items, more);
     }
@@ -187,8 +192,11 @@ public class DmService {
         // Your own messages count as read by you.
         jdbc.sql("UPDATE dm_participants SET last_read_message_id = ? WHERE conversation_id = ? AND user_id = ?")
                 .params(id, conversationId, user.id()).update();
-        DmMessage msg = load(id);
-        realtime.toUsers(List.of(user.id(), otherId), "MESSAGE", msg);
+        // Each participant gets their own copy: DM image URLs are signed for one viewer (D-024).
+        DmMessage msg = load(id, user.id());
+        metrics.messageSent(!mediaIds.isEmpty());
+        realtime.toUser(user.id(), "MESSAGE", msg);
+        realtime.toUser(otherId, "MESSAGE", msg.media().isEmpty() ? msg : load(id, otherId));
         realtime.toUser(otherId, "UNREAD_MESSAGES", Map.of("count", unreadCount(otherId)));
         return msg;
     }
@@ -254,7 +262,7 @@ public class DmService {
                 .params(conversationId, userId).query(Long.class).single();
     }
 
-    private DmMessage load(long id) {
+    private DmMessage load(long id, long viewerId) {
         DmMessage m = jdbc.sql("""
                         SELECT id, conversation_id, sender_id, body, created_at, deleted_at IS NOT NULL AS deleted
                         FROM dm_messages WHERE id = ?""")
@@ -263,21 +271,21 @@ public class DmService {
                         (Long) rs.getObject("sender_id"), rs.getString("body"), List.of(),
                         instant(rs.getObject("created_at", OffsetDateTime.class)), rs.getBoolean("deleted")))
                 .single();
-        return withMedia(m, mediaFor(List.of(id)).getOrDefault(id, List.of()));
+        return withMedia(m, mediaFor(List.of(id), viewerId).getOrDefault(id, List.of()));
     }
 
-    private Map<Long, List<DmMedia>> mediaFor(List<Long> messageIds) {
+    private Map<Long, List<DmMedia>> mediaFor(List<Long> messageIds, long viewerId) {
         Map<Long, List<DmMedia>> out = new LinkedHashMap<>();
         if (messageIds.isEmpty()) return out;
         jdbc.sql("""
-                        SELECT mm.message_id, a.id, a.storage_key, a.width, a.height
+                        SELECT mm.message_id, a.id, a.storage_key, a.width, a.height, a.variant_widths
                         FROM dm_message_media mm JOIN media_assets a ON a.id = mm.media_id
                         WHERE mm.message_id IN (:ids) ORDER BY mm.message_id, mm.position""")
                 .param("ids", messageIds)
                 .query((rs, i) -> {
-                    out.computeIfAbsent(rs.getLong("message_id"), k -> new ArrayList<>()).add(new DmMedia(rs.getLong("id"),
-                            storage.publicUrl(rs.getString("storage_key")), (Integer) rs.getObject("width"),
-                            (Integer) rs.getObject("height")));
+                    out.computeIfAbsent(rs.getLong("message_id"), k -> new ArrayList<>()).add(mediaUrls.dto(rs.getLong("id"),
+                            rs.getString("storage_key"), (Integer) rs.getObject("width"), (Integer) rs.getObject("height"),
+                            rs.getString("variant_widths"), viewerId));
                     return null;
                 })
                 .list();

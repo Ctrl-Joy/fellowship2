@@ -44,11 +44,14 @@ public class MediaController {
      * Returning a seekable Resource lets Spring answer Range requests (206 Partial Content) for audio/video seeking.
      */
     @GetMapping("/api/v1/files/**")
-    public ResponseEntity<Resource> file(HttpServletRequest req) {
+    public ResponseEntity<Resource> file(HttpServletRequest req, @RequestParam(name = "w", required = false) Integer w) {
         String path = req.getRequestURI().substring(req.getContextPath().length());
-        String key = path.substring("/api/v1/files/".length());
-        // Private files (Phase 7) are never served here; they go through ownership checks or share links.
-        if (key.startsWith("private/")) return ResponseEntity.notFound().build();
+        String requested = path.substring("/api/v1/files/".length());
+        // Private files (Phase 7) and DM images (D-024) are never served here; they go through ownership checks,
+        // share links or participant-checked grants.
+        if (requested.startsWith("private/") || !StorageService.isSafeKey(requested)) return ResponseEntity.notFound().build();
+        // ?w=320|960 serves the resized variant when one exists, else the original (D-024).
+        String key = media.variantOrOriginal(requested, w);
         return storage.resource(key)
                 .map(r -> ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(StorageService.contentTypeFor(key)))

@@ -15,7 +15,14 @@ public final class ImageInspector {
 
     public record ImageInfo(String contentType, String extension, Integer width, Integer height) {}
 
+    /** The validated info plus the decoded pixels (null for WebP, which the JDK can't decode), so callers decode once. */
+    public record Decoded(ImageInfo info, BufferedImage image) {}
+
     public static ImageInfo inspect(byte[] b) {
+        return decode(b).info();
+    }
+
+    public static Decoded decode(byte[] b) {
         String type;
         String ext;
         if (b.length > 8 && (b[0] & 0xFF) == 0x89 && b[1] == 'P' && b[2] == 'N' && b[3] == 'G') {
@@ -31,9 +38,10 @@ public final class ImageInspector {
             throw ApiException.field("file", "Only PNG, JPEG, WebP and GIF images are supported");
         }
         Integer w = null, h = null;
+        BufferedImage img = null;
         if (!"webp".equals(ext)) {
             try {
-                BufferedImage img = ImageIO.read(new ByteArrayInputStream(b));
+                img = ImageIO.read(new ByteArrayInputStream(b));
                 if (img == null) throw ApiException.field("file", "The image could not be read");
                 w = img.getWidth();
                 h = img.getHeight();
@@ -42,6 +50,6 @@ public final class ImageInspector {
                 throw ApiException.field("file", "The image could not be read");
             }
         }
-        return new ImageInfo(type, ext, w, h);
+        return new Decoded(new ImageInfo(type, ext, w, h), img);
     }
 }

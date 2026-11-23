@@ -15,7 +15,7 @@ import { VoteControl } from './VoteControl';
 function Thumb({ post }: { post: PostSummary }) {
   const img = post.media[0];
   const box = 'flex h-14 w-[72px] shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-surface-2 text-faint';
-  if (img) return <img src={img.url} alt="" loading="lazy" className={`${box} object-cover`} />;
+  if (img) return <img src={img.thumbnails?.w320 ?? img.url} alt="" loading="lazy" decoding="async" className={`${box} object-cover`} />;
   if (post.type === 'LINK') return <span className={box}><ExternalLink size={18} /></span>;
   if (post.type === 'IMAGE') return <span className={box}><ImageIcon size={18} /></span>;
   return <span className={box}><FileText size={18} /></span>;

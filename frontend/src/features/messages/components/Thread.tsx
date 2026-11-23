@@ -7,12 +7,12 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/Menu';
 import { Spinner } from '@/components/ui/Spinner';
 import { ErrorState } from '@/components/ui/States';
 import { toast } from '@/components/ui/Toast';
-import { postsApi } from '@/features/posts/api';
 import { useTypingUsers } from '@/features/realtime/typingStore';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { errorMessage } from '@/services/apiError';
 import { useAuthStore } from '@/store/authStore';
-import type { DmMessage } from '@/types/messages';
+import type { DmMedia, DmMessage } from '@/types/messages';
+import { responsiveImage } from '@/utils/images';
 import { cn, displayName } from '@/utils/format';
 import { cacheMessage, dmApi, dmKeys, useConversation, useDeleteMessage, useMarkRead, useMessages } from '../api';
 import { flattenPages, groupMessages, seenMessageId } from '../helpers';
@@ -27,6 +27,36 @@ interface Pending {
   mediaIds: number[] | null;
   status: 'sending' | 'failed';
   error?: string;
+}
+
+/**
+ * A DM image. Signed URLs expire (30 to 60 min), so a failed load refetches the thread once for fresh URLs instead of
+ * leaving a broken image behind.
+ */
+function DmImage({ img, conversationId }: { img: DmMedia; conversationId: number }) {
+  const qc = useQueryClient();
+  const retried = useRef(false);
+  const r = responsiveImage(img);
+  return (
+    <a href={img.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-surface-2">
+      <img
+        src={r.src}
+        srcSet={r.srcSet}
+        sizes="(min-width: 768px) 320px, 70vw"
+        alt="Attached image"
+        loading="lazy"
+        decoding="async"
+        width={img.width ?? undefined}
+        height={img.height ?? undefined}
+        className="max-h-64 w-full object-cover"
+        onError={() => {
+          if (!img.signed || retried.current) return;
+          retried.current = true;
+          void qc.invalidateQueries({ queryKey: dmKeys.messages(conversationId) });
+        }}
+      />
+    </a>
+  );
 }
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -44,11 +74,7 @@ function Bubble({ m, mine, onDelete }: { m: DmMessage; mine: boolean; onDelete: 
       <div className={cn('max-w-[78%] space-y-1', mine && 'items-end')} title={time(m.createdAt)}>
         {m.media.length > 0 && (
           <div className={cn('grid gap-1', m.media.length > 1 && 'grid-cols-2')}>
-            {m.media.map((img) => (
-              <a key={img.id} href={img.url} target="_blank" rel="noreferrer" className="block overflow-hidden rounded-xl bg-surface-2">
-                <img src={img.url} alt="Attached image" loading="lazy" width={img.width ?? undefined} height={img.height ?? undefined} className="max-h-64 w-full object-cover" />
-              </a>
-            ))}
+            {m.media.map((img) => <DmImage key={img.id} img={img} conversationId={m.conversationId} />)}
           </div>
         )}
         {m.body && (
@@ -148,7 +174,7 @@ export function Thread({ id }: { id: number }) {
       try {
         if (!mediaIds) {
           mediaIds = [];
-          for (const f of p.files) mediaIds.push((await postsApi.uploadMedia(f)).id);
+          for (const f of p.files) mediaIds.push((await dmApi.uploadMedia(f)).id);
           const ids = mediaIds;
           setPending((ps) => ps.map((x) => (x.tempId === p.tempId ? { ...x, mediaIds: ids } : x)));
         }

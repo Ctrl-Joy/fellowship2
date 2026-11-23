@@ -24,11 +24,13 @@ public class FeedService {
     private final PostQueryService queries;
     private final CommunityService communities;
     private final CommunityAccess access;
+    private final FeedCache cache;
 
-    public FeedService(PostQueryService queries, CommunityService communities, CommunityAccess access) {
+    public FeedService(PostQueryService queries, CommunityService communities, CommunityAccess access, FeedCache cache) {
         this.queries = queries;
         this.communities = communities;
         this.access = access;
+        this.cache = cache;
     }
 
     private static final String JOINED = "p.community_id IN (SELECT community_id FROM community_members WHERE user_id = :viewer)";
@@ -54,12 +56,31 @@ public class FeedService {
         if (viewer == null && (normalized.equals("foryou") || normalized.equals("following"))) normalized = "popular";
         return switch (normalized) {
             case "following" -> queries.page(new Spec(home(JOINED + " OR " + FOLLOWED), Map.of(), Sort.NEW, null, null, cursor, limit, viewer, false));
-            case "latest" -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.NEW, null, null, cursor, limit, viewer, false));
-            case "rising" -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.RISING, null, null, cursor, limit, viewer, false));
-            case "top" -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.TOP, window(t), null, cursor, limit, viewer, false));
+            case "latest" -> publicPage("latest", new Spec(home(PUBLIC_ONLY), Map.of(), Sort.NEW, null, null, cursor, limit, viewer, false), NOT_MUTED);
+            case "rising" -> publicPage("rising", new Spec(home(PUBLIC_ONLY), Map.of(), Sort.RISING, null, null, cursor, limit, viewer, false), NOT_MUTED);
+            case "top" -> publicPage("top", new Spec(home(PUBLIC_ONLY), Map.of(), Sort.TOP, window(t), null, cursor, limit, viewer, false), NOT_MUTED);
             case "foryou" -> forYou(cursor, limit, viewer);
-            default -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.HOT, null, null, cursor, limit, viewer, false));
+            default -> publicPage("popular", new Spec(home(PUBLIC_ONLY), Map.of(), Sort.HOT, null, null, cursor, limit, viewer, false), NOT_MUTED);
         };
+    }
+
+    /**
+     * First pages of viewer-independent scopes (Popular/All-style tabs, public community feeds) come from the short-lived
+     * id cache (D-025): the anonymous id list is cached, then filtered for this viewer (hidden, blocked, muted, and
+     * anything deleted or removed since) and hydrated fresh, so per-viewer fields are always computed for the viewer.
+     * Later pages and personal tabs are never cached.
+     */
+    private CursorPage<PostSummary> publicPage(String name, Spec spec, String viewerFilter) {
+        if (spec.cursor() != null || !cache.isEnabled()) return queries.page(spec);
+        String key = name + ":" + spec.sort() + ":" + (spec.window() == null ? "all" : spec.window().replace(' ', '_')) + ":" + spec.limit();
+        Spec anonymous = new Spec(spec.scopeSql(), spec.params(), spec.sort(), spec.window(), spec.tsQuery(), null, spec.limit(), null,
+                spec.excludePinned());
+        FeedCache.Entry entry = cache.get(key, () -> {
+            PostQueryService.IdPage ids = queries.ids(anonymous);
+            return new FeedCache.Entry(ids.ids(), ids.nextCursor());
+        });
+        List<Long> visible = queries.visibleTo(entry.ids(), spec.viewerId(), spec.viewerId() == null ? null : viewerFilter);
+        return new CursorPage<>(queries.hydrate(visible, spec.viewerId()), entry.nextCursor());
     }
 
     /**
@@ -87,8 +108,11 @@ public class FeedService {
             default -> Sort.HOT;
         };
         boolean pinFirst = s == Sort.HOT;
-        CursorPage<PostSummary> page = queries.page(new Spec("p.community_id = :cid AND " + NOT_MUTED_AUTHOR, Map.of("cid", c.getId()), s,
-                window(t), null, cursor, limit, viewer, pinFirst));
+        Spec spec = new Spec("p.community_id = :cid AND " + NOT_MUTED_AUTHOR, Map.of("cid", c.getId()), s,
+                window(t), null, cursor, limit, viewer, pinFirst);
+        // Members-only communities are never cached: their list depends on membership.
+        CursorPage<PostSummary> page = c.visibility() == Community.Visibility.PRIVATE ? queries.page(spec)
+                : publicPage("c" + c.getId(), spec, NOT_MUTED_AUTHOR);
         if (pinFirst && cursor == null) {
             List<PostSummary> pinned = queries.pinned(c.getId(), viewer);
             if (!pinned.isEmpty()) {
