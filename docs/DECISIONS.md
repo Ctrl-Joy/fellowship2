@@ -218,3 +218,36 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   above), a grant- or blob-based image component in the thread, and a migration for existing attachments. Until then
   these URLs can't be guessed, but anyone who gets hold of one can view the image. Messages are not E2EE, and the UI
   doesn't claim they are.
+**D-020 Topic reputation and moderator recognition are recomputed from real rows, never accumulated by hand.**
+- **Reputation source of truth.** `post_votes` and `comment_votes`. A vote does one extra thing in its transaction: an
+  upsert into `reputation_dirty`. A job (`RecognitionJobs`, every 5 s) recomputes dirty authors; a nightly job and startup
+  rebuild everything. `ReputationMath` is pure and sorts facts by a total order before applying caps, so a rebuild from
+  the same rows always produces the same table (asserted by `ReputationAndRecognitionIT`). Totals live in
+  `topic_reputation`; `reputation_runs` records each run so the UI can say when totals were rebuilt.
+- **Topics of a vote.** The community's topic plus any post tag equal to a topic slug (comments inherit the post's).
+  Votes in private communities don't earn public reputation.
+- **Rules (v1).** Upvote +1, downvote −0.5. Weight = trust × quality. Trust: 0 for self-votes, removed content and
+  suspended or deleted voters; 0.25 for accounts younger than 7 days at vote time; 0.5 under 10 karma. Quality:
+  `1 + min(ln(1+b)/ln(201), 1)`, where b is the voter's *unweighted* reputation in that topic. Using the unweighted base
+  (a separate first pass) avoids a feedback loop and keeps the result deterministic. Caps: 3 counted votes per voter →
+  author per UTC day; +25 points per author per topic per UTC day (losses are never capped). Removal reverses because a
+  recompute skips removed content; approval or an accepted appeal re-queues the author. Content deleted by its own
+  author keeps counting, so deleting a downvoted post can't erase criticism.
+- **Incremental vs full.** The incremental job reuses voters' stored base; the nightly rebuild refreshes those bases
+  everywhere, so a change in a voter's own standing reaches the people they voted for within a day. Tiers: Contributor 5,
+  Trusted 25, Expert 100, Authority 400; "Top contributor" = top 3 in the topic with ≥ 10 points. Thread chips appear for
+  Trusted+ or top contributors and cost one request per thread page (`GET /posts/{id}/expertise`), not one per comment.
+- **Moderator score.** Per (community, moderator, UTC month), stored in `moderator_scores` with every raw input next to
+  every component, so the page can show the formula with real numbers. Components (0–1): consistency (removals and bans
+  not later overturned on appeal or undone by another moderator), response time (`1/(1 + median hours/12)` from report to
+  resolution), appeal outcomes (upheld share), community health (0.7 × share of the month's reports resolved + 0.3 ×
+  removal-rate trend vs last month, per new post or comment), peer feedback (endorsements ÷ min(3, co-moderators)).
+  Weights 0.30/0.20/0.20/0.15/0.15; components without data drop out and the rest are renormalised. **No input grows with
+  the number of removals**; activity (decisions + handled reports ≥ 3) is only a gate for being ranked, and ties break by id.
+- **Opt-out and privacy.** `moderator_settings.public_ranking = false` hides a moderator from every leaderboard and from
+  other people's view of their profile; scores are still computed so they can see their own. Global boards exclude
+  private communities. Endorsements are one per endorser → moderator → month, co-moderators only. Endorsement notes are
+  stored but currently shown only to their author.
+- **Freshness.** Scores refresh every 10 minutes, at startup and immediately after an endorsement. The demo seed has
+  votes but no moderation history, so reputation pages are populated on first start and moderator boards stay honestly
+  empty until moderators act.

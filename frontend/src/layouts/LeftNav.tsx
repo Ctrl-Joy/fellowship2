@@ -72,7 +72,7 @@ export function LeftNav({ compact, onNavigate }: { compact?: boolean; onNavigate
     return (
       <nav aria-label="Main" className="flex flex-col gap-1 px-2 py-3">
         {primaryNav.filter((i) => !i.auth || isAuthed).map((i) => <NavRow key={i.to} item={i} compact onNavigate={onNavigate} />)}
-        <div className="my-2 h-px bg-border" />
+        {upcomingNav.length > 0 && <div className="my-2 h-px bg-border" />}
         {upcomingNav.map((i) => <NavRow key={i.to} item={i} compact onNavigate={onNavigate} />)}
       </nav>
     );
@@ -101,9 +101,11 @@ export function LeftNav({ compact, onNavigate }: { compact?: boolean; onNavigate
         </Section>
       )}
 
-      <Section id="resources" title="Strata">
-        {upcomingNav.map((i) => <NavRow key={i.to} item={i} onNavigate={onNavigate} />)}
-      </Section>
+      {upcomingNav.length > 0 && (
+        <Section id="resources" title="Coming next">
+          {upcomingNav.map((i) => <NavRow key={i.to} item={i} onNavigate={onNavigate} />)}
+        </Section>
+      )}
 
       <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-border px-4 pt-4 text-xs text-faint">
         <Link to="/about" className="hover:text-muted">About</Link>

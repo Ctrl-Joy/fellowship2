@@ -40,10 +40,13 @@ public class VoteService {
     private final RateLimiter limiter;
     private final NotificationService notifications;
     private final app.strata.realtime.LiveCounters counters;
+    private final app.strata.reputation.ReputationQueue reputation;
 
     public VoteService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, RateLimiter limiter,
-                       NotificationService notifications, app.strata.realtime.LiveCounters counters) {
+                       NotificationService notifications, app.strata.realtime.LiveCounters counters,
+                       app.strata.reputation.ReputationQueue reputation) {
         this.counters = counters;
+        this.reputation = reputation;
         this.jdbc = jdbc;
         this.communities = communities;
         this.access = access;
@@ -81,6 +84,7 @@ public class VoteService {
 
         if (t.authorId() != null && t.authorId() != user.id() && old != value) {
             jdbc.sql("UPDATE users SET post_karma = post_karma + ? WHERE id = ?").params(value - old, t.authorId()).update();
+            reputation.markDirty(t.authorId()); // topic reputation is recomputed off the request path
             int milestone = ScoreMath.crossedMilestone(c.score() - (du - dd), c.score());
             if (milestone > 0) notifications.postMilestone(t.authorId(), postId, t.title(), milestone);
         }
@@ -117,6 +121,7 @@ public class VoteService {
 
         if (t.authorId() != null && t.authorId() != user.id() && old != value) {
             jdbc.sql("UPDATE users SET comment_karma = comment_karma + ? WHERE id = ?").params(value - old, t.authorId()).update();
+            reputation.markDirty(t.authorId());
         }
         long postId = jdbc.sql("SELECT post_id FROM comments WHERE id = ?").param(commentId).query(Long.class).single();
         counters.commentChanged(postId, commentId);

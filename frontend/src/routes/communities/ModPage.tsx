@@ -9,11 +9,12 @@ import { modKeys, useModStats } from '@/features/moderation/api';
 import { useTopic } from '@/features/realtime/RealtimeProvider';
 import { AppealsTab, BansTab, LogTab } from '@/features/moderation/components/DashboardTabs';
 import { QueueTab } from '@/features/moderation/components/QueueTab';
+import { PeerEndorsements } from '@/features/reputation/components/PeerEndorsements';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ApiError } from '@/services/apiError';
 import { cn } from '@/utils/format';
 
-type Tab = 'queue' | 'appeals' | 'bans' | 'log';
+type Tab = 'queue' | 'appeals' | 'bans' | 'log' | 'team';
 
 function Tile({ label, value }: { label: string; value: number | undefined }) {
   return (
@@ -56,6 +57,7 @@ export default function ModPage() {
     { v: 'appeals', label: 'Appeals', badge: s?.pendingAppeals },
     { v: 'bans', label: 'Bans' },
     { v: 'log', label: 'Log' },
+    { v: 'team', label: 'Team' },
   ];
 
   return (
@@ -89,6 +91,7 @@ export default function ModPage() {
         {tab === 'appeals' && <AppealsTab slug={slug} />}
         {tab === 'bans' && <BansTab slug={slug} />}
         {tab === 'log' && <LogTab slug={slug} />}
+        {tab === 'team' && <PeerEndorsements slug={slug} />}
       </div>
     </div>
   );

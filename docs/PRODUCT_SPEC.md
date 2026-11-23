@@ -31,7 +31,7 @@ and support for the moderators who keep communities healthy.
 | Feeds (For You/Following/Latest/Popular/Rising/Top), search, saved, notifications | 2 | ✅ |
 | Reporting, blocking, mod queue, bans, locks/pins, appeals, audit log | 3 | ✅ |
 | Admin dashboard, mute, spam heuristics | 3 | planned |
-| Topic reputation | 3–4 | planned |
+| Topic reputation | 3–4 | ✅ v1 |
 | Smart Collections, Context Mode, Thread Digest | 4 | ✅ |
 | Community Pulse | 4 | ✅ |
 | Direct messages (1:1) and real-time events (messages, badges, live feeds and threads) | 2–4 | ✅ |
@@ -39,6 +39,6 @@ and support for the moderators who keep communities healthy.
 | Podcasts (upload-first; AI script drafting; audio generation only with a configured TTS provider) | 6 | ✅ |
 | Moderator funding (demo mode until a provider is configured) | 8 | ✅ demo mode |
 | Secure file sharing → E2EE | 7 | ✅ (private files, share links, browser-side E2EE; see SECURITY_E2EE.md) |
-| Moderator leaderboard | 9 | planned |
+| Moderator leaderboard | 9 | ✅ |
 
 See ROADMAP.md for scope per phase and IMPLEMENTATION_STATUS.md for what exists today.

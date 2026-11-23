@@ -67,11 +67,14 @@ public class ModerationService {
     private final NotificationService notifications;
     private final RateLimiter limiter;
     private final app.strata.realtime.RealtimePublisher realtime;
+    private final app.strata.reputation.ReputationQueue reputation;
 
     public ModerationService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, MembershipDao memberships,
                              PostService posts, UserRepository users, UserDirectory directory, NotificationService notifications,
-                             RateLimiter limiter, app.strata.realtime.RealtimePublisher realtime) {
+                             RateLimiter limiter, app.strata.realtime.RealtimePublisher realtime,
+                             app.strata.reputation.ReputationQueue reputation) {
         this.realtime = realtime;
+        this.reputation = reputation;
         this.jdbc = jdbc;
         this.communities = communities;
         this.access = access;
@@ -185,12 +188,14 @@ public class ModerationService {
         switch (action) {
             case REMOVE_POST -> {
                 jdbc.sql("UPDATE posts SET removed = TRUE, pinned = FALSE WHERE id = ?").param(postId).update();
+                reputation.markDirty(author); // votes on removed content stop counting
                 long id = log(communityId, user, action, author, postId, null, reason, null);
                 resolveReports(postId, null, user, "REMOVED");
                 if (author != null) notifications.contentRemoved(author, ctx.community().getSlug(), "post", id, reason);
             }
             case APPROVE_POST -> {
                 jdbc.sql("UPDATE posts SET removed = FALSE WHERE id = ?").param(postId).update();
+                reputation.markDirty(author);
                 reverseOpen(postId, null, Action.REMOVE_POST, user);
                 log(communityId, user, action, author, postId, null, reason, null);
                 resolveReports(postId, null, user, "APPROVED");
@@ -228,11 +233,13 @@ public class ModerationService {
         realtime.modQueueChanged(communityId);
         if (action == Action.REMOVE_COMMENT) {
             jdbc.sql("UPDATE comments SET removed = TRUE WHERE id = ?").param(commentId).update();
+            reputation.markDirty(c.authorId());
             long id = log(communityId, user, action, c.authorId(), c.postId(), commentId, reason, null);
             resolveReports(c.postId(), commentId, user, "REMOVED");
             if (c.authorId() != null) notifications.contentRemoved(c.authorId(), ctx.community().getSlug(), "comment", id, reason);
         } else if (action == Action.APPROVE_COMMENT) {
             jdbc.sql("UPDATE comments SET removed = FALSE WHERE id = ?").param(commentId).update();
+            reputation.markDirty(c.authorId());
             reverseOpen(c.postId(), commentId, Action.REMOVE_COMMENT, user);
             log(communityId, user, action, c.authorId(), c.postId(), commentId, reason, null);
             resolveReports(c.postId(), commentId, user, "APPROVED");
@@ -448,6 +455,7 @@ public class ModerationService {
                 default -> { }
             }
             jdbc.sql("UPDATE moderation_actions SET reversed_at = now(), reversed_by = ? WHERE id = ?").params(user.id(), a.actionId()).update();
+            if (!"BAN".equals(a.action())) reputation.markDirty(a.userId()); // restored content counts again
         }
         jdbc.sql("UPDATE appeals SET status = ?, response = ?, resolved_by = ?, resolved_at = now() WHERE id = ?")
                 .params(accept ? "ACCEPTED" : "REJECTED", response == null || response.isBlank() ? null : response.strip(), user.id(), appealId)

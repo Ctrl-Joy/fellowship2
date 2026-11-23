@@ -33,9 +33,9 @@ export const primaryNav: NavItem[] = [
   { to: '/podcasts', label: 'Podcasts', icon: Headphones },
   { to: '/funding', label: 'Moderator funding', icon: HandCoins, auth: true },
   { to: '/files', label: 'Files', icon: FolderLock, auth: true },
+  { to: '/leaderboard', label: 'Leaderboard', icon: Trophy },
 ];
 
 /** Features scheduled for later phases. They route to a single honest "coming soon" page. */
 export const upcomingNav: NavItem[] = [
-  { to: '/soon/leaderboard', label: 'Leaderboard', icon: Trophy },
 ];

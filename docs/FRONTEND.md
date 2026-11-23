@@ -57,8 +57,8 @@ src/
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
 
 ## Not built yet (shown honestly)
-Leaderboard appears under “Coming next” in the nav and routes to one `/soon/:feature` page that collects
-no data. (Moderator funding now has real routes, in demo mode; see below.) Everything else listed in the nav (AI, Collections, Podcasts, Messages, moderation, Context Mode, Digest) is built.
+Nothing in the nav is a placeholder any more: every item routes to a real feature. The `/soon/:feature` page and the
+`upcomingNav` list remain for future work and render nothing while the list is empty.
 
 ## Notes
 - Post bodies are authored as HTML in TipTap and rendered from the server's sanitized `bodyHtml`. Comments are markdown rendered
@@ -181,3 +181,17 @@ colours, `role="note"`), and every amount is rendered through `MoneyAmount`, whi
 - **Key memory** (`features/files/keyStore.ts`): optional per-device localStorage map from file id to key. Every access
   is wrapped in try/catch and never uploaded.
 - Pure helpers (`features/files/helpers.ts`: sizes, expiry presets, share URLs, labels, passphrase rules) are covered by `helpers.test.ts`.
+## Reputation and moderator recognition
+Code in `features/reputation/` (`api.ts`, pure `logic.ts` + `logic.test.ts`, components); types in `types/recognition.ts`.
+- **Routes.** `/leaderboard` (tabs: Moderators with month and community selectors, Topics with each topic's top 3) and
+  `/topics/:slug/leaders`. "Leaderboard" moved from "Coming next" into the main nav; `/soon/leaderboard` redirects.
+- **Moderator rows** expand (`<details>`) into `ScoreBreakdown`: each component's value, its renormalised weight, the
+  points it adds and the raw rows behind it in words. `explainScore` re-derives the server's score from the components
+  (tested), and the rail shows `FormulaPanel` built from the server's formula constants, so the page can't drift.
+- **Thread chips.** `ExpertiseChip` sits next to the author name in `CommentItem`; all chips on a thread read one cached
+  `GET /posts/{id}/expertise` query.
+- **Profile.** `TopicStandings` (topic badges with rank) and `ModeratorRecord` (monthly scores and badges) in the About
+  rail; both hide when the server says `hidden`.
+- **Mod tools → Team** tab: `PeerEndorsements` ("Helpful +1" with an optional note, one per co-moderator per month).
+- **Settings → Preferences → Moderator recognition**: "Show me on moderator leaderboards" (`/me/moderator-settings`).
+- Empty states say why a board is empty (no qualifying activity yet) instead of showing placeholder rankings.
