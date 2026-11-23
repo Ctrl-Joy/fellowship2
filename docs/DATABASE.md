@@ -40,6 +40,7 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 |---|---|
 | V1 | core schema (identity, communities, posts, comments, votes, media, polls, notifications) |
 | V2 | reference topics |
+| V9 | topic reputation (`topic_reputation`, `reputation_dirty`, `reputation_runs`) and moderator recognition (`moderator_settings`, `moderator_endorsements`, `moderator_scores`) |
 
 Future phases add tables (reports, moderation_actions, collections, pulses, digests, ai_*, podcasts, files,
 funding_*) as new migrations — never by editing applied ones.

@@ -412,3 +412,45 @@ counts, so a client can't see anything it couldn't already fetch. Block filterin
 comment comes back with `blocked: true`.
 
 Presence and the simple broker are per-instance (single-node deployment). See DECISIONS for the multi-node path.
+
+## Topic reputation and moderator recognition (Phases 3 and 9)
+Both are derived from real rows (votes, reports, moderation actions, appeals) by background jobs; see D-020 for the rules.
+A vote only queues its author for a recompute, so reputation can lag a vote by a few seconds.
+
+```ts
+ReputationTier = "NONE"|"CONTRIBUTOR"|"TRUSTED"|"EXPERT"|"AUTHORITY"
+ReputationPolicy { upvote, downvote, pairDailyCap, topicDailyCap, newAccountDays, newAccountWeight, minKarma, lowKarmaWeight,
+                   qualitySaturation, tiers: {tier, label, minPoints}[], topRank, topMinPoints }   // the live constants
+LeaderEntry   { rank, user: UserSummary, points /* 1 decimal */, tier, topContributor, upvotes, downvotes /* counted */ }
+TopicLeaderboard { topic: Topic, entries: LeaderEntry[], contributors, computedAt|null, policy: ReputationPolicy }
+ReputationOverview { topics: { topic: Topic, contributors, leaders: LeaderEntry[] /* top 3 */ }[], computedAt|null }
+UserReputation { hidden /* private profile, not you */, topics: { topic, points, tier, rank, topContributor, upvotes, downvotes }[], computedAt|null }
+PostExpertise  { topics: Topic[], authors: { userId, topicSlug, topicName, points, tier, topContributor }[] }
+
+ModeratorScore { moderator: UserSummary, community: CommunityRef, period: "YYYY-MM", rank|null, score /* 0..100 */, ranked,
+                 components: { consistency, responsiveness, appealQuality, health, peer } /* each 0..1, or null = no data */,
+                 inputs: { decisions, decisionsReversed, reportsHandled, medianResponseMinutes|null, appealsUpheld,
+                           appealsOverturned, endorsements, coModerators, communityReports, communityReportsResolved,
+                           removalRate|null, prevRemovalRate|null },
+                 badges: { code, label, rule }[], computedAt }
+ScoreFormula   { weights: { component, label, weight, definition }[], minActivity, responseHalfHours, peerFullAt, badges, note }
+ModLeaderboard { period, periods: string[] /* newest first */, community: CommunityRef|null, entries: ModeratorScore[],
+                 formula: ScoreFormula, computedAt|null }
+ModerationRecord { hidden, optedOut /* only ever true for yourself */, entries: ModeratorScore[] /* last 24 rows */, formula }
+ModPeers { period, community: CommunityRef, peers: { moderator: UserSummary, endorsedByMe, note|null, endorsementsThisPeriod }[] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/topics/{slug}/leaders?limit=25` | `TopicLeaderboard` (≤100). Lists members with ≥ 1 point; 404 for an unknown topic |
+| GET | `/reputation/topics` | `ReputationOverview`: every topic with its top 3 |
+| GET | `/reputation/policy` | `ReputationPolicy` |
+| GET | `/users/{username}/reputation` | `UserReputation`, highest first. `hidden: true` for a private profile unless it's yours |
+| GET | `/posts/{id}/expertise` | `PostExpertise` for the post author and every commenter: their best topic of this post where they are Trusted+ or a top contributor. One call per thread page; same visibility as the post |
+| POST | `/admin/reputation/rebuild` | ADMIN. Full rebuild now → `{authors, rows}` (also runs at startup and nightly at 03:40 UTC) |
+| GET | `/moderators/leaderboard?period=YYYY-MM&community=slug&limit=50` | `ModLeaderboard`. Default period = current UTC month. Without `community`: all public and restricted communities. Only rows with activity ≥ `minActivity` whose moderator hasn't opted out. 400 `period` if malformed |
+| GET | `/moderators/formula` | `ScoreFormula` |
+| GET | `/users/{username}/moderation-record` | `ModerationRecord`. `hidden: true` for others when the moderator opted out or the profile is private; private communities only for yourself |
+| GET | `/communities/{slug}/moderators/peers` | auth; community moderators only (403 otherwise). Co-moderators with your endorsement for the current month |
+| POST | `/communities/{slug}/moderators/{username}/endorsement` | auth; `{note? (≤280)}` → 204. Co-moderators only, not yourself; one per endorser → moderator → month (posting again edits the note). Recomputes that community's scores. 30/hour |
+| DELETE | `/communities/{slug}/moderators/{username}/endorsement` | 204; 404 if you hadn't endorsed them this month |
+| GET / PUT | `/me/moderator-settings` | `{publicRanking: boolean}`. Off = scores are still computed, but hidden from every leaderboard and from other people's view of your profile |

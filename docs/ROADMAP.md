@@ -20,6 +20,9 @@ saved and hidden posts, notifications (grouped, polled).
 block/mute, mod queue, remove/approve/lock/pin, bans and timed suspensions, appeals, admin dashboard (users,
 communities, flags, audit log), spam heuristics (link velocity, duplicate content), topic reputation v1
 (vote events × topic, quality-weighted, anti-farming caps). Moderator UI in community settings.
+**Topic reputation v1 ✅ (D-020):** recomputed from vote rows (incremental queue + nightly rebuild), quality-weighted,
+self-vote, new-account and low-karma rules, per-pair and per-topic daily caps, removal reversal; profile badges,
+per-topic leaderboards, expertise chips in threads.
 
 ## Phase 4: Knowledge ✅ (Collections, Context Mode, Digest, Community Pulse with live updates over WebSocket)
 Smart Collections (collections, items for posts/comments, notes, tags, ordering, sharing), Context Mode
@@ -54,7 +57,7 @@ Funding pools, contributions (one-time and recurring), allocation policies, tran
 `PaymentProvider` abstraction with webhook verification. **Demo mode only** until a provider and compliance
 review exist; demo transactions are labelled and never represent real money.
 
-## Phase 9: Moderator recognition ☐
+## Phase 9: Moderator recognition ✅ (D-020)
 Quality-weighted moderator score (consistency, response time, appeal outcomes, community health, peer
 feedback, explicitly not raw removal counts), periods, badges, leaderboard, profiles.
 

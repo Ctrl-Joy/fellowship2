@@ -145,3 +145,18 @@ Signed-in only (anonymous users have no socket). Code in `features/live/`; event
     store (`newComments.ts`) with a brand tint and left rule that fades out.
 - `patchPostEverywhere` and `patchForests` now keep untouched lists and pages by reference, so a 2 s stats batch only
   re-renders what changed. Pure logic is tested in `features/live/logic.test.ts` and `features/comments/tree.test.ts`.
+
+## Reputation and moderator recognition
+Code in `features/reputation/` (`api.ts`, pure `logic.ts` + `logic.test.ts`, components); types in `types/recognition.ts`.
+- **Routes.** `/leaderboard` (tabs: Moderators with month and community selectors, Topics with each topic's top 3) and
+  `/topics/:slug/leaders`. "Leaderboard" moved from "Coming next" into the main nav; `/soon/leaderboard` redirects.
+- **Moderator rows** expand (`<details>`) into `ScoreBreakdown`: each component's value, its renormalised weight, the
+  points it adds and the raw rows behind it in words. `explainScore` re-derives the server's score from the components
+  (tested), and the rail shows `FormulaPanel` built from the server's formula constants, so the page can't drift.
+- **Thread chips.** `ExpertiseChip` sits next to the author name in `CommentItem`; all chips on a thread read one cached
+  `GET /posts/{id}/expertise` query.
+- **Profile.** `TopicStandings` (topic badges with rank) and `ModeratorRecord` (monthly scores and badges) in the About
+  rail; both hide when the server says `hidden`.
+- **Mod tools → Team** tab: `PeerEndorsements` ("Helpful +1" with an optional note, one per co-moderator per month).
+- **Settings → Preferences → Moderator recognition**: "Show me on moderator leaderboards" (`/me/moderator-settings`).
+- Empty states say why a board is empty (no qualifying activity yet) instead of showing placeholder rankings.
