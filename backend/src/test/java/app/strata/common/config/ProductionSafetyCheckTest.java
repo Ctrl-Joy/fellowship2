@@ -60,4 +60,12 @@ class ProductionSafetyCheckTest {
         assertThat(ProductionSafetyCheck.problems(safe().withProperty("strata.funding.enabled", "false")
                 .withProperty("strata.funding.demo-webhook-secret", ProductionSafetyCheck.DEV_WEBHOOK_SECRET))).isEmpty();
     }
+
+    @Test
+    void stripeInProductionNeedsItsWebhookSecretInsteadOfTheDemoOne() {
+        var stripe = safe().withProperty("strata.funding.provider", "stripe")
+                .withProperty("strata.funding.demo-webhook-secret", ProductionSafetyCheck.DEV_WEBHOOK_SECRET);
+        assertThat(ProductionSafetyCheck.problems(stripe)).singleElement().asString().contains("STRIPE_WEBHOOK_SECRET");
+        assertThat(ProductionSafetyCheck.problems(stripe.withProperty("strata.funding.stripe.webhook-secret", "whsec_x"))).isEmpty();
+    }
 }
