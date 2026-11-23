@@ -40,13 +40,22 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 |---|---|
 | V1 | core schema (identity, communities, posts, comments, votes, media, polls, notifications) |
 | V2 | reference topics |
+| V3 | knowledge layer: comment stances, thread digests, collections and collection items |
+| V4 | community AI: comment search vectors, AI conversations and messages |
+| V5 | moderation and Community Pulse: reports, moderation actions, bans, appeals, pulses and votes |
+| V6 | podcasts: shows, episodes, chapters, transcripts, sources, listening state |
+| V7 | direct messages: conversations, participants, messages, message media, `users.dm_policy` |
 | V8 | private files (`user_files`), share links (`file_share_links`: token hashes, optional wrapped E2EE keys), access log (`file_share_access`: hashed visitors, no IPs) |
 | V9 | topic reputation (`topic_reputation`, `reputation_dirty`, `reputation_runs`) and moderator recognition (`moderator_settings`, `moderator_endorsements`, `moderator_scores`) |
 | V10 | admin, mutes, spam: `communities.status`/`status_reason`, `users.suspended_reason`/`suspended_at`, `posts`/`comments` `pending` + `link_count`, `posts.content_hash`/`link_hash`, `spam_flags`, `user_mutes`, `community_mutes`, append-only `admin_actions` (trigger) |
 | V11 | moderator funding: `funding_policies`, `funding_pools`, `funding_subscriptions`, `funding_contributions`, `funding_allocations`, `funding_ledger` (append-only via triggers), `funding_webhook_events` (D-022) |
-| V13 | privacy hardening: `user_files.scan_engine` (STRUCTURAL / CLAMAV), `maintenance_runs` (one row per run of a one-time job such as the legacy DM image move) (D-029, D-030) |
-| V18 | account security: `account_security`, `totp_recovery_codes`, `mfa_login_challenges`, `user_passkeys`, `webauthn_challenges`, `known_devices`, `refresh_tokens.auth_method` (D-041, D-042) |
 | V12 | infrastructure: `media_assets.variant_widths` (image variants), index `dm_message_media (media_id)` for private DM image grants (D-023, D-024) |
+| V13 | privacy hardening: `user_files.scan_engine` (STRUCTURAL / CLAMAV), `maintenance_runs` (one row per run of a one-time job such as the legacy DM image move) (D-029, D-030) |
+| V14 | AI digests and stances: LLM usage records and `comment_ai_stances` (D-031 to D-033) |
+| V15 | Stripe: pending contributions, provider/mode on money rows, invoice idempotency (D-034, D-035) |
+| V16 | podcast audio generation: `podcast_tts_jobs`, episode audio origin (D-036, D-037) |
+| V17 | pack rooms, reactions and automod: room columns on conversations/participants/messages, `reactions`, automod rules and hits (D-043 to D-045) |
+| V18 | account security: `account_security`, `totp_recovery_codes`, `mfa_login_challenges`, `user_passkeys`, `webauthn_challenges`, `known_devices`, `refresh_tokens.auth_method` (D-041, D-042) |
 | V19 | web push: `push_subscriptions` (one row per user device: unique `endpoint`, `p256dh`/`auth` keys, per-device `categories`, `failure_count`, `last_used_at`; cascades with the user) (D-040) |
 | V20 | Stripe Connect payouts: `funding_connected_accounts` (account id and status flags only), `funding_payouts` (one per positive allocation of a Stripe pool: HELD / FAILED / PAID / REVERSED, transfer id, idempotency attempt), `funding_review_flags` (refund after payout, reversed or failing transfers), ledger entry types `PAYOUT` / `PAYOUT_REVERSAL` with `payout_id` and unique `external_ref` (D-046, D-047) |
 
