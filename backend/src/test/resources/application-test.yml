@@ -16,6 +16,12 @@ howlers:
   funding:
     # Tests drive the recurring-charge and close jobs directly, with explicit timestamps.
     jobs-enabled: false
+    # Never use a developer's real Stripe setup from backend/.env.local (FUNDING_PROVIDER, STRIPE_*): the demo provider
+    # is the baseline, and the Stripe ITs start their own context with a fake gateway.
+    provider: demo
+    stripe:
+      secret-key: ""
+      webhook-secret: ""
   files:
     max-file-mb: 2
     quota-mb: 4
