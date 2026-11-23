@@ -479,7 +479,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   MP3. 429/5xx are retried twice with backoff. Errors shown to moderators carry the HTTP status and ElevenLabs' short status
   code only, never the key or the raw body, and the key is masked in every `toString`. The key lives in the git-ignored
   `backend/.env.local` or the deployment `.env`, never in the frontend.
-- **Voices.** HOST A and HOST B map to two premade ElevenLabs voices by id: Sarah (`EXAVITQu4vr4xnAQ5fpe`) and George
+- **Voices.** HOST A and HOST B map to two premade ElevenLabs voices by id: Matilda (`XrExE9yKIg1WjnnlVkGX`) and George
   (`JBFqnCBsd6RMkjVDRZzb`), overridable with `ELEVENLABS_VOICE_A`/`_B` (and display names). There is no voice cloning and
   no way to upload anyone's voice; only stock voices the operator configures are used.
 - **Pipeline.** `SpeechScript` reads only `HOST A:`/`HOST B:` lines of the `ScriptDrafter` format (title, summary, outline,

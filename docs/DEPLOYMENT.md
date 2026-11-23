@@ -69,7 +69,7 @@ Optional:
 | `BREVO_REMOVE_TRACKING_PIXEL` | `false` | Brevo Enterprise only: send without the open pixel |
 | `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_EFFORT` | empty, empty, `medium` | Community AI; without a key, answers are offline cited summaries |
 | `ELEVENLABS_API_KEY` | empty | podcast audio generation (D-036); without it the studio says generation is unavailable. Server-side only |
-| `ELEVENLABS_MODEL`, `ELEVENLABS_VOICE_A`, `ELEVENLABS_VOICE_B` | `eleven_multilingual_v2`, Sarah `EXAVITQu4vr4xnAQ5fpe`, George `JBFqnCBsd6RMkjVDRZzb` | TTS model and the premade voices for HOST A / HOST B |
+| `ELEVENLABS_MODEL`, `ELEVENLABS_VOICE_A`, `ELEVENLABS_VOICE_B` | `eleven_multilingual_v2`, Matilda `XrExE9yKIg1WjnnlVkGX`, George `JBFqnCBsd6RMkjVDRZzb` | TTS model and the premade voices for HOST A / HOST B |
 | `TTS_PROVIDER`, `TTS_DAILY_CHARACTER_BUDGET`, `TTS_MAX_CHARS_PER_EPISODE` | `auto`, `100000`, `60000` | `auto`/`elevenlabs`/`none`; characters per community per UTC day; cap per generation |
 | `FUNDING_ENABLED` | `true` | moderator funding |
 | `FUNDING_PROVIDER` | `demo` | `demo` (simulated) or `stripe` (hosted Checkout, D-034); see "Stripe payments" below |

@@ -77,7 +77,7 @@ class ElevenLabsTtsProviderTest {
         List<Map<String, Object>> all = new ArrayList<>(seen);
         assertThat(all.get(1).get("uri").toString()).startsWith("/v1/text-to-speech/voiceBbb?");
         assertThat(p.voice(Speaker.B).name()).isEqualTo("Bea");
-        assertThat(p.voice(Speaker.A).name()).isEqualTo("Sarah");
+        assertThat(p.voice(Speaker.A).name()).isEqualTo("Matilda");
     }
 
     @Test

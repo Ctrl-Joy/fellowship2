@@ -176,9 +176,9 @@ howlers:
         base-url: ${ELEVENLABS_BASE_URL:https://api.elevenlabs.io}
         model: ${ELEVENLABS_MODEL:eleven_multilingual_v2}
         output-format: ${ELEVENLABS_OUTPUT_FORMAT:mp3_44100_128}
-        # Premade ElevenLabs voices (no cloning). Defaults: Sarah (HOST A) and George (HOST B).
-        voice-a: ${ELEVENLABS_VOICE_A:EXAVITQu4vr4xnAQ5fpe}
-        voice-a-name: ${ELEVENLABS_VOICE_A_NAME:Sarah}
+        # Premade ElevenLabs voices (no cloning). Defaults: Matilda (HOST A) and George (HOST B).
+        voice-a: ${ELEVENLABS_VOICE_A:XrExE9yKIg1WjnnlVkGX}
+        voice-a-name: ${ELEVENLABS_VOICE_A_NAME:Matilda}
         voice-b: ${ELEVENLABS_VOICE_B:JBFqnCBsd6RMkjVDRZzb}
         voice-b-name: ${ELEVENLABS_VOICE_B_NAME:George}
         request-timeout: PT2M

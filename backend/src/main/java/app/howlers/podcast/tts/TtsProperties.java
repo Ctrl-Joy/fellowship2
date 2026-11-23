@@ -35,8 +35,8 @@ public record TtsProperties(String provider, Integer maxCharsPerRequest, Integer
         }
     }
 
-    /** Sarah (premade, American, warm), used for HOST A unless {@code ELEVENLABS_VOICE_A} is set. */
-    public static final String DEFAULT_VOICE_A = "EXAVITQu4vr4xnAQ5fpe";
+    /** Matilda (premade, professional alto), used for HOST A unless {@code ELEVENLABS_VOICE_A} is set. */
+    public static final String DEFAULT_VOICE_A = "XrExE9yKIg1WjnnlVkGX";
     /** George (premade, British, warm narrator), used for HOST B unless {@code ELEVENLABS_VOICE_B} is set. */
     public static final String DEFAULT_VOICE_B = "JBFqnCBsd6RMkjVDRZzb";
 
@@ -67,7 +67,7 @@ public record TtsProperties(String provider, Integer maxCharsPerRequest, Integer
                 blank(e.model()) ? "eleven_multilingual_v2" : e.model().strip(),
                 blank(e.outputFormat()) ? "mp3_44100_128" : e.outputFormat().strip(),
                 blank(e.voiceA()) ? DEFAULT_VOICE_A : e.voiceA().strip(),
-                blank(e.voiceAName()) ? (blank(e.voiceA()) ? "Sarah" : "Custom voice A") : e.voiceAName().strip(),
+                blank(e.voiceAName()) ? (blank(e.voiceA()) ? "Matilda" : "Custom voice A") : e.voiceAName().strip(),
                 blank(e.voiceB()) ? DEFAULT_VOICE_B : e.voiceB().strip(),
                 blank(e.voiceBName()) ? (blank(e.voiceB()) ? "George" : "Custom voice B") : e.voiceBName().strip(),
                 e.requestTimeout() == null ? Duration.ofMinutes(2) : e.requestTimeout());
