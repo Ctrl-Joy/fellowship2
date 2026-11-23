@@ -117,6 +117,7 @@ export default function SharePage() {
             icon={Link2Off}
             title={(meta.error as ApiError).status === 404 ? 'This link doesn’t exist' : 'This link no longer works'}
             description={(meta.error as ApiError).status === 404 ? 'Check that you copied the whole link.' : errorMessage(meta.error)}
+            mascot="sit"
           />
         ) : (
           <ErrorState error={meta.error} onRetry={() => meta.refetch()} />

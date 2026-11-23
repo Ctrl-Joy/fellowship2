@@ -950,3 +950,20 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   marks authors who would be exempt. It changes nothing.
 - **Known gap.** Edits to existing posts and comments are not re-checked yet: a held item released on edit would double
   count, and a correct "edit-time hold" needs its own state. The mod-tools tab says so.
+**D-048 Wolf-pup mascots in app states, brand assets in `docs/brand/`, and a k6 load test.**
+- **Mascots.** The landing page's pups moved to `design-system/Pups.tsx` and gained a `theme` fur that reads
+  `--pup-*` tokens scoped to `.mascot` (`design-system/mascot.css`), so the always-dark landing keeps its fixed palette
+  while in-app pups switch per theme (light fur `#6f66d9`, 4.6:1 on white; dark fur `#c9d3f7`, 13:1 on `#0b0e10`).
+  `Mascot` wraps a pup as a decorative, `aria-hidden` element; it idles (breathing, blink, tail wag, wave) only under
+  `prefers-reduced-motion: no-preference`, and the global reduced-motion rule stops it anyway. `EmptyState` takes an
+  optional `mascot` pose instead of its icon; `ErrorState` shows the sleepy pup with a gentler heading when the error is
+  `connectionTrouble()` (offline: status 0; maintenance: 502/503/504) but still prints the server's message. Copy was
+  made warmer without dropping information (the old wording stays in the description where the title changed); action
+  buttons are unchanged. Skeletons were left alone: a pup in every skeleton row would be noise, so only the full-page
+  loader (`PageSpinner`) got one.
+- **Brand assets.** GitHub's social preview and README artwork are HTML/SVG sources in `docs/brand/`, rendered by
+  `render.sh` with headless Chrome and a throwaway profile, so they can be regenerated rather than hand-edited. The
+  social preview has to be uploaded by the owner in the repository settings.
+- **Load test.** k6 in the pinned `grafana/k6` Docker image against the production-like stack on 8088; writes are
+  confined to a labelled c/loadtest community and votes are reset at the end. Results and bottlenecks are in
+  `docs/PERFORMANCE.md`. No code or index changes were needed at the current data size.

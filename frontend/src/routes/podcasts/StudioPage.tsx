@@ -61,7 +61,7 @@ export default function StudioPage() {
       {q.isPending && <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>}
       {q.isError && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
       {q.data && q.data.length === 0 && (
-        <EmptyState icon={Mic} title="No episodes yet" description="Start a draft, upload your recording and transcript, then submit it for review." action={<Button size="sm" onClick={() => setOpen(true)}><Plus size={15} /> New episode</Button>} />
+        <EmptyState icon={Mic} title="No episodes yet" description="The mic is warm. Start a draft, upload your recording and transcript, then submit it for review." mascot="headphones" action={<Button size="sm" onClick={() => setOpen(true)}><Plus size={15} /> New episode</Button>} />
       )}
       {groups.map((g) => (
         <section key={g.status} className="mb-6">

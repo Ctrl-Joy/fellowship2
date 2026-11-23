@@ -4,7 +4,7 @@ import { ArrowRight, Award, ChevronDown, Gavel, Search, ShieldCheck, VolumeX } f
 import { useCommunities } from '@/features/communities/hooks';
 import { FAQ, filterFaq } from './faq';
 import { Moon, Stars } from './NightSky';
-import { Paw, Pup, Sparkle } from './Pups';
+import { Paw, Pup, Sparkle } from '@/design-system/Pups';
 
 const v = (vars: Record<string, string | number>) => vars as CSSProperties;
 

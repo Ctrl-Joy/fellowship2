@@ -104,7 +104,8 @@ export function ConversationList({ activeId, q, onQueryChange }: { activeId: num
             <EmptyState
               icon={MessagesSquare}
               title="No conversations yet"
-              description="Start a one-to-one conversation with someone from the community."
+              description="Say hello to someone from your pack. Start a one-to-one conversation with anyone in the community."
+              mascot="wave"
               action={<Button size="sm" onClick={() => setComposing(true)}>New message</Button>}
             />
           )

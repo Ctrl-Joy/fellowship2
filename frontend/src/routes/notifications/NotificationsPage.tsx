@@ -54,7 +54,7 @@ export default function NotificationsPage() {
         {q.isPending && <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>}
         {q.isError && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
         {q.data && items.length === 0 && (
-          <EmptyState icon={Bell} title={filter === 'unread' ? 'No unread notifications' : 'No notifications yet'} description="Replies, mentions and new followers show up here." />
+          <EmptyState icon={Bell} title={filter === 'unread' ? 'All caught up' : 'No notifications yet'} description={filter === 'unread' ? 'No unread notifications. Replies, mentions and new followers show up here.' : 'All quiet in the den. Replies, mentions and new followers show up here.'} mascot={filter === 'unread' ? 'howl' : 'sleepy'} />
         )}
         {items.length > 0 && (
           <ul className="divide-y divide-border">

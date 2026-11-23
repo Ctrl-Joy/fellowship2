@@ -76,6 +76,6 @@ export function QueueTab({ slug }: { slug: string }) {
   const q = useModQueue(slug);
   if (q.isPending) return <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
-  if (!q.data.length) return <EmptyState icon={CheckCircle2} title="The queue is clear" description="New reports from members will appear here." />;
+  if (!q.data.length) return <EmptyState icon={CheckCircle2} title="The queue is clear" description="Nice work, pack leader. New reports from members will appear here." mascot="howl" />;
   return <div className="space-y-3">{q.data.map((i) => <QueueCard key={`${i.targetType}-${i.commentId ?? i.postId}`} slug={slug} item={i} />)}</div>;
 }

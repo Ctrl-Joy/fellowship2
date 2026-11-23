@@ -117,7 +117,7 @@ function ModToolsLink({ slug }: { slug: string }) {
   return (
     <Link to={`/c/${slug}/mod`} className={buttonClasses('secondary', 'md')} title="Moderation queue, appeals, bans and log">
       <ShieldCheck size={16} /> Mod tools
-      {open > 0 && <span className="rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">{open}</span>}
+      {open > 0 && <span className="rounded-full bg-danger px-1.5 text-[11px] font-bold text-danger-fg">{open}</span>}
     </Link>
   );
 }

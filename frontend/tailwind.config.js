@@ -21,6 +21,7 @@ export default {
         'accent-fg': v('accent-fg'),
         down: v('down'),
         danger: v('danger'),
+        'danger-fg': v('danger-fg'),
         warning: v('warning'),
         info: v('info'),
       },

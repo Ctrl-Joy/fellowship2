@@ -39,7 +39,7 @@ export default function MessagesPage() {
           <Thread key={id} id={id} />
         ) : (
           <div className="flex h-full items-center justify-center">
-            <EmptyState icon={MessagesSquare} title="Your messages" description="Pick a conversation, or start a new one from the list." />
+            <EmptyState icon={MessagesSquare} title="Your messages" description="Pick a conversation, or start a new one from the list." mascot="headphones" />
           </div>
         )}
       </div>

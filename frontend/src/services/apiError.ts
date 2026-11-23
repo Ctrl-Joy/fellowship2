@@ -29,3 +29,11 @@ export function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'Something went wrong';
 }
+
+/** Offline (no response at all) or maintenance (the proxy answered 502/503/504) rather than an application error. */
+export function connectionTrouble(error: unknown): 'offline' | 'maintenance' | null {
+  if (!(error instanceof ApiError)) return null;
+  if (error.status === 0) return 'offline';
+  if (error.status === 502 || error.status === 503 || error.status === 504) return 'maintenance';
+  return null;
+}

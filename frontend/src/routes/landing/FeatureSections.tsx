@@ -11,7 +11,7 @@ import {
   Quote,
   Sparkles,
 } from 'lucide-react';
-import { Pup } from './Pups';
+import { Pup } from '@/design-system/Pups';
 
 const v = (vars: Record<string, string | number>) => vars as CSSProperties;
 

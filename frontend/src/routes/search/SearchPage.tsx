@@ -26,7 +26,7 @@ function ListShell<T>({
   if (q.isPending) return <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-12" />)}</div>;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const items = q.data.pages.flatMap((p) => p.items);
-  if (!items.length) return <EmptyState icon={Search} title={emptyTitle} description="Try different words or fewer filters." />;
+  if (!items.length) return <EmptyState icon={Search} title={emptyTitle} description="Our pups sniffed everywhere. Try different words or fewer filters." mascot="sit" />;
   return (
     <>
       <div className="divide-y divide-border">{items.map(render)}</div>
@@ -60,7 +60,7 @@ export default function SearchPage() {
   if (!q.trim()) {
     return (
       <PageColumns>
-        <EmptyState icon={Search} title="Search Howlers" description="Use the search bar to find posts, communities and people. Prefix with # to search tags." />
+        <EmptyState icon={Search} title="Search Howlers" description="Use the search bar to find posts, communities and people. Prefix with # to search tags." mascot="headphones" />
       </PageColumns>
     );
   }
@@ -103,7 +103,7 @@ export default function SearchPage() {
         )}
       </div>
 
-      {type === 'posts' && <PostList query={posts as UseInfiniteQueryResult<InfiniteData<CursorPage<PostSummary>>, Error>} empty={{ icon: Search, title: 'No posts match', description: 'Try different words or a longer time range.' }} />}
+      {type === 'posts' && <PostList query={posts as UseInfiniteQueryResult<InfiniteData<CursorPage<PostSummary>>, Error>} empty={{ icon: Search, title: 'No posts match', description: 'Our pups sniffed everywhere. Try different words or a longer time range.', mascot: 'sit' }} />}
       {type === 'communities' && (
         <div className="border-y border-border bg-surface sm:rounded-lg sm:border">
           <ListShell<CommunitySummary>

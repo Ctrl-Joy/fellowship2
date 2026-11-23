@@ -42,7 +42,7 @@ function HistoryList() {
   if (q.isPending) return <div className="space-y-2"><Skeleton className="h-24" /><Skeleton className="h-24" /></div>;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   const items = q.data.pages.flatMap((p) => p.items);
-  if (!items.length) return <EmptyState icon={History} title="Nothing played yet" description="Episodes you start listening to show up here." />;
+  if (!items.length) return <EmptyState icon={History} title="Nothing played yet" description="Episodes you start listening to show up here." mascot="headphones" />;
   return (
     <>
       <div className="space-y-1">{items.map((e) => <EpisodeRow key={e.id} e={e} />)}</div>
@@ -146,6 +146,7 @@ export default function PodcastsPage() {
                 icon={Headphones}
                 title={filters.type || filters.community ? 'No episodes match these filters' : 'No episodes published yet'}
                 description="Moderators publish episodes from their community's studio. Each one is a real recording with a transcript and its sources."
+                mascot="headphones"
               />
             )}
             <div className="space-y-1">{episodes.map((e) => <EpisodeRow key={e.id} e={e} />)}</div>

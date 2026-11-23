@@ -14,7 +14,7 @@ export function HeldTab({ slug }: { slug: string }) {
   if (q.isPending) return <div className="space-y-3">{Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-40 rounded-2xl" />)}</div>;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
   if (!q.data.length) {
-    return <EmptyState icon={ShieldCheck} title="Nothing held for review" description="Posts and comments held by the spam checks appear here. Only their authors and moderators can see them." />;
+    return <EmptyState icon={ShieldCheck} title="Nothing held for review" description="Posts and comments held by the spam checks appear here. Only their authors and moderators can see them." mascot="sleepy" />;
   }
   return (
     <div className="space-y-3">

@@ -85,7 +85,7 @@ function Reports() {
   const q = useAdminReports();
   if (q.isPending) return <Skeleton className="h-40 rounded-2xl" />;
   if (q.isError) return <ErrorState error={q.error} onRetry={() => q.refetch()} />;
-  if (!q.data.length) return <EmptyState icon={CheckCircle2} title="No open reports" description="Reports from members of every community appear here, most-reported first." />;
+  if (!q.data.length) return <EmptyState icon={CheckCircle2} title="No open reports" description="Reports from members of every community appear here, most-reported first." mascot="howl" />;
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted">Admins act with moderator rights in every community; actions are logged in that community’s mod log.</p>
