@@ -7,6 +7,9 @@ strata:
     enabled: false
   storage:
     local-dir: ./target/test-uploads
+  files:
+    max-file-mb: 2
+    quota-mb: 4
 management:
   health:
     redis:

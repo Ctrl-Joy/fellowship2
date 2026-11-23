@@ -58,6 +58,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/resend-verification").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/sessions/**").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        // Public share links: the password check happens in ShareService (rate-limited, logged).
+                        .requestMatchers(HttpMethod.POST, "/api/v1/share/*/unlock").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
