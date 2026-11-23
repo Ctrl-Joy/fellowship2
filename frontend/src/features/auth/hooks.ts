@@ -4,6 +4,7 @@ import { qk } from '@/services/queryKeys';
 import { useAuthStore } from '@/store/authStore';
 import type { AuthResponse } from '@/types/api';
 import { usernameSchema } from '@/utils/validation';
+import { isMfaChallenge } from '@/features/accountSecurity/logic';
 import { authApi } from './api';
 
 export function useAuth() {
@@ -22,7 +23,8 @@ function useSessionSetter() {
 
 export function useLogin() {
   const setSession = useSessionSetter();
-  return useMutation({ mutationFn: authApi.login, onSuccess: setSession });
+  // With 2FA on, the first step returns a challenge, not a session; the form then asks for the code.
+  return useMutation({ mutationFn: authApi.login, onSuccess: (r) => (isMfaChallenge(r) ? undefined : setSession(r)) });
 }
 
 export function useRegister() {

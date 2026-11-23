@@ -1,10 +1,12 @@
 import { http } from '@/services/apiClient';
 import type { AuthResponse, SessionInfo } from '@/types/api';
+import type { MfaChallenge } from '@/types/accountSecurity';
 import type { VerifyEmailResult } from './verifyOutcome';
 
 export const authApi = {
   login: (body: { login: string; password: string }) =>
-    http.post<AuthResponse>('/auth/login', body, { skipRefresh: true }),
+    // A session, or a second-step challenge when the account has two-factor authentication on (D-042).
+    http.post<AuthResponse | MfaChallenge>('/auth/login', body, { skipRefresh: true }),
   register: (body: { username: string; email: string; password: string; displayName?: string }) =>
     http.post<AuthResponse>('/auth/register', body, { skipRefresh: true }),
   logout: () => http.post<void>('/auth/logout', undefined, { skipRefresh: true }),

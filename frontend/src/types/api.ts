@@ -244,6 +244,8 @@ export interface SessionInfo {
   createdAt: string;
   lastUsedAt: string | null;
   current: boolean;
+  /** How the session was signed in (D-041, D-042); null for sessions from before. */
+  authMethod?: import('./accountSecurity').AuthMethod | null;
 }
 
 export type NotificationType =
