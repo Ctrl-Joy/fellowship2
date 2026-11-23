@@ -87,7 +87,7 @@ export function AnswerView({ m, conversationId, onFollowUp }: { m: AiMessage; co
             <Info size={14} className="mt-0.5 shrink-0 text-warning" /> {m.notice}
           </div>
         )}
-        <div className="prose-strata text-[15px]">
+        <div className="prose-howlers text-[15px]">
           <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
             {linkCitations(m.content, m.id, m.sources.length)}
           </ReactMarkdown>

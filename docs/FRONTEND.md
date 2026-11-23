@@ -271,7 +271,7 @@ cd frontend
 npx playwright install chromium            # once
 # Backend on :8080 with the seed. If its CORS_ALLOWED_ORIGINS doesn't list your test server's origin, let the dev proxy
 # present an allowed one (it only rewrites requests whose Origin is the dev server's own localhost origin):
-STRATA_DEV_PROXY_ORIGIN=http://localhost:5173 npx vite --port 5174 --strictPort
+HOWLERS_DEV_PROXY_ORIGIN=http://localhost:5173 npx vite --port 5174 --strictPort
 npm run e2e                                 # E2E_BASE_URL defaults to http://localhost:5174
 E2E_START_SERVER=1 npm run e2e              # or let Playwright start `vite --port 5174` itself
 AXE_ONLY="post page,files" npx playwright test 08-accessibility   # audit a subset

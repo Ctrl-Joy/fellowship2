@@ -5,7 +5,7 @@ Base path: `/api/v1`. JSON everywhere. OpenAPI UI at `/swagger-ui.html` (JSON at
 ## Conventions
 
 **Auth.** `Authorization: Bearer <accessToken>` (JWT, 15 min). The refresh token is an
-`HttpOnly; Secure(prod); SameSite=Strict` cookie named `strata_rt`, scoped to `/api/v1/auth`,
+`HttpOnly; Secure(prod); SameSite=Strict` cookie named `howlers_rt`, scoped to `/api/v1/auth`,
 rotated on every refresh. Reuse of a rotated refresh token revokes the whole session family.
 Frontend keeps the access token **in memory only** and calls `POST /auth/refresh` on boot and on 401.
 All requests use `credentials: "include"`.
@@ -525,7 +525,7 @@ FundingStatus { ..., mode, label /* from the provider */, checkout: "instant"|"h
                 payouts: "Allocated, not paid out: ..." }
 PoolSummary { ..., mode }
 Contribution { ..., provider, refunded: Money }
-Subscription { ..., provider, billedBy: "strata"|"provider", paymentFailedAt|null }   // provider-billed: nextChargeAt is null
+Subscription { ..., provider, billedBy: "howlers"|"provider", paymentFailedAt|null }   // provider-billed: nextChargeAt is null
 ContributeResult { contribution|null, subscription|null, checkout: { pendingId, url, provider, mode }|null }
 CheckoutStatus { pendingId, status: "PENDING"|"CONFIRMED"|"CANCELLED"|"EXPIRED"|"FAILED", reason|null, pool: PoolRef,
                  kind, amount: Money, contribution|null, subscription|null }
@@ -543,8 +543,8 @@ LedgerEntry.entryType: "CONTRIBUTION"|"ALLOCATION"|"REFUND"    // REFUND: pool:{
 
 - **Return URLs**: success `{APP_PUBLIC_URL}/funding/pools/{id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`, cancel
   `{APP_PUBLIC_URL}/funding/pools/{id}?checkout=cancelled&pending={pendingId}`. Session metadata (also copied to the
-  PaymentIntent or subscription): `strata_pool_id`, `strata_contributor_id`, `strata_contribution_id` (the pending id, also the
-  `client_reference_id`), `strata_anonymous`, `strata_kind`.
+  PaymentIntent or subscription): `howlers_pool_id`, `howlers_contributor_id`, `howlers_contribution_id` (the pending id, also the
+  `client_reference_id`), `howlers_anonymous`, `howlers_kind`.
 - **Webhook events**: `checkout.session.completed` / `async_payment_succeeded` (confirm), `async_payment_failed` and `expired`
   (nothing recorded), `invoice.paid` (each paid invoice is one RECURRING contribution, recorded once by invoice id; the first one
   may arrive before the session event), `invoice.payment_failed` (sets `paymentFailedAt`; Stripe retries),
@@ -578,7 +578,7 @@ ShareMeta { fileName|null, contentType|null /* both null for E2EE */, sizeBytes,
 | Method | Path | Notes |
 |---|---|---|
 | GET | `/me/files?q&cursor&limit` | `CursorPage<FileItem>`, newest first; `q` = case-insensitive name search |
-| GET | `/me/files/usage` | `FileUsage` (quota `strata.files.quota-mb`, default 1024; max file `max-file-mb`, default 500) |
+| GET | `/me/files/usage` | `FileUsage` (quota `howlers.files.quota-mb`, default 1024; max file `max-file-mb`, default 500) |
 | POST | `/me/files` (multipart `file`, `e2ee?`, `label?`) | 201 `FileItem`. Streamed to storage. 400 `fieldErrors.file` for: over size/quota, blocked executable/script/macro type, content that doesn't match the extension, unsupported type, archive with executables or bomb-like expansion. With `e2ee=true` the body must be a Howlers container (`STRATAE2` v1); the client's file name is not stored (`label` or "Encrypted file") |
 | GET | `/me/files/{id}` | `FileItem` |
 | PATCH | `/me/files/{id}` `{name}` | Rename (plain files keep their extension; E2EE renames the label) |
@@ -694,7 +694,7 @@ SpamFlag { id, community: CommunityRef, author: UserSummary|null, authorJoinedAt
            status: "OPEN"|"APPROVED"|"REMOVED"|"CLOSED", resolvedBy, resolvedAt, createdAt }
 ```
 `PostSummary`/`PostDetail` gain `pending: boolean`; `CommentNode` gains `pending: boolean` and `muted: boolean`.
-Thresholds live in `application.yml` under `strata.spam.*` (see D-021).
+Thresholds live in `application.yml` under `howlers.spam.*` (see D-021).
 
 ### Mutes (private)
 | Method | Path | Notes |
@@ -760,7 +760,7 @@ covers) is stored without EXIF/GPS, XMP, IPTC, comments, text chunks or trailing
 kept as a minimal orientation-only EXIF block. Pixels are untouched (lossless). A file whose structure can't be read
 → 400 `fieldErrors.file`. Private files (`POST /me/files`) are stored byte for byte, metadata included (D-028).
 
-### Antivirus (`strata.files.antivirus=clamav`)
+### Antivirus (`howlers.files.antivirus=clamav`)
 - `FileItem` and `ShareMeta` gain `scanEngine: "STRUCTURAL"|"CLAMAV"`. `CLAMAV` means ClamAV scanned the file and found
   nothing. `STRUCTURAL` means type and structure checks only, which is not an antivirus scan (always the case when
   scanning is off, for files uploaded before V13, and for fail-open uploads, whose `scanDetail` says the scanner was

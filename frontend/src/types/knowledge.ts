@@ -1,6 +1,6 @@
 import type { PostSummary, UserSummary } from './api';
 
-/** Mirrors backend app.strata.insight / app.strata.collection DTOs (docs/API.md → Knowledge layer). */
+/** Mirrors backend app.howlers.insight / app.howlers.collection DTOs (docs/API.md → Knowledge layer). */
 export type Stance = 'SUPPORT' | 'OPPOSE' | 'NEUTRAL' | 'QUESTION' | 'EVIDENCE' | 'EXPERIENCE';
 /** READERS = reader labels; AI = suggested by the configured model; RULES = rule-based suggestion. */
 export type StanceSource = 'READERS' | 'AI' | 'RULES';

@@ -5,5 +5,5 @@ export const brand = {
   description:
     'Howlers is home for communities that like each other: threads that make sense, an AI that cites its sources, live messages, polls and community podcasts.',
   supportEmail: 'support@howlers.local',
-  themeStorageKey: 'strata-theme',
+  themeStorageKey: 'howlers-theme',
 } as const;

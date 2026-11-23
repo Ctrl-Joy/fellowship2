@@ -1,13 +1,13 @@
 spring:
   application:
-    name: strata
+    name: howlers
   config:
     # Local-only secrets (e.g. ANTHROPIC_API_KEY=...) in backend/.env.local, git-ignored. Absent in Docker/CI.
     import: optional:file:./.env.local[.properties]
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/strata}
-    username: ${DATABASE_USER:strata}
-    password: ${DATABASE_PASSWORD:strata}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/howlers}
+    username: ${DATABASE_USER:howlers}
+    password: ${DATABASE_PASSWORD:howlers}
     hikari:
       maximum-pool-size: ${DATABASE_POOL_SIZE:15}
   jpa:
@@ -29,7 +29,7 @@ spring:
       timeout: 500ms
   servlet:
     multipart:
-      # Per-endpoint limits are enforced in code (images 10 MB, podcast media strata.storage.max-media-mb).
+      # Per-endpoint limits are enforced in code (images 10 MB, podcast media howlers.storage.max-media-mb).
       max-file-size: 600MB
       max-request-size: 610MB
       file-size-threshold: 1MB
@@ -75,9 +75,9 @@ management:
           include: readinessState,db,storage
   metrics:
     tags:
-      application: strata
+      application: howlers
     distribution:
-      # Histogram buckets so Grafana can compute p95 latency (deploy/grafana/dashboards/strata-overview.json).
+      # Histogram buckets so Grafana can compute p95 latency (deploy/grafana/dashboards/howlers-overview.json).
       percentiles-histogram:
         http.server.requests: true
   health:
@@ -99,13 +99,13 @@ logging:
     root: INFO
     org.hibernate.SQL: WARN
 
-strata:
+howlers:
   jwt:
     # Base64, >= 32 bytes. The default is for local development only; production must set JWT_SECRET.
     secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWNoYW5nZS1tZS1iZWZvcmUtZGVwbG95aW5nLXN0cmF0YQ==}
     access-ttl: ${JWT_ACCESS_TTL:PT15M}
     refresh-ttl: ${JWT_REFRESH_TTL:P30D}
-    issuer: strata
+    issuer: howlers
   cookie:
     secure: ${COOKIE_SECURE:false}
   cors:
@@ -116,7 +116,7 @@ strata:
   mail:
     # log | smtp | brevo (D-038). The from address must be a sender (or domain) verified in the provider account.
     mode: ${MAIL_MODE:log}
-    from-address: ${MAIL_FROM_ADDRESS:${MAIL_FROM:no-reply@strata.local}}
+    from-address: ${MAIL_FROM_ADDRESS:${MAIL_FROM:no-reply@howlers.local}}
     from-name: ${MAIL_FROM_NAME:Howlers}
     reply-to: ${MAIL_REPLY_TO:}
     brevo:
@@ -130,7 +130,7 @@ strata:
     driver: ${STORAGE_DRIVER:local}
     local-dir: ${STORAGE_LOCAL_DIR:./data/uploads}
     s3:
-      bucket: ${S3_BUCKET:strata}
+      bucket: ${S3_BUCKET:howlers}
       endpoint: ${S3_ENDPOINT:}
       region: ${S3_REGION:us-east-1}
       access-key: ${S3_ACCESS_KEY:}
@@ -237,7 +237,7 @@ spring:
   config:
     activate:
       on-profile: prod
-strata:
+howlers:
   cookie:
     secure: true
   seed:

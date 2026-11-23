@@ -51,7 +51,7 @@ export const useUiPrefs = create<UiPrefs>()(
         set((s) => ({ collapsed: s.collapsed.includes(key) ? s.collapsed.filter((k) => k !== key) : [...s.collapsed, key] })),
     }),
     {
-      name: 'strata-ui',
+      name: 'howlers-ui',
       storage: createJSONStorage(() => {
         try {
           return window.localStorage;

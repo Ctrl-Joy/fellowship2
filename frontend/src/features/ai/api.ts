@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { http } from '@/services/apiClient';
 
-/** Mirrors backend app.strata.ai.AiDtos. */
+/** Mirrors backend app.howlers.ai.AiDtos. */
 export interface AiSource {
   n: number;
   kind: 'POST' | 'COMMENT';

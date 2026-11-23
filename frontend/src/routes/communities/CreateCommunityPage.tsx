@@ -81,7 +81,7 @@ export default function CreateCommunityPage() {
         <form onSubmit={onSubmit} noValidate className="space-y-5">
           <FormAlert message={formError} />
           <div className="grid gap-5 sm:grid-cols-2">
-            <Field label="Address" error={formState.errors.slug?.message} hint={`strata/c/${slug || 'your_community'} · can’t be changed later`}>
+            <Field label="Address" error={formState.errors.slug?.message} hint={`howlers/c/${slug || 'your_community'} · can’t be changed later`}>
               {(a) => <Input {...a} {...register('slug')} placeholder="system_design" autoComplete="off" />}
             </Field>
             <Field label="Display name" error={formState.errors.name?.message}>

@@ -10,7 +10,7 @@
     <script>
       (function () {
         try {
-          var t = localStorage.getItem('strata-theme');
+          var t = localStorage.getItem('howlers-theme');
           var light = t === 'light' || (t === 'system' && window.matchMedia('(prefers-color-scheme: light)').matches);
           if (light) document.documentElement.classList.remove('dark');
         } catch (e) {}

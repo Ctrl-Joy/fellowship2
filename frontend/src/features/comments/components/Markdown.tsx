@@ -25,7 +25,7 @@ const components: Components = {
 /** Renders comment markdown. Raw HTML is never rendered (no rehype-raw). */
 export function Markdown({ source }: { source: string }) {
   return (
-    <div className="prose-strata prose-compact text-[14.5px]">
+    <div className="prose-howlers prose-compact text-[14.5px]">
       <ReactMarkdown remarkPlugins={[remarkGfm]} components={components} skipHtml>
         {linkMentions(source)}
       </ReactMarkdown>

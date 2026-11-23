@@ -46,7 +46,7 @@ export function MyContributions({ contributions, subscriptions }: { contribution
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
                     {s.cyclesCharged} {s.cyclesCharged === 1 ? 'month' : 'months'} recorded
-                    {s.status === 'ACTIVE' && s.billedBy === 'strata' && s.nextChargeAt && <> · next demo charge {formatDate(s.nextChargeAt)}</>}
+                    {s.status === 'ACTIVE' && s.billedBy === 'howlers' && s.nextChargeAt && <> · next demo charge {formatDate(s.nextChargeAt)}</>}
                     {s.status === 'ACTIVE' && s.billedBy === 'provider' && <> · billed monthly by Stripe</>}
                     {endedWhy(s) && <> · {endedWhy(s)}</>}
                     {s.status === 'ACTIVE' && s.paymentFailedAt && (

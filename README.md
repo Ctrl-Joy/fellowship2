@@ -26,8 +26,8 @@ Open http://localhost:8088. API docs: http://localhost:8088/swagger-ui.html.
 Prereqs: JDK 21, Node 22+, PostgreSQL 15+ and Redis (optional: rate limiting falls back to memory without it).
 
 ```bash
-# database (defaults expect port 5433, db/user/password "strata")
-createdb -p 5433 -U strata strata
+# database (defaults expect port 5433, db/user/password "howlers")
+createdb -p 5433 -U howlers howlers
 
 cd backend && ./mvnw spring-boot:run        # http://localhost:8080, runs migrations + demo seed
 cd frontend && npm install && npm run dev   # http://localhost:5173 (proxies /api to :8080)
@@ -37,7 +37,7 @@ Override the DB with `DATABASE_URL`, `DATABASE_USER` and `DATABASE_PASSWORD`. Ev
 
 ### Demo accounts
 With `SEED_DEMO_DATA=true` (the default outside the `prod` profile), fictional demo users are created, such as
-`mira_k`, `nadia_sec` and `first_job_fern`, all with the password **`strata-demo-1`**. The content is
+`mira_k`, `nadia_sec` and `first_job_fern`, all with the password **`howlers-demo-1`**. The content is
 illustrative demo data, not real activity. Disable it in production.
 
 `admin_demo` (same password) is a platform admin: sign in and open **Admin dashboard** from the account menu (`/admin`).

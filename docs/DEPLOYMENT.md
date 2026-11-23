@@ -39,7 +39,7 @@ cookies, HSTS and correct client IPs for rate limits.
 4. Watch `docker compose -f deploy/docker-compose.prod.yml logs -f backend`. If a secret is missing or a dev default,
    the backend stops with a list of every problem ("Refusing to start the prod profile…"); fix `deploy/.env` and rerun.
 5. Open `https://<your-domain>`, register, then promote yourself to admin once:
-   `docker compose -f deploy/docker-compose.prod.yml exec postgres psql -U strata -d strata -c "UPDATE users SET role='ADMIN' WHERE username='you'"`.
+   `docker compose -f deploy/docker-compose.prod.yml exec postgres psql -U howlers -d howlers -c "UPDATE users SET role='ADMIN' WHERE username='you'"`.
 
 Keep `SEED_DEMO_DATA=false` for a real community. If you enable it for a demo instance, the UI shows a "Demo data" notice.
 
@@ -108,7 +108,7 @@ The app sends two emails: email verification (link valid 24 h) and password rese
    it sends one-time links through Brevo's redirect.
 6. **Check it.** Register a test account and watch `logs backend` for `Mail sent via brevo: verify-email to a***@...`.
    From a dev machine: put `BREVO_API_KEY`, `MAIL_FROM_ADDRESS` and `MAIL_TEST_TO` in `backend/.env.local` and run
-   `./mvnw.cmd test -Dtest=BrevoLiveMailTest -Dstrata.liveMail=true` (sends one email to `MAIL_TEST_TO`).
+   `./mvnw.cmd test -Dtest=BrevoLiveMailTest -Dhowlers.liveMail=true` (sends one email to `MAIL_TEST_TO`).
 
 **SMTP instead.** `MAIL_MODE=smtp` with `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=587`, `SMTP_USER` = the SMTP
 login shown in Brevo and `SMTP_PASSWORD` = an SMTP key (not the API key) works too, as does any other relay. STARTTLS is
@@ -156,15 +156,15 @@ Certbot's systemd timer renews certificates; add `--deploy-hook "systemctl reloa
 | `caddy_data` | TLS certificates and ACME account | recommended (avoids re-issuing and rate limits) |
 | `promdata`, `grafanadata` | metrics, Grafana state | optional |
 
-- **Database.** `pgbackup` writes `strata-<UTC timestamp>.dump` (custom format) every 24 h and deletes dumps older than
+- **Database.** `pgbackup` writes `howlers-<UTC timestamp>.dump` (custom format) every 24 h and deletes dumps older than
   `BACKUP_KEEP_DAYS`. Copy `deploy/backups/` off the host (restic, rclone, borg, or your provider's snapshots) on its own
   schedule; a backup on the same disk isn't a backup. Restore into an empty database:
-  `docker compose ... exec -T postgres pg_restore -U strata -d strata --clean --if-exists < strata-….dump`.
+  `docker compose ... exec -T postgres pg_restore -U howlers -d howlers --clean --if-exists < howlers-….dump`.
   Test a restore at least monthly on a scratch host.
 - **Uploads.** Mirror the bucket to another location with any S3 client from a cron job, e.g. the AWS CLI inside the
   compose network: `docker run --rm --network <project>_default -e AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY
   -e AWS_SECRET_ACCESS_KEY=$S3_SECRET_KEY -e AWS_DEFAULT_REGION=us-east-1 -v /backups/uploads:/backup
-  amazon/aws-cli:2.42.1 --endpoint-url http://s3:8333 s3 sync s3://strata /backup`. Database and bucket backups should be taken close together: a row without its object
+  amazon/aws-cli:2.42.1 --endpoint-url http://s3:8333 s3 sync s3://howlers /backup`. Database and bucket backups should be taken close together: a row without its object
   shows a broken image, an object without its row is just unused space.
 - **Secrets.** Keep `deploy/.env` in your password manager. Without `JWT_SECRET` existing sessions end (people sign in
   again); without `FILE_VISITOR_SALT` access-log hashes from before can't be linked to new ones (no other effect).
@@ -220,10 +220,10 @@ WebSocket clients reconnect with backoff and refetch.
   upload directory writable); Redis is left out on purpose, since rate limits and the feed cache degrade without it.
 - **Metrics.** `GET /actuator/prometheus` on the management port 8081 (internal only). Start Prometheus and Grafana with
   `--profile monitoring`; Grafana provisions the Prometheus data source and the **Howlers overview** dashboard
-  (`deploy/grafana/dashboards/strata-overview.json`). To reach Grafana, uncomment the `grafana.` block in the Caddyfile
+  (`deploy/grafana/dashboards/howlers-overview.json`). To reach Grafana, uncomment the `grafana.` block in the Caddyfile
   (it has its own login) or use an SSH tunnel (`ssh -L 3000:localhost:3000` after publishing it on 127.0.0.1).
-- **Suggested alerts.** `up{job="strata-backend"} == 0` for 2 min; 5xx rate > 2 % for 10 min; HTTP p95 > 1 s for 15 min;
-  `hikaricp_connections_pending > 0` for 5 min; a spike in `strata_spam_flags_total`; disk usage of the host > 80 %; the
+- **Suggested alerts.** `up{job="howlers-backend"} == 0` for 2 min; 5xx rate > 2 % for 10 min; HTTP p95 > 1 s for 15 min;
+  `hikaricp_connections_pending > 0` for 5 min; a spike in `howlers_spam_flags_total`; disk usage of the host > 80 %; the
   newest file in `deploy/backups` older than 26 h.
 - **Logs.** The backend logs one JSON object per line (ECS) with `traceId`; every API response carries `X-Trace-Id`, so a
   user's error report can be matched to its log lines. Ship container logs with Docker's `local` driver plus

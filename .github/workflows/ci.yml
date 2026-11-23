@@ -54,12 +54,12 @@ jobs:
       postgres:
         image: postgres:17-alpine
         env:
-          POSTGRES_DB: strata
-          POSTGRES_USER: strata
+          POSTGRES_DB: howlers
+          POSTGRES_USER: howlers
           POSTGRES_PASSWORD: ci-only-db-password
         ports: ['5432:5432']
         options: >-
-          --health-cmd "pg_isready -U strata -d strata" --health-interval 5s --health-timeout 3s --health-retries 20
+          --health-cmd "pg_isready -U howlers -d howlers" --health-interval 5s --health-timeout 3s --health-retries 20
       redis:
         image: redis:7-alpine
         ports: ['6379:6379']
@@ -88,8 +88,8 @@ jobs:
       - name: Start backend (demo seed, offline AI)
         working-directory: backend
         env:
-          DATABASE_URL: jdbc:postgresql://localhost:5432/strata
-          DATABASE_USER: strata
+          DATABASE_URL: jdbc:postgresql://localhost:5432/howlers
+          DATABASE_USER: howlers
           DATABASE_PASSWORD: ci-only-db-password
           REDIS_HOST: localhost
           JWT_SECRET: Y2ktb25seS1lMmUtc2VjcmV0LW5vdC1mb3ItcHJvZHVjdGlvbi11c2UtMTIzNDU=
@@ -102,7 +102,7 @@ jobs:
           FUNDING_DEMO_WEBHOOK_SECRET: ci-only-demo-webhook-secret
           STORAGE_LOCAL_DIR: ${{ runner.temp }}/uploads
         run: |
-          nohup java -jar target/strata-backend.jar > "$RUNNER_TEMP/backend.log" 2>&1 &
+          nohup java -jar target/howlers-backend.jar > "$RUNNER_TEMP/backend.log" 2>&1 &
           for i in $(seq 1 90); do
             if curl -fsS http://localhost:8080/actuator/health/readiness > /dev/null; then echo "backend ready"; exit 0; fi
             sleep 2

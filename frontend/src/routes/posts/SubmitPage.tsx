@@ -186,7 +186,7 @@ export default function SubmitPage() {
                 <ul className="mt-3 space-y-1.5">{options.filter((o) => o.trim()).map((o, i) => <li key={i} className="rounded-md border border-border px-3 py-2 text-sm">{o}</li>)}</ul>
               )}
               {/* Preview of the author's own unsent editor output; the server sanitizes on submit. */}
-              {body && <div className="prose-strata mt-3" dangerouslySetInnerHTML={{ __html: body }} />}
+              {body && <div className="prose-howlers mt-3" dangerouslySetInnerHTML={{ __html: body }} />}
             </div>
           ) : (
             <>

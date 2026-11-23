@@ -99,8 +99,8 @@ export interface FundingSubscription {
   cancelledAt: string | null;
   cancelledBy: 'USER' | 'PROVIDER' | 'SYSTEM' | null;
   provider: string;
-  /** strata: the demo job records each month; provider: Stripe bills each month and the server records paid invoices. */
-  billedBy: 'strata' | 'provider';
+  /** howlers: the demo job records each month; provider: Stripe bills each month and the server records paid invoices. */
+  billedBy: 'howlers' | 'provider';
   paymentFailedAt: string | null;
 }
 

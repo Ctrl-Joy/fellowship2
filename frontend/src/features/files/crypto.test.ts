@@ -116,8 +116,8 @@ describe('keys', () => {
     expect(keyFromFragment('#x=1&k=' + b64)).toBe(b64);
     expect(keyFromFragment('#k=short')).toBeNull();
     expect(parseKeyInput(` ${b64} `)).toBe(b64);
-    expect(parseKeyInput(`https://strata.test/s/tok#k=${b64}`)).toBe(b64);
-    expect(parseKeyInput('https://strata.test/s/tok')).toBeNull();
+    expect(parseKeyInput(`https://howlers.test/s/tok#k=${b64}`)).toBe(b64);
+    expect(parseKeyInput('https://howlers.test/s/tok')).toBeNull();
     await expect(importKey('abc')).rejects.toBeInstanceOf(DecryptionError);
   });
 

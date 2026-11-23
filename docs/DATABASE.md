@@ -56,7 +56,7 @@ funding_*) as new migrations — never by editing applied ones.
 - DM images uploaded through `/me/dm-media` are ordinary `media_assets` rows whose `storage_key` starts with `private/`.
   `ix_dm_message_media_media` indexes `dm_message_media (media_id)` for the per-request grant check.
 - Storage bytes live in the configured driver (local directory or an S3 bucket); keys are identical in both, so moving
-  between drivers is a copy (`mc mirror ./data/uploads local/strata`), not a migration.
+  between drivers is a copy (`mc mirror ./data/uploads local/howlers`), not a migration.
 - The feed cache (D-025) lives only in Redis (`feed:v1:*`, 30 s TTL) and holds post ids and a cursor, nothing else.
 
 ## Privacy hardening (V13, D-028 to D-030)

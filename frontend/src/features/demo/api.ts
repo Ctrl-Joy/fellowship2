@@ -16,7 +16,7 @@ export const demoKeys = { status: ['demo', 'status'] as const };
 export const useDemoStatus = () =>
   useQuery({ queryKey: demoKeys.status, queryFn: demoApi.status, staleTime: 30 * 60_000, retry: false });
 
-export const DISMISS_KEY = 'strata.demoNotice.dismissed';
+export const DISMISS_KEY = 'howlers.demoNotice.dismissed';
 
 /** Dismissal is a per-browser convenience; storage may be unavailable (private mode), so failures mean "not dismissed". */
 export function isDismissed(storage: Pick<Storage, 'getItem'> | undefined): boolean {

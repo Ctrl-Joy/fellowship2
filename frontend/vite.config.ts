@@ -7,11 +7,11 @@ const backend = process.env.VITE_BACKEND_URL ?? 'http://localhost:8080';
 
 /**
  * Dev/E2E only: when this dev server runs on a port the backend's CORS_ALLOWED_ORIGINS doesn't list (e.g. a second
- * server on 5174 for Playwright against a backend configured for 5173), set STRATA_DEV_PROXY_ORIGIN to an allowed
+ * server on 5174 for Playwright against a backend configured for 5173), set HOWLERS_DEV_PROXY_ORIGIN to an allowed
  * origin. The proxy then rewrites the Origin header, but only for requests whose Origin is this dev server's own
  * localhost origin, so a foreign site can never borrow it. Unset (the default) means headers pass through unchanged.
  */
-const proxyOrigin = process.env.STRATA_DEV_PROXY_ORIGIN;
+const proxyOrigin = process.env.HOWLERS_DEV_PROXY_ORIGIN;
 
 type ProxyLike = {
   on(event: 'proxyReq' | 'proxyReqWs', cb: (proxyReq: { getHeader(n: string): unknown; setHeader(n: string, v: string): void }, req: { headers: Record<string, string | string[] | undefined> }) => void): void;

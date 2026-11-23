@@ -147,6 +147,6 @@ describe('typing', () => {
 describe('brokerUrl', () => {
   it('uses ws for http and wss for https on the same host', () => {
     expect(brokerUrl({ protocol: 'http:', host: 'localhost:5173' })).toBe('ws://localhost:5173/ws');
-    expect(brokerUrl({ protocol: 'https:', host: 'strata.example' })).toBe('wss://strata.example/ws');
+    expect(brokerUrl({ protocol: 'https:', host: 'howlers.example' })).toBe('wss://howlers.example/ws');
   });
 });

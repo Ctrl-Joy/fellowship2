@@ -160,7 +160,7 @@ export default function PostPage() {
 
             {p.bodyHtml && (
               // bodyHtml is sanitized server-side (allow-list) before storage; see docs/API.md
-              <div className="prose-strata mt-4" dangerouslySetInnerHTML={{ __html: p.bodyHtml }} />
+              <div className="prose-howlers mt-4" dangerouslySetInnerHTML={{ __html: p.bodyHtml }} />
             )}
 
             {p.poll && <div className="mt-4 max-w-xl"><PollView postId={p.id} poll={p.poll} /></div>}

@@ -75,7 +75,7 @@ export function RichTextEditor({
     ],
     content: value,
     editorProps: {
-      attributes: { class: 'prose-strata', 'aria-label': 'Post body', role: 'textbox', 'aria-multiline': 'true', ...(id ? { id } : {}) },
+      attributes: { class: 'prose-howlers', 'aria-label': 'Post body', role: 'textbox', 'aria-multiline': 'true', ...(id ? { id } : {}) },
     },
     onUpdate: ({ editor: e }) => onChange(e.isEmpty ? '' : e.getHTML()),
   });

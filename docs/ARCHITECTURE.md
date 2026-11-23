@@ -8,11 +8,11 @@
                                                                      └─▶ Object storage (local FS now, S3 later)
 ```
 
-One deployable backend, one SPA, one database. Module boundaries are package boundaries (`app.strata.<module>`).
+One deployable backend, one SPA, one database. Module boundaries are package boundaries (`app.howlers.<module>`).
 Modules talk through services, never through each other's tables, except read models that intentionally join
 (e.g. `PostQueryService` joins communities for visibility). Nothing here needs a second service yet; see D-001.
 
-### Backend modules (`backend/src/main/java/app/strata`)
+### Backend modules (`backend/src/main/java/app/howlers`)
 | Module | Responsibility |
 |---|---|
 | `common` | config properties, error model, trace ids, JWT/security, rate limiter, HTML sanitising, cursors |

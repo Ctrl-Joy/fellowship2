@@ -192,7 +192,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   It is not antivirus, and the UI says "Checked: passed type and structure checks (not an antivirus scan)". A ClamAV
   implementation can plug in behind the interface. Legacy `.doc/.xls` (OLE) files may contain macros and are allowed;
   that's a documented gap.
-- **Quota.** The per-user quota and per-file limit come from config (`strata.files.*`). The check and the insert run
+- **Quota.** The per-user quota and per-file limit come from config (`howlers.files.*`). The check and the insert run
   under a per-user advisory lock, so parallel uploads can't overshoot. Deleted files stop counting immediately. Bytes are
   removed after commit, and also when a failed upload rolls back.
 - **Share links.** Tokens are 192-bit random values stored only as SHA-256, so the owner sees the full link once. Links
@@ -288,7 +288,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   - **Posting burst** (new accounts): more than 8 posts and comments within 5 min → hold; more than 30 → reject.
   - **Excessive mentions**: more than 8 distinct @mentions in one item → hold; more than 25 → reject.
   "New" means younger than 7 days. Community moderators and platform admins are exempt. Every number is configurable
-  under `strata.spam.*` (`SPAM_HEURISTICS_ENABLED=false` turns them off), and the test profile disables them unless a
+  under `howlers.spam.*` (`SPAM_HEURISTICS_ENABLED=false` turns them off), and the test profile disables them unless a
   test switches one on.
 - **Held, not deleted.** Held content is stored with `pending = TRUE` and `removed = TRUE`, so every existing
   `removed = FALSE` filter (feeds and their partial indexes, AI retrieval, digests, collections, votes) already hides it.
@@ -306,7 +306,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
 - **Onboarding skip** is now persisted (`POST /onboarding/skip` marks the account as onboarded without changing anything else).
 
 **D-023 S3-compatible storage driver; the bucket stays private and the API proxies every read.**
-- **Selection.** `strata.storage.driver` (`STORAGE_DRIVER`) is `local` (default outside Docker) or `s3`.
+- **Selection.** `howlers.storage.driver` (`STORAGE_DRIVER`) is `local` (default outside Docker) or `s3`.
   `S3StorageService` uses the AWS SDK v2 sync client with the Apache HTTP client and works with AWS S3 and MinIO
   (`S3_PATH_STYLE=true` and `S3_ENDPOINT` for MinIO). Credentials come from `S3_ACCESS_KEY`/`S3_SECRET_KEY`; blank means
   the AWS default chain (instance role). Checksums are sent only when an operation requires them, which keeps older
@@ -361,7 +361,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
 
 **D-025 First-page feed id cache in Redis; only rank order is cached.**
 - **What.** The first page of Popular (hot), Latest, Rising and Top (per time window), and of public community feeds
-  (every sort), is cached for 30 s (`strata.feed-cache.ttl`) as `"nextCursor|id,id,..."`, keyed by feed, sort, window and
+  (every sort), is cached for 30 s (`howlers.feed-cache.ttl`) as `"nextCursor|id,id,..."`, keyed by feed, sort, window and
   page size. Members-only communities, personal tabs (For You, Following) and later pages are never cached. Feeds have
   no NSFW filter today, so the key has no NSFW dimension; if one is added, it must join the key.
 - **Per-viewer correctness.** The cached list is the anonymous order. On every request the ids are re-filtered for the
@@ -378,10 +378,10 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
 
 **D-026 Observability and production guard rails.**
 - **Metrics.** Micrometer with the Prometheus registry. Custom meters (low-cardinality tags only, never ids or slugs):
-  `strata_votes_total{target,direction}`, `strata_posts_total{type,outcome}`, `strata_comments_total{outcome}`,
-  `strata_messages_sent_total{media}`, `strata_websocket_sessions`, `strata_ai_request_seconds{operation,outcome}` (histogram),
-  `strata_ai_tokens{operation,direction}`, `strata_spam_flags_total{kind,action,signal}`, `strata_feed_cache_total{result}`,
-  plus Boot's HTTP (with histogram buckets for p95), JVM, Hikari and Tomcat metrics. All tagged `application=strata`.
+  `howlers_votes_total{target,direction}`, `howlers_posts_total{type,outcome}`, `howlers_comments_total{outcome}`,
+  `howlers_messages_sent_total{media}`, `howlers_websocket_sessions`, `howlers_ai_request_seconds{operation,outcome}` (histogram),
+  `howlers_ai_tokens{operation,direction}`, `howlers_spam_flags_total{kind,action,signal}`, `howlers_feed_cache_total{result}`,
+  plus Boot's HTTP (with histogram buckets for p95), JVM, Hikari and Tomcat metrics. All tagged `application=howlers`.
   (Meters aren't named `*.created`: the Prometheus client reserves the `_created` suffix and silently drops it.)
 - **Not public in prod.** The prod profile moves the actuator to `MANAGEMENT_PORT` (8081) and exposes `health,info,prometheus`
   there. Only 8080 is proxied by nginx/Caddy and 8081 is never published, so Prometheus scrapes it on the internal
@@ -389,7 +389,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   exposed. The safety check (below) refuses a prod config that exposes Prometheus on the public port.
 - **Logs.** The prod profile writes one JSON object per line (Elastic Common Schema, Spring Boot structured logging),
   including the MDC `traceId` that `TraceIdFilter` sets and returns as `X-Trace-Id`. `LOG_FORMAT=logstash|gelf` switches format.
-- **Dashboard.** `deploy/grafana/dashboards/strata-overview.json`, provisioned by the optional `monitoring` compose profile:
+- **Dashboard.** `deploy/grafana/dashboards/howlers-overview.json`, provisioned by the optional `monitoring` compose profile:
   request rate and p95, WebSocket sessions, votes/posts/comments/messages per minute, AI latency, tokens and outcomes,
   spam holds, feed cache hit ratio, heap and DB pool.
 - **Refuse unsafe prod.** `ProductionSafetyCheck` (prod profile only) lists every problem and stops startup when: the JWT
@@ -417,7 +417,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   never contains invented media.
 - **Dev proxy origin.** The backend checks `Origin` (CORS, refresh/logout, WebSocket handshake) against
   `CORS_ALLOWED_ORIGINS`. For a second dev server on another port (e2e on 5174 against a backend set up for 5173),
-  `STRATA_DEV_PROXY_ORIGIN` lets the Vite proxy present an allowed origin, but only for requests whose `Origin` is the
+  `HOWLERS_DEV_PROXY_ORIGIN` lets the Vite proxy present an allowed origin, but only for requests whose `Origin` is the
   dev server's own localhost origin, so a foreign site can't borrow it. Off by default; production (nginx) is untouched.
   CI lists the test origin in `CORS_ALLOWED_ORIGINS` instead.
 - **Accessibility is a build gate.** Serious and critical axe violations fail the suite on ten key pages in both themes
@@ -450,7 +450,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   (`a***@example.com`) and Brevo's message id are logged. Bodies, tokens and links never are; Brevo's error text is
   logged shortened (it describes the request, not the content).
 - **Branding.** Email copy and the default sender name (`MAIL_FROM_NAME`) say "Howlers" with the tagline "Find your
-  pack & howl together" (`EmailTemplates.BRAND`/`TAGLINE`), per the owner's rename; other "Strata" strings and config
+  pack & howl together" (`EmailTemplates.BRAND`/`TAGLINE`), per the owner's rename; other old-name strings and config
   names are left for the global rename.
 - **Templates.** `EmailTemplates` renders each email as accessible HTML (one inline-styled table, `lang`, real heading,
   a button and the plain URL as a fallback) plus a plain-text alternative, with the app name, the action link from
@@ -468,12 +468,12 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   user's verify links reports "already verified" rather than an error. The page offers a resend button when signed in.
 - **Rate limits kept and tightened.** Resend stays 3/hour per user; forgot-password stays 5/hour per IP and gains
   3/hour per address (hashed key), so one inbox can't be flooded from many IPs; verify-email gets 30/hour per IP.
-- **Live check.** `BrevoLiveMailTest` (tagged `live`, skipped unless `-Dstrata.liveMail=true`) reads `BREVO_API_KEY`,
+- **Live check.** `BrevoLiveMailTest` (tagged `live`, skipped unless `-Dhowlers.liveMail=true`) reads `BREVO_API_KEY`,
   `MAIL_FROM_ADDRESS` and `MAIL_TEST_TO` from `backend/.env.local` and sends one verification-style email with a dummy
   token. The suite itself only talks to a local JDK `HttpServer` stub.
 **D-036 Podcast audio from scripts with ElevenLabs text-to-speech.** Closes the TTS gap left by D-016.
 - **Provider.** `TtsProvider` with one real implementation, `ElevenLabsTtsProvider`: `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128`
-  with the `xi-api-key` header and `{text, model_id}`, over the JDK `HttpClient` (no SDK). `strata.podcasts.tts.provider`
+  with the `xi-api-key` header and `{text, model_id}`, over the JDK `HttpClient` (no SDK). `howlers.podcasts.tts.provider`
   is `auto` (ElevenLabs when `ELEVENLABS_API_KEY` is set), `elevenlabs` (refuses to start without a key) or `none`. Model
   default `eleven_multilingual_v2` (`ELEVENLABS_MODEL`); base URL and output format are configurable, and the output must be
   MP3. 429/5xx are retried twice with backoff. Errors shown to moderators carry the HTTP status and ElevenLabs' short status
@@ -652,8 +652,8 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   and catch renamed executables, scripts and archive bombs without a network round trip. It then streams the stored
   object to clamd. E2EE ciphertext is never sent (it stays UNSCANNED). Images (after metadata stripping) and podcast
   media go through the same `Antivirus.check`, and refused podcast media is deleted again.
-- **Config.** `strata.files.antivirus` = `none` (default) or `clamav`, with `CLAMAV_HOST`/`CLAMAV_PORT`.
-  `strata.files.antivirus-required` decides what happens while clamd can't be reached: `false` (default outside prod)
+- **Config.** `howlers.files.antivirus` = `none` (default) or `clamav`, with `CLAMAV_HOST`/`CLAMAV_PORT`.
+  `howlers.files.antivirus-required` decides what happens while clamd can't be reached: `false` (default outside prod)
   accepts the upload as structurally checked only, and `true` (prod profile default) refuses it. Private files are
   refused with a field error; images and media get a 503 `ANTIVIRUS_UNAVAILABLE`.
 - **Honest labels.** `user_files.scan_engine` (V13) records `STRUCTURAL` or `CLAMAV`. The file list, share dialog and

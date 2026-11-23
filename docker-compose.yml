@@ -4,13 +4,13 @@ services:
   postgres:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: strata
-      POSTGRES_USER: ${DATABASE_USER:-strata}
+      POSTGRES_DB: ${DATABASE_NAME:-howlers}
+      POSTGRES_USER: ${DATABASE_USER:-howlers}
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD:?set DATABASE_PASSWORD in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-strata} -d strata"]
+      test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USER:-howlers} -d ${DATABASE_NAME:-howlers}"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -33,13 +33,13 @@ services:
     image: chrislusf/seaweedfs:4.55
     restart: unless-stopped
     environment:
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-strata}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-howlers}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
         cat > /tmp/s3.json <<EOF
-        {"identities":[{"name":"strata","credentials":[{"accessKey":"$$S3_ACCESS_KEY","secretKey":"$$S3_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        {"identities":[{"name":"howlers","credentials":[{"accessKey":"$$S3_ACCESS_KEY","secretKey":"$$S3_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
         EOF
         exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=1024 -volume.max=0 -s3 -s3.port=8333 -s3.config=/tmp/s3.json
     volumes:
@@ -76,8 +76,8 @@ services:
       s3: { condition: service_healthy }
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
-      DATABASE_URL: jdbc:postgresql://postgres:5432/strata
-      DATABASE_USER: ${DATABASE_USER:-strata}
+      DATABASE_URL: jdbc:postgresql://postgres:5432/${DATABASE_NAME:-howlers}
+      DATABASE_USER: ${DATABASE_USER:-howlers}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}
       REDIS_HOST: redis
       JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
@@ -85,7 +85,7 @@ services:
       CORS_ALLOWED_ORIGINS: ${APP_PUBLIC_URL:-http://localhost:8088}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8088}
       MAIL_MODE: ${MAIL_MODE:-log}
-      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@strata.local}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@howlers.local}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Howlers}
       MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
       BREVO_API_KEY: ${BREVO_API_KEY:-}
@@ -100,8 +100,8 @@ services:
       S3_CREATE_BUCKET: "true"
       S3_PATH_STYLE: "true"
       S3_REGION: us-east-1
-      S3_BUCKET: ${S3_BUCKET:-strata}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-strata}
+      S3_BUCKET: ${S3_BUCKET:-howlers}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-howlers}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
       FILE_VISITOR_SALT: ${FILE_VISITOR_SALT:-}
       # none | clamav (start the clamav profile too). Not required locally: uploads fall back to structural checks.

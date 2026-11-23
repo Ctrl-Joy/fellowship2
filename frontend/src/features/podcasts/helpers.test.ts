@@ -67,7 +67,7 @@ describe('active lookups', () => {
 describe('parseSourceRefs', () => {
   it('parses links, ids and comment anchors and drops duplicates', () => {
     const { refs, invalid } = parseSourceRefs(
-      '/c/programming/p/12\nhttps://strata.example/c/x/p/12#c-34, 7\n7:9\n/p/12\nnot a link',
+      '/c/programming/p/12\nhttps://howlers.example/c/x/p/12#c-34, 7\n7:9\n/p/12\nnot a link',
     );
     expect(refs).toEqual([{ postId: 12 }, { postId: 12, commentId: 34 }, { postId: 7 }, { postId: 7, commentId: 9 }]);
     expect(invalid).toEqual(['not a link']);

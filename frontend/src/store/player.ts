@@ -79,7 +79,7 @@ export const usePlayer = create<PlayerState>()(
       close: () => set({ current: null, playing: false, seekTo: null }),
     }),
     {
-      name: 'strata-player',
+      name: 'howlers-player',
       version: 1,
       storage: createJSONStorage(() => {
         try {

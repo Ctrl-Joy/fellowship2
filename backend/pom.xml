@@ -11,10 +11,10 @@
         <relativePath/>
     </parent>
 
-    <groupId>app.strata</groupId>
-    <artifactId>strata-backend</artifactId>
+    <groupId>app.howlers</groupId>
+    <artifactId>howlers-backend</artifactId>
     <version>0.1.0-SNAPSHOT</version>
-    <name>strata-backend</name>
+    <name>howlers-backend</name>
     <description>Howlers community platform — modular monolith API</description>
 
     <properties>
@@ -49,7 +49,7 @@
 
         <dependency><groupId>org.springdoc</groupId><artifactId>springdoc-openapi-starter-webmvc-ui</artifactId><version>${springdoc.version}</version></dependency>
         <dependency><groupId>org.jsoup</groupId><artifactId>jsoup</artifactId><version>${jsoup.version}</version></dependency>
-        <!-- S3-compatible object storage (AWS S3, MinIO), selected with strata.storage.driver=s3 (D-023). -->
+        <!-- S3-compatible object storage (AWS S3, MinIO), selected with howlers.storage.driver=s3 (D-023). -->
         <dependency><groupId>software.amazon.awssdk</groupId><artifactId>s3</artifactId><version>${awssdk.version}</version>
             <exclusions><exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion></exclusions>
         </dependency>
@@ -66,7 +66,7 @@
     </dependencies>
 
     <build>
-        <finalName>strata-backend</finalName>
+        <finalName>howlers-backend</finalName>
         <plugins>
             <plugin>
                 <groupId>org.springframework.boot</groupId>

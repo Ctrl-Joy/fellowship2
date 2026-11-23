@@ -10,7 +10,7 @@ const AUTH_DIR = join(process.cwd(), 'e2e', '.auth');
 const authFile = (user: DemoUser) => join(AUTH_DIR, `${user}.json`);
 
 /** Seeded demo accounts (backend/src/main/resources/seed/demo.json and AdminDemoSeeder). */
-export const DEMO_PASSWORD = 'strata-demo-1';
+export const DEMO_PASSWORD = 'howlers-demo-1';
 export type DemoUser = 'mira_k' | 'dev_ostrander' | 'nadia_sec' | 'paperback_jo' | 'tunde_builds' | 'admin_demo';
 
 /** A short unique suffix so every run creates fresh, non-colliding data on a shared database. */
