@@ -3,7 +3,7 @@
 #   docker compose -f deploy/docker-compose.prod.yml --env-file deploy/.env up -d --build
 # Optional monitoring (Prometheus + Grafana):  add  --profile monitoring
 #
-# Only Caddy publishes ports (80/443). Postgres, Redis, MinIO, the backend (8080) and its management port (8081,
+# Only Caddy publishes ports (80/443). Postgres, Redis, the S3 service, the backend (8080) and its management port (8081,
 # /actuator/prometheus) stay on the internal network.
 name: strata
 
@@ -42,7 +42,7 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
-      minio-init: { condition: service_completed_successfully }
+      s3: { condition: service_healthy }
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: ${JAVA_OPTS:--XX:MaxRAMPercentage=70 -XX:+ExitOnOutOfMemoryError}
@@ -60,12 +60,13 @@ services:
       FUNDING_DEMO_WEBHOOK_SECRET: ${FUNDING_DEMO_WEBHOOK_SECRET:?set FUNDING_DEMO_WEBHOOK_SECRET (openssl rand -hex 32)}
       FUNDING_ENABLED: ${FUNDING_ENABLED:-true}
       STORAGE_DRIVER: s3
-      S3_ENDPOINT: http://minio:9000
+      S3_ENDPOINT: http://s3:8333
+      S3_CREATE_BUCKET: "true"
       S3_PATH_STYLE: "true"
       S3_REGION: us-east-1
       S3_BUCKET: ${S3_BUCKET:-strata}
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-strata}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
       MANAGEMENT_PORT: "8081"
       MAIL_MODE: ${MAIL_MODE:-smtp}
       MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM, e.g. no-reply@your-domain}
@@ -138,36 +139,29 @@ services:
       timeout: 3s
       retries: 20
 
-  minio:
-    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2024-12-18T13-15-44Z}
+  # S3-compatible object storage for uploads (D-023): SeaweedFS, because MinIO no longer publishes public images.
+  # Access is limited to the one identity below (anonymous reads get 403); the backend creates the private bucket on
+  # start (S3_CREATE_BUCKET) and proxies every read, so the bucket is never exposed.
+  s3:
+    image: chrislusf/seaweedfs:4.55
     <<: *restart
-    command: ["server", "/data", "--console-address", ":9001"]
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:?set MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:?set MINIO_ROOT_PASSWORD}
-    volumes:
-      - miniodata:/data
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
-
-  minio-init:
-    image: ${MINIO_MC_IMAGE:-minio/mc:RELEASE.2024-11-21T17-21-54Z}
-    depends_on:
-      minio: { condition: service_healthy }
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      S3_BUCKET: ${S3_BUCKET:-strata}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-strata}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - >
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
-        mc mb --ignore-existing "local/$$S3_BUCKET" &&
-        mc anonymous set none "local/$$S3_BUCKET"
-    restart: "no"
+      - |
+        cat > /tmp/s3.json <<EOF
+        {"identities":[{"name":"strata","credentials":[{"accessKey":"$$S3_ACCESS_KEY","secretKey":"$$S3_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        EOF
+        exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=1024 -volume.max=0 -s3 -s3.port=8333 -s3.config=/tmp/s3.json
+    volumes:
+      - s3data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   # ---- optional monitoring: docker compose ... --profile monitoring up -d
   prometheus:
@@ -194,7 +188,7 @@ services:
 
 volumes:
   pgdata:
-  miniodata:
+  s3data:
   caddy_data:
   caddy_config:
   promdata:

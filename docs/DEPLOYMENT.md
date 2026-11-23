@@ -17,12 +17,11 @@ uses files in `deploy/`. Decisions behind it: D-023 (storage), D-025 (feed cache
 | `postgres` | `postgres:17-alpine` | primary database (`pgdata` volume) | internal |
 | `pgbackup` | `postgres:17-alpine` | nightly `pg_dump` to `./backups` | internal |
 | `redis` | `redis:7-alpine` | rate limits, feed cache (no persistence, password) | internal |
-| `minio` + `minio-init` | MinIO | private S3 bucket for uploads | internal |
+| `s3` | `chrislusf/seaweedfs:4.55` | S3-compatible object storage for uploads; one access identity, anonymous access refused; the backend creates the private bucket at start | internal |
 
-> **MinIO images:** MinIO stopped publishing public images (Docker Hub reports the repository missing and quay.io answers
-> 401 to anonymous pulls). Set `MINIO_IMAGE` / `MINIO_MC_IMAGE` to an image you can pull, use a managed S3 bucket (below),
-> or run with `STORAGE_DRIVER=local` and back up the uploads volume instead. The local `docker-compose.yml` now defaults
-> to local storage and keeps MinIO behind `--profile s3`.
+> **Why SeaweedFS and not MinIO:** MinIO stopped publishing public images (Docker Hub reports the repository missing and
+> quay.io answers 401 to anonymous pulls), so the bundled object store is SeaweedFS. The backend only speaks the S3 API, so
+> any S3-compatible service works (see below).
 | `prometheus`, `grafana` | optional (`--profile monitoring`) | metrics and dashboard | internal (Grafana via Caddy if you enable it) |
 
 Request path: browser → Caddy (TLS) → nginx (`web`) → backend. nginx keeps Caddy's `X-Forwarded-Proto: https`, and the
@@ -56,7 +55,7 @@ re-checks the important ones):
 | `JWT_SECRET` | base64 of ≥ 32 random bytes; signs access tokens and download grants. Rotating it signs everyone out |
 | `FILE_VISITOR_SALT` | server secret for hashing share-link visitors (no IPs are stored) |
 | `FUNDING_DEMO_WEBHOOK_SECRET` | ≥ 16 chars; HMAC for demo funding webhooks (D-022) |
-| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD`, `S3_BUCKET` | object storage; the backend uses the same credentials |
+| `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` | object storage credentials (the `s3` service is configured with the same pair) |
 | `MAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | email verification and password reset (`MAIL_MODE=smtp`) |
 
 Optional:
@@ -77,10 +76,10 @@ Optional:
 | `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_INTERVAL_SECONDS` | `./backups`, 14, 86400 | database dump schedule |
 | `STRATA_BACKEND_IMAGE`, `STRATA_WEB_IMAGE` | local build | use images built by CI instead of building on the server |
 
-### Using AWS S3 (or another S3 service) instead of MinIO
+### Using AWS S3 (or another S3 service) instead of the bundled SeaweedFS
 Set `S3_ENDPOINT` to empty (AWS) or the provider's endpoint, `S3_PATH_STYLE=false` for AWS, `S3_REGION`, and credentials
-(`S3_ACCESS_KEY`/`S3_SECRET_KEY`, or leave them blank to use an instance role). Remove the `minio`/`minio-init`
-services and the `minio-init` dependency. Create the bucket with **Block Public Access** on; the API never needs public
+(`S3_ACCESS_KEY`/`S3_SECRET_KEY`, or leave them blank to use an instance role). Remove the `s3` service and the backend's
+`s3` dependency, and set `S3_CREATE_BUCKET=false`. Create the bucket with **Block Public Access** on; the API never needs public
 objects (every read is proxied, D-023). Grant the key only `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject`,
 `s3:AbortMultipartUpload` on `arn:aws:s3:::<bucket>/*` and `s3:ListBucket` on the bucket (for health checks).
 
@@ -115,7 +114,7 @@ Certbot's systemd timer renews certificates; add `--deploy-hook "systemctl reloa
 | Volume | Holds | Back up? |
 |---|---|---|
 | `pgdata` | database | yes, via the `pgbackup` dumps (not by copying the live directory) |
-| `miniodata` | uploads (images, podcast media, private files, DM images) | yes |
+| `s3data` | uploads (images, podcast media, private files, DM images) | yes |
 | `caddy_data` | TLS certificates and ACME account | recommended (avoids re-issuing and rate limits) |
 | `promdata`, `grafanadata` | metrics, Grafana state | optional |
 
@@ -124,10 +123,10 @@ Certbot's systemd timer renews certificates; add `--deploy-hook "systemctl reloa
   schedule; a backup on the same disk isn't a backup. Restore into an empty database:
   `docker compose ... exec -T postgres pg_restore -U strata -d strata --clean --if-exists < strata-….dump`.
   Test a restore at least monthly on a scratch host.
-- **Uploads.** Mirror the bucket to another location, e.g. with the MinIO client from a cron job:
-  `mc alias set src http://minio:9000 $MINIO_ROOT_USER $MINIO_ROOT_PASSWORD` then
-  `mc mirror --overwrite --remove=false src/strata /backups/minio-strata` (run inside the compose network, or publish
-  MinIO's API on 127.0.0.1 only). Database and bucket backups should be taken close together: a row without its object
+- **Uploads.** Mirror the bucket to another location with any S3 client from a cron job, e.g. the AWS CLI inside the
+  compose network: `docker run --rm --network <project>_default -e AWS_ACCESS_KEY_ID=$S3_ACCESS_KEY
+  -e AWS_SECRET_ACCESS_KEY=$S3_SECRET_KEY -e AWS_DEFAULT_REGION=us-east-1 -v /backups/uploads:/backup
+  amazon/aws-cli:2.42.1 --endpoint-url http://s3:8333 s3 sync s3://strata /backup`. Database and bucket backups should be taken close together: a row without its object
   shows a broken image, an object without its row is just unused space.
 - **Secrets.** Keep `deploy/.env` in your password manager. Without `JWT_SECRET` existing sessions end (people sign in
   again); without `FILE_VISITOR_SALT` access-log hashes from before can't be linked to new ones (no other effect).
@@ -170,7 +169,7 @@ WebSocket clients reconnect with backoff and refetch.
 - **Database.** Raise `DATABASE_POOL_SIZE` carefully (total connections across nodes < `max_connections`), add a
   PgBouncer in transaction mode if you run many nodes, and move to a managed PostgreSQL with point-in-time recovery
   when the dump-based backup isn't enough.
-- **Storage** is already shared (S3/MinIO). For heavy media traffic, presigned GET redirects for podcast audio would cut
+- **Storage** is already shared (S3 API: SeaweedFS here, or a managed bucket). For heavy media traffic, presigned GET redirects for podcast audio would cut
   API bandwidth (see D-023); that's a change in `MediaController`, not built.
 - **Jobs.** The moderator-recognition recompute takes a PostgreSQL advisory lock and funding cycles lock their rows,
   so they're safe on several nodes. Review the other `@Scheduled` jobs (reputation queue, live counters) before scaling
@@ -194,7 +193,7 @@ WebSocket clients reconnect with backoff and refetch.
 
 ## 9. Security checklist
 
-- Only ports 80/443 open (`ufw allow 80,443/tcp && ufw allow 443/udp` plus SSH). Postgres, Redis, MinIO and 8081 stay
+- Only ports 80/443 open (`ufw allow 80,443/tcp && ufw allow 443/udp` plus SSH). Postgres, Redis, the S3 service and 8081 stay
   internal.
 - `deploy/.env` is `chmod 600` and not in git.
 - Prod profile: secure cookies, HSTS, no Swagger exposure beyond the read-only docs (remove the Swagger location from

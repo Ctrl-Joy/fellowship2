@@ -69,10 +69,7 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
   notifications, permissions): **47/47 after fixing the Rising-feed SQL bug it found**.
 
 ## Known gaps / not yet verified
-- `docker compose up` and the Dockerfiles were **not executed**: Docker isn't installed on the dev machine.
-  CI builds the images. The same goes for `deploy/docker-compose.prod.yml`, the Caddyfile, MinIO and its init step,
-  Prometheus and Grafana (YAML/JSON-validated and reviewed only), and the S3 driver against a real MinIO/S3 (unit-tested
-  against an in-memory S3 client).
+- `deploy/docker-compose.prod.yml`, the Caddyfile, Prometheus and Grafana were validated and reviewed but not run (no public domain/TLS on the dev machine).
 - Pinning and locking posts exist in the schema, but they have no endpoints yet (Phase 3 moderation).
 - No ESLint (the frontend `lint` script is a type-check only). The Playwright suite exists (D-027); its CI job was
   written but not executed here (no GitHub runner from this machine).
@@ -81,7 +78,7 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
 - Not built yet: real payment provider for moderator funding (demo-only by design, D-022) and podcast audio/video generation (no TTS provider configured).
-- Docker: `docker compose up --build` runs locally (Docker Desktop 29.9, verified: all four services healthy, demo login, feeds, Claude AI and the WebSocket through nginx on http://localhost:8088). MinIO no longer publishes public images, so the S3 storage service is opt-in (`--profile s3` with `MINIO_IMAGE`/`MINIO_MC_IMAGE` set to an image you can pull) and compose defaults to local disk storage. The S3 driver itself is tested against an in-memory S3 client, not a live server; the prod compose file and Caddy were not run.
+- Docker: `docker compose up --build` runs locally (Docker Desktop 29.9). Verified: all five services healthy (PostgreSQL, Redis, SeaweedFS S3, backend, web), demo login, feeds, Claude AI and the WebSocket through nginx on http://localhost:8088; uploads go to the private bucket (image with 320/960 variants, private file with a ranged 206 read, owner-only access, delete removes the object, anonymous bucket access 403). MinIO no longer publishes public images, so the bundled S3 service is SeaweedFS.
 - Accessibility: no manual screen-reader pass yet; moderate/minor axe findings not triaged; pages outside the audited ten
   not scanned (see docs/ACCESSIBILITY.md).
 - Real-time broker and presence are in-memory, per instance (D-017): fine for one backend node, not for several.

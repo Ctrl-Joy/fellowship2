@@ -111,7 +111,7 @@ strata:
     mode: ${MAIL_MODE:log}
     from: ${MAIL_FROM:no-reply@strata.local}
   storage:
-    # local | s3 (D-023). s3 works with AWS S3 and MinIO; the bucket stays private and every read goes through the API.
+    # local | s3 (D-023). s3 works with AWS S3 and S3-compatible servers (SeaweedFS in compose); the bucket stays private and every read goes through the API.
     driver: ${STORAGE_DRIVER:local}
     local-dir: ${STORAGE_LOCAL_DIR:./data/uploads}
     s3:
@@ -123,7 +123,7 @@ strata:
       path-style: ${S3_PATH_STYLE:false}
       # Streams larger than this are sent as multipart uploads (8 MB parts).
       multipart-threshold-mb: 8
-      # Create the bucket at startup if it doesn't exist (handy for MinIO in development; off for AWS in prod).
+      # Create the bucket at startup if it doesn't exist (on for the bundled SeaweedFS; off for AWS in prod).
       create-bucket: ${S3_CREATE_BUCKET:false}
     max-image-bytes: 10485760
     max-media-mb: ${MAX_MEDIA_MB:500}

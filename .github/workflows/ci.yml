@@ -146,4 +146,4 @@ jobs:
         env:
           DATABASE_PASSWORD: ci-only
           JWT_SECRET: Y2ktb25seS1zZWNyZXQtbm90LWZvci1wcm9kdWN0aW9uLXVzZS0xMjM0NQ==
-          MINIO_ROOT_PASSWORD: ci-only-minio-password
+          S3_SECRET_KEY: ci-only-s3-secret

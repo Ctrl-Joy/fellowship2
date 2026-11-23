@@ -321,6 +321,12 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   for the Range path. An embedded S3 mock (s3mock) wasn't used: it's a Spring Boot application itself and would pull a
   second Boot version onto the test classpath. The driver was **not** run against a real MinIO (no Docker on the dev machine).
 
+- **Update (SeaweedFS).** MinIO stopped publishing public images, so the first real `docker compose up` failed on the
+  pull. The bundled S3 service is now SeaweedFS (`chrislusf/seaweedfs:4.55`) with a single access identity, so
+  anonymous requests get 403. The backend creates the private bucket at start (`S3_CREATE_BUCKET=true`). Verified live:
+  uploads with image variants, ranged reads (206), owner-only access, deletes, and anonymous 403. The driver is
+  unchanged, because it only speaks the S3 API.
+
 **D-024 Image variants, and private DM images (closes the D-019 gap for new messages).**
 - **Variants.** On upload (post images, avatars, banners, community icons, podcast covers, DM images) PNG and JPEG get
   320 px and 960 px wide copies next to the original (`<key>_w320.<ext>`), only when the original is wider (never

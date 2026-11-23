@@ -26,52 +26,36 @@ services:
       retries: 20
     restart: unless-stopped
 
-  # Optional S3-compatible object storage (D-023), enabled with `--profile s3` and STORAGE_DRIVER=s3.
-  # MinIO stopped publishing public images (Docker Hub and quay.io both refuse anonymous pulls), so the image is
-  # configurable: point MINIO_IMAGE / MINIO_MC_IMAGE at a mirror or a build you trust. Without the profile, uploads
-  # use the local `uploads` volume. The bucket is private; the API proxies every read.
-  minio:
-    profiles: ["s3"]
-    image: ${MINIO_IMAGE:-minio/minio:RELEASE.2024-12-18T13-15-44Z}
-    command: ["server", "/data", "--console-address", ":9001"]
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-strata}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-}
-    volumes:
-      - miniodata:/data
-    # ports: ["9001:9001"]
-    healthcheck:
-      test: ["CMD", "mc", "ready", "local"]
-      interval: 5s
-      timeout: 3s
-      retries: 20
+  # S3-compatible object storage for uploads (D-023): SeaweedFS, because MinIO no longer publishes public images.
+  # Access is limited to the one identity below (anonymous reads get 403); the backend creates the private bucket on
+  # start (S3_CREATE_BUCKET) and proxies every read, so the bucket is never exposed.
+  s3:
+    image: chrislusf/seaweedfs:4.55
     restart: unless-stopped
-
-  # One-shot: create the bucket and make sure it has no anonymous access, then exit.
-  minio-init:
-    profiles: ["s3"]
-    image: ${MINIO_MC_IMAGE:-minio/mc:RELEASE.2024-11-21T17-21-54Z}
-    depends_on:
-      minio: { condition: service_healthy }
     environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-strata}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      S3_BUCKET: ${S3_BUCKET:-strata}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-strata}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - >
-        mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
-        mc mb --ignore-existing "local/$$S3_BUCKET" &&
-        mc anonymous set none "local/$$S3_BUCKET"
-    restart: "no"
+      - |
+        cat > /tmp/s3.json <<EOF
+        {"identities":[{"name":"strata","credentials":[{"accessKey":"$$S3_ACCESS_KEY","secretKey":"$$S3_SECRET_KEY"}],"actions":["Admin","Read","Write","List","Tagging"]}]}
+        EOF
+        exec weed server -dir=/data -ip.bind=0.0.0.0 -master.volumeSizeLimitMB=1024 -volume.max=0 -s3 -s3.port=8333 -s3.config=/tmp/s3.json
+    volumes:
+      - s3data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
 
   backend:
     build: ./backend
     depends_on:
       postgres: { condition: service_healthy }
       redis: { condition: service_healthy }
-      # Only waited for when the s3 profile is enabled.
-      minio-init: { condition: service_completed_successfully, required: false }
+      s3: { condition: service_healthy }
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
       DATABASE_URL: jdbc:postgresql://postgres:5432/strata
@@ -88,14 +72,15 @@ services:
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
-      # Storage: the local uploads volume by default; STORAGE_DRIVER=s3 with `--profile s3` uses the bucket instead.
-      STORAGE_DRIVER: ${STORAGE_DRIVER:-local}
-      S3_ENDPOINT: http://minio:9000
+      # Storage: the S3 bucket by default; STORAGE_DRIVER=local keeps files in the uploads volume instead.
+      STORAGE_DRIVER: ${STORAGE_DRIVER:-s3}
+      S3_ENDPOINT: http://s3:8333
+      S3_CREATE_BUCKET: "true"
       S3_PATH_STYLE: "true"
       S3_REGION: us-east-1
       S3_BUCKET: ${S3_BUCKET:-strata}
-      S3_ACCESS_KEY: ${MINIO_ROOT_USER:-strata}
-      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-strata}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
       FILE_VISITOR_SALT: ${FILE_VISITOR_SALT:-}
       FUNDING_DEMO_WEBHOOK_SECRET: ${FUNDING_DEMO_WEBHOOK_SECRET:-dev-only-demo-webhook-secret-change-me}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
@@ -116,4 +101,4 @@ services:
 volumes:
   pgdata:
   uploads:
-  miniodata:
+  s3data:
