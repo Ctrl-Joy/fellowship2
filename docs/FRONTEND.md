@@ -312,7 +312,7 @@ disclosure text (`aiVoiceDescription` in `features/podcasts/audioGeneration.ts`)
   AI vs rule suggestions in the stats line, and shows the `aiStances` note. `useContextView` polls every 3 s while
   `aiStances.state` is `PENDING`.
 ## Landing page (Howlers)
-`/` is `routes/landing/LandingPage.tsx`: hero (`HeroArt`, `NightSky`, `Pups`), a marquee of real communities
+`/` is `routes/landing/LandingPage.tsx`: hero (`HeroArt`, `NightSky`, `design-system/Pups`), a marquee of real communities
 (`GET /communities?sort=popular&size=12`, falls back to feature names), six feature rows (`FeatureSections`), safety
 cards, a searchable FAQ (`faq.ts`, `filterFaq`) and a closing CTA (`SafetyFaq.tsx`). Signed-in visitors see "Open your
 feed" instead of "Join the pack"; there's no redirect. Motion helpers live in `motion.ts` (intro sequencer, reveal
@@ -349,3 +349,18 @@ landing stays in the axe audit (`08-accessibility`).
   - the control-character regex in `safeFileName`.
 - **Live sockets.** A suspended, deactivated or deleted account's socket is closed by the server (1008) and reconnects
   are refused. The existing client keeps retrying with backoff, and its next REST call gets 401/403, which signs it out.
+## Mascots in app states (D-048)
+`design-system/Mascot.tsx` renders a wolf pup (`pose`: `sit`, `wave`, `howl`, `headphones`, `sleepy`) with theme-aware
+colours from `mascot.css`; it is `aria-hidden` and idles only when motion is allowed. Use it through
+`EmptyState`'s `mascot` prop (and `headingLevel={1}` when the empty state is the whole page, as on the 404).
+`ErrorState` picks the sleepy pup by itself for offline (status 0) and maintenance (502/503/504) errors via
+`connectionTrouble()` in `services/apiError.ts`. Used on: home feed tabs, search, messages, files, share links,
+notifications, podcasts (list, community tab, studio), mod Queue and Held, admin reports, leaderboards, the 404,
+`RouteError` and `PageSpinner`. Keep the copy short and warm, keep every fact the old copy had, and don't change the
+action button.
+
+## Keyboard walkthrough checks
+`e2e/09-keyboard.spec.ts` also covers menus (Enter opens, arrows move, Escape closes and refocuses the button), the
+search suggestions (arrow keys + `aria-activedescendant`, Escape), the mobile navigation drawer (focus inside, Escape
+returns focus to "Open navigation") and the skip link on newer pages. See docs/ACCESSIBILITY.md for what is and
+isn't covered.
