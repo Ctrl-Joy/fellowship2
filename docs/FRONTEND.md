@@ -311,3 +311,11 @@ disclosure text (`aiVoiceDescription` in `features/podcasts/audioGeneration.ts`)
 - `ContextModeView` marks AI-suggested stances with a small "AI-suggested" chip (tooltip: use Label to correct it), counts
   AI vs rule suggestions in the stats line, and shows the `aiStances` note. `useContextView` polls every 3 s while
   `aiStances.state` is `PENDING`.
+## Landing page (Howlers)
+`/` is `routes/landing/LandingPage.tsx`: hero (`HeroArt`, `NightSky`, `Pups`), a marquee of real communities
+(`GET /communities?sort=popular&size=12`, falls back to feature names), six feature rows (`FeatureSections`), safety
+cards, a searchable FAQ (`faq.ts`, `filterFaq`) and a closing CTA (`SafetyFaq.tsx`). Signed-in visitors see "Open your
+feed" instead of "Join the pack"; there's no redirect. Motion helpers live in `motion.ts` (intro sequencer, reveal
+observer, play gate, parallax/tilt maths) with Vitest coverage in `motion.test.ts`; styles and keyframes in
+`landing.css`. The page is always dark (see DESIGN_SYSTEM.md, "Landing page"). E2E: `e2e/10-landing.spec.ts`, and the
+landing stays in the axe audit (`08-accessibility`).
