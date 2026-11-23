@@ -18,6 +18,11 @@ uses files in `deploy/`. Decisions behind it: D-023 (storage), D-025 (feed cache
 | `pgbackup` | `postgres:17-alpine` | nightly `pg_dump` to `./backups` | internal |
 | `redis` | `redis:7-alpine` | rate limits, feed cache (no persistence, password) | internal |
 | `minio` + `minio-init` | MinIO | private S3 bucket for uploads | internal |
+
+> **MinIO images:** MinIO stopped publishing public images (Docker Hub reports the repository missing and quay.io answers
+> 401 to anonymous pulls). Set `MINIO_IMAGE` / `MINIO_MC_IMAGE` to an image you can pull, use a managed S3 bucket (below),
+> or run with `STORAGE_DRIVER=local` and back up the uploads volume instead. The local `docker-compose.yml` now defaults
+> to local storage and keeps MinIO behind `--profile s3`.
 | `prometheus`, `grafana` | optional (`--profile monitoring`) | metrics and dashboard | internal (Grafana via Caddy if you enable it) |
 
 Request path: browser → Caddy (TLS) → nginx (`web`) → backend. nginx keeps Caddy's `X-Forwarded-Proto: https`, and the
