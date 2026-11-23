@@ -2,6 +2,8 @@ import type { PostSummary, UserSummary } from './api';
 
 /** Mirrors backend app.strata.insight / app.strata.collection DTOs (docs/API.md → Knowledge layer). */
 export type Stance = 'SUPPORT' | 'OPPOSE' | 'NEUTRAL' | 'QUESTION' | 'EVIDENCE' | 'EXPERIENCE';
+/** READERS = reader labels; AI = suggested by the configured model; RULES = rule-based suggestion. */
+export type StanceSource = 'READERS' | 'AI' | 'RULES';
 
 export interface ArgItem {
   commentId: number;
@@ -13,6 +15,7 @@ export interface ArgItem {
   suggested: boolean;
   myLabel: Stance | null;
   labelCounts: Partial<Record<Stance, number>>;
+  stanceSource?: StanceSource;
 }
 
 export interface EvidenceLink {
@@ -29,6 +32,7 @@ export interface MapNode {
   suggested: boolean;
   score: number;
   label: string;
+  stanceSource?: StanceSource;
 }
 
 export interface ContextView {
@@ -42,6 +46,7 @@ export interface ContextView {
     suggested: number;
     participants: number;
     byStance: Record<Stance, number>;
+    aiSuggested?: number;
   };
   groups: Record<Stance, ArgItem[]>;
   evidence: EvidenceLink[];
@@ -50,17 +55,37 @@ export interface ContextView {
   disagreement: ArgItem[];
   map: MapNode[];
   truncated: boolean;
+  aiStances?: AiStances;
+}
+
+/** State of AI stance suggestions: OFF (no model), PENDING (running, poll), PARTIAL, READY. */
+export interface AiStances {
+  state: 'OFF' | 'PENDING' | 'PARTIAL' | 'READY';
+  engine: string | null;
+  suggested: number;
+  remaining: number;
+  note: string;
 }
 
 export type DigestLength = 'short' | 'standard' | 'detailed';
 export type DigestFocus = 'balanced' | 'top' | 'new' | 'beginner' | 'technical';
-export type LineKind = 'DATA' | 'ANECDOTE' | 'OPINION' | 'SPECULATION' | 'STATEMENT';
+export type LineKind = 'FACT' | 'DATA' | 'ANECDOTE' | 'OPINION' | 'SPECULATION' | 'STATEMENT';
 
 export interface DigestLine {
   text: string;
   commentId: number;
   kind: LineKind;
   author: string | null;
+  /** Every cited comment (absent in digests cached before multi-citation support). */
+  commentIds?: number[] | null;
+  /** true = the model's wording (not a quote); false/absent = verbatim from the comment. */
+  paraphrase?: boolean;
+}
+
+export interface DigestCoverage {
+  included: number;
+  total: number;
+  note: string | null;
 }
 
 export interface DigestView {
@@ -84,7 +109,11 @@ export interface DigestView {
     unresolved: ArgItem[];
     links: EvidenceLink[];
     consensus: { status: 'CONSENSUS' | 'DIVIDED' | 'INSUFFICIENT'; statement: string };
+    openQuestions?: DigestLine[] | null;
+    coverage?: DigestCoverage | null;
   };
+  /** Set when the preferred engine couldn't be used (e.g. the model call failed, so this is the extractive fallback). */
+  notice?: string | null;
 }
 
 export interface Collection {

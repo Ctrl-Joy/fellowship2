@@ -40,8 +40,10 @@ public class ContextService {
     private final JdbcClient jdbc;
     private final PostService posts;
     private final RateLimiter limiter;
+    private final StanceSuggester suggester;
 
-    public ContextService(ThreadLoader loader, JdbcClient jdbc, PostService posts, RateLimiter limiter) {
+    public ContextService(ThreadLoader loader, JdbcClient jdbc, PostService posts, RateLimiter limiter, StanceSuggester suggester) {
+        this.suggester = suggester;
         this.loader = loader;
         this.jdbc = jdbc;
         this.posts = posts;
@@ -90,15 +92,16 @@ public class ContextService {
                 .limit(5).map(ContextService::item).toList();
 
         List<MapNode> map = nodes.stream().sorted(STRONGEST).limit(80)
-                .map(n -> new MapNode(n.id(), n.parentId(), n.stance(), n.suggested(), n.score(), TextSignals.excerpt(n.body(), 70)))
+                .map(n -> new MapNode(n.id(), n.parentId(), n.stance(), n.suggested(), n.score(), TextSignals.excerpt(n.body(), 70), n.stanceSource()))
                 .toList();
 
         int labelled = (int) nodes.stream().filter(n -> !n.suggested()).count();
         int participants = (int) nodes.stream().map(Node::authorId).filter(Objects::nonNull).distinct().count();
-        ContextStats stats = new ContextStats(nodes.size(), s.totalLive(), labelled, nodes.size() - labelled, participants, byStance);
+        int ai = (int) nodes.stream().filter(n -> n.stanceSource() == StanceSource.AI).count();
+        ContextStats stats = new ContextStats(nodes.size(), s.totalLive(), labelled, nodes.size() - labelled, participants, byStance, ai);
         var post = s.post().post();
         return new ContextView(postId, post.getTitle(), TextSignals.excerpt(s.postText(), 280), stats, groups, evidence,
-                openQuestions, agreement, disagreement, map, s.totalLive() > nodes.size());
+                openQuestions, agreement, disagreement, map, s.totalLive() > nodes.size(), suggester.request(postId, s, viewer));
     }
 
     /** One label per user per comment; labelling your own comment counts double in the aggregate. */
@@ -120,14 +123,14 @@ public class ContextService {
     }
 
     private long postOf(long commentId) {
-        return jdbc.sql("SELECT post_id FROM comments WHERE id = ? AND deleted_at IS NULL AND removed = FALSE")
+        return jdbc.sql("SELECT post_id FROM comments WHERE id = ? AND deleted_at IS NULL AND removed = FALSE AND pending = FALSE")
                 .param(commentId).query(Long.class).optional()
                 .orElseThrow(() -> ApiException.notFound("Comment"));
     }
 
     static ArgItem item(Node n) {
         return new ArgItem(n.id(), n.parentId(), TextSignals.excerpt(n.body(), 280), n.author(), n.score(), n.stance(),
-                n.suggested(), n.myLabel(), n.labelWeights());
+                n.suggested(), n.myLabel(), n.labelWeights(), n.stanceSource());
     }
 
     static String domain(String url) {

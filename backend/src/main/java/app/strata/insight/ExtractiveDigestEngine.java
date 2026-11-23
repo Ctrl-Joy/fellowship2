@@ -2,6 +2,7 @@ package app.strata.insight;
 
 import app.strata.insight.InsightDtos.ArgItem;
 import app.strata.insight.InsightDtos.Consensus;
+import app.strata.insight.InsightDtos.Coverage;
 import app.strata.insight.InsightDtos.DigestSections;
 import app.strata.insight.InsightDtos.EvidenceLink;
 import app.strata.insight.InsightDtos.Line;
@@ -30,10 +31,18 @@ public class ExtractiveDigestEngine implements DigestEngine {
         return "extractive-v2";
     }
 
+    public static final String ID = "extractive-v2";
+
     @Override
     public String note() {
         return "Built by selecting and quoting real sentences from the most helpful comments. No AI provider is configured, "
                 + "so nothing here is paraphrased or invented. Every line links to its source.";
+    }
+
+    /** Note used when this engine stands in for the LLM engine (the reason is given separately in the digest's notice). */
+    public static String fallbackNote() {
+        return "Extractive summary: real sentences quoted from the most helpful comments, nothing paraphrased or invented. "
+                + "Every line links to its source.";
     }
 
     private record Candidate(String text, Node node, String kind, double weight) {}
@@ -41,7 +50,7 @@ public class ExtractiveDigestEngine implements DigestEngine {
     @Override
     public DigestSections generate(Snapshot s, String length, String focus) {
         int lines = switch (length) { case "short" -> 2; case "detailed" -> 7; default -> 4; };
-        int perSection = switch (length) { case "short" -> 2; case "detailed" -> 5; default -> 3; };
+        int perSection = perSection(length);
         List<Node> nodes = s.nodes();
 
         List<Candidate> all = new ArrayList<>();
@@ -61,23 +70,49 @@ public class ExtractiveDigestEngine implements DigestEngine {
                 && c.node().parentId() == null, perSection, 1);
         List<Line> opposing = pick(all, c -> c.node().stance() == Stance.OPPOSE, perSection, 1);
 
-        Comparator<Node> helpful = Comparator.comparingDouble(Node::best).reversed().thenComparing(Comparator.comparingInt(Node::score).reversed());
-        List<ArgItem> mostUseful = nodes.stream().filter(n -> n.score() > 0).sorted(helpful).limit(perSection)
-                .map(ContextService::item).toList();
+        String coverageNote = s.totalLive() > nodes.size()
+                ? "Covers the " + nodes.size() + " highest-ranked of " + s.totalLive() + " comments." : null;
+        return new DigestSections(summary, question(s.title(), s.postText()), takeaways, supporting, opposing,
+                mostUseful(nodes, perSection), minority(nodes), unresolved(nodes, perSection), links(nodes),
+                consensus(nodes), List.of(), new Coverage(nodes.size(), s.totalLive(), coverageNote));
+    }
 
+    static int perSection(String length) {
+        return switch (length) { case "short" -> 2; case "detailed" -> 5; default -> 3; };
+    }
+
+    private static final Comparator<Node> HELPFUL = Comparator.comparingDouble(Node::best).reversed()
+            .thenComparing(Comparator.comparingInt(Node::score).reversed());
+
+    // The sections below are computed from real data (scores, stances, links) for every engine, never by a model.
+
+    static String question(String title, String postText) {
+        return title + (postText == null || postText.isBlank() ? "" : " — " + TextSignals.excerpt(postText, 220));
+    }
+
+    static List<ArgItem> mostUseful(List<Node> nodes, int max) {
+        return nodes.stream().filter(n -> n.score() > 0).sorted(HELPFUL).limit(max).map(ContextService::item).toList();
+    }
+
+    static List<ArgItem> minority(List<Node> nodes) {
         long sup = nodes.stream().filter(n -> n.stance() == Stance.SUPPORT).count();
         long opp = nodes.stream().filter(n -> n.stance() == Stance.OPPOSE).count();
         Stance smaller = sup == 0 || opp == 0 ? null : (sup <= opp ? Stance.SUPPORT : Stance.OPPOSE);
         List<ArgItem> minority = new ArrayList<>();
         if (smaller != null) {
-            nodes.stream().filter(n -> n.stance() == smaller).sorted(helpful).limit(2).map(ContextService::item).forEach(minority::add);
+            nodes.stream().filter(n -> n.stance() == smaller).sorted(HELPFUL).limit(2).map(ContextService::item).forEach(minority::add);
         }
         nodes.stream().filter(n -> n.score() <= 0 && TextSignals.plain(n.body()).length() > 180)
-                .sorted(helpful).limit(1).map(ContextService::item).forEach(minority::add);
+                .sorted(HELPFUL).limit(1).map(ContextService::item).forEach(minority::add);
+        return minority;
+    }
 
-        List<ArgItem> unresolved = nodes.stream().filter(n -> n.stance() == Stance.QUESTION && n.replyCount() == 0)
-                .sorted(helpful).limit(perSection).map(ContextService::item).toList();
+    static List<ArgItem> unresolved(List<Node> nodes, int max) {
+        return nodes.stream().filter(n -> n.stance() == Stance.QUESTION && n.replyCount() == 0)
+                .sorted(HELPFUL).limit(max).map(ContextService::item).toList();
+    }
 
+    static List<EvidenceLink> links(List<Node> nodes) {
         List<EvidenceLink> links = new ArrayList<>();
         Set<String> seen = new HashSet<>();
         for (Node n : nodes) {
@@ -85,16 +120,12 @@ public class ExtractiveDigestEngine implements DigestEngine {
                 if (seen.add(u) && links.size() < 10) links.add(new EvidenceLink(u, ContextService.domain(u), n.id(), TextSignals.excerpt(n.body(), 140)));
             }
         }
-
-        String question = s.post().post().getTitle()
-                + (s.postText() == null || s.postText().isBlank() ? "" : " — " + TextSignals.excerpt(s.postText(), 220));
-        return new DigestSections(summary, question, takeaways, supporting, opposing, mostUseful, minority, unresolved, links,
-                consensus(nodes));
+        return links;
     }
 
     /**
-     * Consensus is only claimed with enough labelled signal and a clear majority. Suggested (rules-based)
-     * stances count at half weight so heuristics alone can't manufacture agreement.
+     * Consensus is only claimed with enough labelled signal and a clear majority. Suggested (rules-based or
+     * AI-suggested) stances count at half weight so heuristics alone can't manufacture agreement.
      */
     static Consensus consensus(List<Node> nodes) {
         double sup = 0, opp = 0;

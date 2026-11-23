@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { http } from '@/services/apiClient';
+import { contextPollInterval } from './engine';
 import type { ContextView, DigestFocus, DigestLength, DigestView, Stance } from '@/types/knowledge';
 
 export const insightApi = {
@@ -18,7 +19,13 @@ export const insightKeys = {
 };
 
 export function useContextView(postId: number, enabled: boolean) {
-  return useQuery({ queryKey: insightKeys.context(postId), queryFn: () => insightApi.context(postId), enabled });
+  return useQuery({
+    queryKey: insightKeys.context(postId),
+    queryFn: () => insightApi.context(postId),
+    enabled,
+    // AI stance suggestions run in the background; poll until they're in.
+    refetchInterval: (query) => contextPollInterval(query.state.data),
+  });
 }
 
 export function useLabelStance(postId: number) {

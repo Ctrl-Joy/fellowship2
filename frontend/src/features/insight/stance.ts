@@ -13,6 +13,7 @@ export const stanceMeta: Record<Stance, { label: string; plural: string; color: 
 };
 
 export const kindMeta: Record<LineKind, { label: string; tone: string }> = {
+  FACT: { label: 'Factual claim', tone: 'text-info' },
   DATA: { label: 'Data', tone: 'text-info' },
   ANECDOTE: { label: 'Anecdote', tone: 'text-warning' },
   OPINION: { label: 'Opinion', tone: 'text-muted' },

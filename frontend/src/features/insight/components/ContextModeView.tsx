@@ -1,5 +1,5 @@
 import * as DM from '@radix-ui/react-dropdown-menu';
-import { Check, ExternalLink, Network, Sparkles, Tag } from 'lucide-react';
+import { Bot, Check, ExternalLink, Loader2, Network, Sparkles, Tag } from 'lucide-react';
 import { useMemo, type ReactNode } from 'react';
 import { Skeleton } from '@/components/ui/Display';
 import { Menu, MenuContent, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/Menu';
@@ -10,20 +10,32 @@ import { errorMessage } from '@/services/apiError';
 import type { ArgItem, ContextView, MapNode, Stance } from '@/types/knowledge';
 import { cn } from '@/utils/format';
 import { useContextView, useLabelStance } from '../api';
+import { stanceOrigin } from '../engine';
 import { STANCES, stanceMeta } from '../stance';
 import { SourceLink } from './SourceLink';
 
-function StanceChip({ stance, suggested }: { stance: Stance; suggested: boolean }) {
-  const m = stanceMeta[stance];
+function StanceChip({ item }: { item: ArgItem }) {
+  const m = stanceMeta[item.stance];
   const Icon = m.icon;
+  const origin = stanceOrigin(item);
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-text"
-      style={{ backgroundColor: `${m.color}26` }}
-      title={suggested ? 'Suggested by rules, not yet labelled by people' : 'Labelled by readers'}
-    >
-      <Icon size={11} style={{ color: m.color }} aria-hidden="true" /> {m.label}
-      {suggested && <Sparkles size={10} className="opacity-70" aria-label="suggested" />}
+    <span className="inline-flex items-center gap-1.5">
+      <span
+        className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-text"
+        style={{ backgroundColor: `${m.color}26` }}
+        title={origin.title}
+      >
+        <Icon size={11} style={{ color: m.color }} aria-hidden="true" /> {m.label}
+        {origin.source === 'RULES' && <Sparkles size={10} className="opacity-70" aria-label="suggested by rules" />}
+      </span>
+      {origin.marker && (
+        <span
+          className="inline-flex items-center gap-0.5 rounded-full border border-border px-1.5 py-px text-[10px] font-semibold text-muted"
+          title={origin.title}
+        >
+          <Bot size={10} aria-hidden="true" /> {origin.marker}
+        </span>
+      )}
     </span>
   );
 }
@@ -70,7 +82,7 @@ function ArgCard({ item, postId, onJump }: { item: ArgItem; postId: number; onJu
   return (
     <li className="rounded-xl bg-surface-2/60 px-3 py-2.5">
       <div className="flex items-center gap-2">
-        <StanceChip stance={item.stance} suggested={item.suggested} />
+        <StanceChip item={item} />
         <span className="text-xs text-faint">{item.score} pts</span>
         <div className="ml-auto"><LabelMenu item={item} postId={postId} /></div>
       </div>
@@ -185,9 +197,17 @@ export function ContextModeView({ postId, commentCount, onJump }: { postId: numb
         <div className="mt-4"><StanceBar v={v} /></div>
         <p className="mt-3 text-xs text-faint">
           {v.stats.analysed} of {v.stats.total} comments analysed · {v.stats.participants} participants · {v.stats.labelled} labelled by readers,{' '}
-          {v.stats.suggested} suggested by rules <Sparkles size={10} className="inline" />. Stances describe how a reply relates to what it answers, not whether it's true.
+          {(v.stats.aiSuggested ?? 0) > 0 && <>{v.stats.aiSuggested} AI-suggested, </>}
+          {v.stats.suggested - (v.stats.aiSuggested ?? 0)} suggested by rules <Sparkles size={10} className="inline" />. Stances describe how a reply relates to what it answers, not whether it's true.
+          Suggestions are never final: anyone signed in can correct them with Label, and reader labels always win.
           {v.truncated && ' Large thread: showing the highest-ranked comments.'}
         </p>
+        {v.aiStances && v.aiStances.state !== 'OFF' && (
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-faint" role="status">
+            {v.aiStances.state === 'PENDING' ? <Loader2 size={12} className="animate-spin" aria-hidden="true" /> : <Bot size={12} aria-hidden="true" />}
+            {v.aiStances.note}
+          </p>
+        )}
       </section>
 
       <div className="grid gap-4 md:grid-cols-2">
@@ -227,7 +247,7 @@ export function ContextModeView({ postId, commentCount, onJump }: { postId: numb
       </div>
 
       <Block title="Discussion map" icon={<Network size={15} className="text-brand" />}>
-        <p className="mb-2 text-xs text-faint">How replies connect. Faded dots are rule-suggested stances; click any row to open the comment.</p>
+        <p className="mb-2 text-xs text-faint">How replies connect. Faded dots are suggested stances (rules or AI), not reader labels; click any row to open the comment.</p>
         <DiscussionMap nodes={v.map} onJump={onJump} />
       </Block>
 

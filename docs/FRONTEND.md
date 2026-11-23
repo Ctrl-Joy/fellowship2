@@ -270,3 +270,15 @@ jar with the seed on, `AI_PROVIDER=offline` and an empty `ANTHROPIC_API_KEY`, se
 `vite preview --port 5174` (same proxy) with `CORS_ALLOWED_ORIGINS=http://localhost:5174`, waits for readiness and runs
 the suite. It references no repository secrets (every value is a throwaway CI-only string), checks out without persisted
 credentials, and uploads the report and traces only when it fails.
+
+## LLM digest and AI stance suggestions (D-031, D-032)
+- `features/insight/engine.ts` (pure, tested in `engine.test.ts`): `digestEngineLabel` ("Summarised by AI" for `llm-*`
+  engines, "Extractive summary" otherwise; unknown engines are never labelled AI), `lineSources`, `coverageNote`,
+  `stanceOrigin` and `contextPollInterval`.
+- `DigestPanel` shows an engine badge, the coverage note, and an info banner with the server's `notice` when the
+  extractive engine stood in. Paraphrased points have no quotation marks; verbatim quotes keep them ("In their own words"
+  for AI digests). Every cited comment gets its own clickable source link. Open questions from the model sit above the
+  unanswered question comments.
+- `ContextModeView` marks AI-suggested stances with a small "AI-suggested" chip (tooltip: use Label to correct it), counts
+  AI vs rule suggestions in the stats line, and shows the `aiStances` note. `useContextView` polls every 3 s while
+  `aiStances.state` is `PENDING`.

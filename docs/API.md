@@ -193,6 +193,14 @@ Notification { id, type: "POST_REPLY"|"COMMENT_REPLY"|"MENTION"|"NEW_FOLLOWER"|"
 `ArgItem { commentId, parentId, excerpt, author, score, stance, suggested, myLabel, labelCounts }`. `suggested=true` means
 the stance came from rules (no reader label yet). Stances are relative to what the comment replies to.
 
+**AI stance suggestions (D-032), additive fields.** `ArgItem.stanceSource` and `MapNode.stanceSource` are
+`READERS | AI | RULES` (reader labels always win; `suggested` stays `true` for AI and RULES). `stats.aiSuggested` counts
+AI-suggested comments. `aiStances { state: OFF|PENDING|PARTIAL|READY, engine, suggested, remaining, note }`: a signed-in
+view starts one background batch job for comments with no reader labels (≤75 per job, batches of 25, 20 jobs/hour/user,
+2-minute cooldown per thread); `PENDING` means poll again. Anonymous views read stored suggestions but never start model
+calls. Suggestions are cached per comment version (comment body plus the post it is judged against) and are relative to
+the post's main claim. Deleted, removed and held comments are never sent or shown.
+
 ### Thread Digest
 | GET | `/posts/{id}/digest?length=short\|standard\|detailed&focus=balanced\|top\|new\|beginner\|technical` | cached `DigestView` (generated on first request) |
 |---|---|---|
@@ -201,6 +209,18 @@ the stance came from rules (no reader label yet). Stances are relative to what t
 `DigestView { engine, engineNote, generatedAt, commentCountAtGeneration, currentCommentCount, stale, sections }`;
 every `Line { text, commentId, kind: DATA|ANECDOTE|OPINION|SPECULATION|STATEMENT, author }` quotes a real comment.
 `consensus.status` is `CONSENSUS` only with ≥5 comments, ≥3 stance-weighted votes and ≥75% on one side.
+
+**LLM digest (D-031), additive fields.** `engine` is `llm-v1` (written by the configured model) or `extractive-v2`.
+`notice` (nullable) says why the preferred engine wasn't used, e.g. the model failed, declined, returned unverifiable
+output, the hourly limit was reached (20 model digests/hour/user), or the viewer is signed out (anonymous views never call
+the model). `Line` gains `commentIds` (every cited comment; `commentId` is the first) and `paraphrase` (`true` = the
+model's wording, `false` = verbatim) and `kind` may be `FACT`. With `llm-v1`, `summary`/`supporting`/`opposing` are
+paraphrased cited points, `takeaways` are verbatim quotes, and `sections.openQuestions: Line[]` lists unanswered
+questions; `mostUseful`, `minority`, `unresolved`, `links` and `consensus` are always computed from real data.
+`sections.coverage { included, total, note }` says how many comments the digest covers ("Covers 120 of 480 comments…").
+Every cited id is checked against the comments sent; every quote must be a verbatim (whitespace-normalised) substring of
+its comment. Cached digests drop lines whose comments were deleted, removed or held since, and are `stale` when a cited
+comment was edited.
 
 ### Smart Collections (all `/me/**` require auth; collections are private by default)
 | Method | Path | Notes |
