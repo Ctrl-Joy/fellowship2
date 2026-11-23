@@ -4,7 +4,8 @@ import { buttonClasses } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Display';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { usePoolReport } from '@/features/funding/api';
-import { DemoBanner } from '@/features/funding/components/Demo';
+import { CheckoutReturn } from '@/features/funding/components/CheckoutReturn';
+import { ModeBanner } from '@/features/funding/components/Mode';
 import { PoolCard } from '@/features/funding/components/PoolCard';
 import { TransparencyReportView } from '@/features/funding/components/TransparencyReportView';
 import { useFundingStatus } from '@/features/funding/api';
@@ -28,7 +29,8 @@ export default function PoolReportPage() {
           </Link>
         )}
         <h1 className="text-2xl font-bold">Transparency report</h1>
-        <DemoBanner status={status.data} />
+        <CheckoutReturn />
+        <ModeBanner status={status.data} />
         {q.isPending && <Skeleton className="h-64 rounded-2xl" />}
         {q.isError && (q.error instanceof ApiError && q.error.status === 404
           ? <EmptyState icon={FileSearch} title="Pool not found" description="It may be in a private community you can’t see." action={<Link to="/funding" className={buttonClasses('secondary', 'sm')}>Moderator funding</Link>} />

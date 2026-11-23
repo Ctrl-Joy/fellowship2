@@ -165,6 +165,20 @@ colours, `role="note"`), and every amount is rendered through `MoneyAmount`, whi
 - `/soon/funding` redirects to `/funding`, and the "Coming next" nav entry has been replaced by the real route.
 - Pure logic lives in `features/funding/money.ts` (format/parse minor units with integer maths only, bounds, presets, progress) and is
   tested in `money.test.ts`.
+
+### Funding with Stripe (D-034)
+- `components/Demo.tsx` became `components/Mode.tsx`: `ModeBanner`, `ModeBadge` and `MoneyAmount` take their text from the API
+  (`FundingStatus.label`/`notice`/`payouts`, `Money.label` per row): "DEMO, no real money", "TEST MODE: no real money", or no
+  badge for live money. Buttons say "(demo)" or "(test mode)" (`contributeSuffix`).
+- **Contribute dialog**: when the response has `checkout`, the browser goes to `checkout.url` (Stripe Checkout), and the button
+  shows "Opening Stripe Checkout…". Test mode says to use a Stripe test card. The site never sees card data or any Stripe key.
+- **Return**: `/funding/pools/:id?checkout=success&session_id=…` shows `CheckoutReturn`, which polls
+  `POST /funding/checkouts/confirm` (about a minute, slowing down) until CONFIRMED, FAILED or EXPIRED, then refreshes funding
+  queries. If Stripe hasn't confirmed by then it shows "Payment pending" (it counts once confirmed).
+  `?checkout=cancelled&pending=…` calls the cancel endpoint and says nothing was charged. URL parsing and the poll schedule
+  are tested in `checkout.test.ts`.
+- My contributions shows "billed monthly by Stripe", a failed-renewal warning, and refunded amounts. The transparency report
+  labels allocations "Allocated, not paid out" and marks refund ledger rows.
 ## Files & share links
 | Route | What it does | Endpoints |
 |---|---|---|

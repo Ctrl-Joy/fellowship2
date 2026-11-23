@@ -10,7 +10,7 @@ import type { UserSummary } from '@/types/api';
 import type { PoolSummary } from '@/types/funding';
 import { fundingApi, useAllocationPreview, useFundingMutation } from '../api';
 import { POLICY_LABELS, formatMinor, parseToMinor, sumMinor } from '../money';
-import { MoneyAmount } from './Demo';
+import { MoneyAmount } from './Mode';
 
 /**
  * Owner closes a pool now. For EQUAL and ACTIVITY it shows exactly what the server would allocate (the preview endpoint

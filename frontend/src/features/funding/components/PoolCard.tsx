@@ -5,8 +5,8 @@ import { Button, buttonClasses } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Display';
 import type { PoolSummary } from '@/types/funding';
 import { formatDate, pluralize, timeUntil } from '@/utils/format';
-import { POLICY_LABELS, STATUS_LABELS, progressPercent } from '../money';
-import { MoneyAmount } from './Demo';
+import { POLICY_LABELS, STATUS_LABELS, contributeSuffix, progressPercent } from '../money';
+import { MoneyAmount } from './Mode';
 
 /** A pool with its progress towards the goal. Actions are passed in, so the card never shows a button that can't work. */
 export function PoolCard({
@@ -74,7 +74,7 @@ export function PoolCard({
       <div className="mt-4 flex flex-wrap gap-2">
         {open && onContribute && (
           <Button size="sm" onClick={onContribute}>
-            <HandCoins size={15} aria-hidden="true" /> Contribute (demo)
+            <HandCoins size={15} aria-hidden="true" /> Contribute{contributeSuffix(pool.mode ?? 'demo')}
           </Button>
         )}
         {reportLink && (

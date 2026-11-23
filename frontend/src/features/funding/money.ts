@@ -2,9 +2,52 @@
  * Money helpers. Amounts are integer minor units (cents) end to end; nothing here ever multiplies or divides a
  * fractional number, so there is no floating-point rounding anywhere between the input box and the API.
  */
-import type { AllocationPolicy, Money, PoolStatus } from '@/types/funding';
+import type { AllocationPolicy, CheckoutState, FundingMode, Money, PoolStatus } from '@/types/funding';
 
+/** Fallbacks only: the server sends the label with every amount and in the funding status. */
 export const DEMO_LABEL = 'DEMO, no real money';
+export const TEST_LABEL = 'TEST MODE: no real money';
+
+export function labelFor(mode: FundingMode): string | null {
+  return mode === 'live' ? null : mode === 'test' ? TEST_LABEL : DEMO_LABEL;
+}
+
+/** The short badge text next to an amount: "Demo", "Test", or nothing for live money. */
+export function shortModeLabel(mode: FundingMode): string | null {
+  return mode === 'live' ? null : mode === 'test' ? 'Test' : 'Demo';
+}
+
+/** Suffix for contribute buttons, so nobody mistakes simulated or test money for real money. */
+export function contributeSuffix(mode: FundingMode): string {
+  return mode === 'live' ? '' : mode === 'test' ? ' (test mode)' : ' (demo)';
+}
+
+export type CheckoutReturn =
+  | { kind: 'success'; sessionId: string }
+  | { kind: 'cancelled'; pendingId: number }
+  | null;
+
+/** Reads `?checkout=success&session_id=…` or `?checkout=cancelled&pending=…` from a pool page URL. */
+export function parseCheckoutReturn(params: URLSearchParams): CheckoutReturn {
+  const kind = params.get('checkout');
+  if (kind === 'success') {
+    const sessionId = params.get('session_id') ?? '';
+    // Stripe session ids are short ASCII tokens; anything else (including the unfilled template) is ignored.
+    return /^cs_[A-Za-z0-9_]{1,250}$/.test(sessionId) ? { kind: 'success', sessionId } : null;
+  }
+  if (kind === 'cancelled') {
+    const pendingId = Number(params.get('pending'));
+    return Number.isSafeInteger(pendingId) && pendingId > 0 ? { kind: 'cancelled', pendingId } : null;
+  }
+  return null;
+}
+
+/** Poll schedule after returning from checkout: quick at first, then slower; stop after ~1 minute. */
+export const CONFIRM_POLL_MS = [1000, 1500, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 10000];
+
+export function isFinalCheckoutState(s: CheckoutState): boolean {
+  return s !== 'PENDING';
+}
 
 /** Minor-unit exponent per currency (mirrors the server list). Unknown currencies fall back to 2. */
 export const EXPONENTS: Record<string, number> = { USD: 2, EUR: 2, GBP: 2, JPY: 0 };

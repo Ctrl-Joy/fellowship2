@@ -77,7 +77,8 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
-- Not built yet: real payment provider for moderator funding (demo-only by design, D-022) and podcast audio/video generation (no TTS provider configured).
+- Not built yet: podcast audio/video generation (no TTS provider configured). Moderator funding now has a real provider (Stripe hosted Checkout, test mode, D-034/D-035); payouts to moderators (Stripe Connect) and live mode are not built or enabled.
+- Stripe: the suite never calls Stripe (fake gateway). No live test-mode run has been recorded yet unless noted in the Stripe row below.
 - Docker: `docker compose up --build` runs locally (Docker Desktop 29.9). Verified: all five services healthy (PostgreSQL, Redis, SeaweedFS S3, backend, web), demo login, feeds, Claude AI and the WebSocket through nginx on http://localhost:8088; uploads go to the private bucket (image with 320/960 variants, private file with a ranged 206 read, owner-only access, delete removes the object, anonymous bucket access 403). MinIO no longer publishes public images, so the bundled S3 service is SeaweedFS.
 - Accessibility: no manual screen-reader pass yet; moderate/minor axe findings not triaged; pages outside the audited ten
   not scanned (see docs/ACCESSIBILITY.md).
@@ -93,3 +94,10 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
   suspended user's open WebSocket isn't closed until it reconnects (REST calls fail at once). The account-status cache is
   per node (up to 30 s delay across several nodes).
 - Admin dashboard, mutes and holds were verified by integration tests and builds only; not exercised in a browser.
+
+## Stripe payments for moderator funding (D-034, D-035)
+| Item | Backend | Frontend |
+|---|---|---|
+| `FUNDING_PROVIDER=stripe`: hosted Checkout (payment mode once, subscription mode monthly with inline `price_data`), pending contributions, confirm on return (server retrieves the session) and by webhook, `Stripe-Signature` verification, invoice cycles, failed renewals, provider cancellation, refunds as reversing ledger rows, mode (`demo`/`test`/`live`) on every money row, live keys refused without `FUNDING_LIVE_MODE` + `FUNDING_COMPLIANCE_ACK` | ✅ `StripeFundingIT` 9, `StripeProviderTest` 5, `FundingUnitTest`/`FundingIT` updated | ✅ redirect to Checkout, return banner polling the confirm endpoint (success / pending / cancelled / expired / failed), mode labels from the API, "Allocated, not paid out" |
+| Payouts to moderators (Stripe Connect), live mode, automatic refund of payments that arrive after a pool closed | ❌ not built (obligations only) | ❌ |
+| Live test-mode check (`StripeLiveCheckTest`, excluded from the suite) | not run: no `STRIPE_SECRET_KEY` in `backend/.env.local` at the time of writing | |
