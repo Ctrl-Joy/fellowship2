@@ -1,0 +1,121 @@
+spring:
+  application:
+    name: strata
+  config:
+    # Local-only secrets (e.g. ANTHROPIC_API_KEY=...) in backend/.env.local, git-ignored. Absent in Docker/CI.
+    import: optional:file:./.env.local[.properties]
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/strata}
+    username: ${DATABASE_USER:strata}
+    password: ${DATABASE_PASSWORD:strata}
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:15}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc.time_zone: UTC
+        default_batch_fetch_size: 50
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 500ms
+  servlet:
+    multipart:
+      max-file-size: 12MB
+      max-request-size: 12MB
+  mail:
+    host: ${SMTP_HOST:localhost}
+    port: ${SMTP_PORT:1025}
+    username: ${SMTP_USER:}
+    password: ${SMTP_PASSWORD:}
+  jackson:
+    default-property-inclusion: always
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${PORT:8080}
+  forward-headers-strategy: native
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: when-authorized
+  health:
+    mail:
+      enabled: false
+    redis:
+      enabled: true
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+
+logging:
+  pattern:
+    level: "%5p [trace=%X{traceId:-}]"
+  level:
+    root: INFO
+    org.hibernate.SQL: WARN
+
+strata:
+  jwt:
+    # Base64, >= 32 bytes. The default is for local development only; production must set JWT_SECRET.
+    secret: ${JWT_SECRET:ZGV2LW9ubHktc2VjcmV0LWNoYW5nZS1tZS1iZWZvcmUtZGVwbG95aW5nLXN0cmF0YQ==}
+    access-ttl: ${JWT_ACCESS_TTL:PT15M}
+    refresh-ttl: ${JWT_REFRESH_TTL:P30D}
+    issuer: strata
+  cookie:
+    secure: ${COOKIE_SECURE:false}
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://127.0.0.1:5173}
+  app:
+    public-url: ${APP_PUBLIC_URL:http://localhost:5173}
+    name: Strata
+  mail:
+    mode: ${MAIL_MODE:log}
+    from: ${MAIL_FROM:no-reply@strata.local}
+  storage:
+    driver: local
+    local-dir: ${STORAGE_LOCAL_DIR:./data/uploads}
+    max-image-bytes: 10485760
+  rate-limit:
+    enabled: ${RATE_LIMIT_ENABLED:true}
+  seed:
+    enabled: ${SEED_DEMO_DATA:true}
+  ai:
+    provider: ${AI_PROVIDER:auto}
+    api-key: ${ANTHROPIC_API_KEY:}
+    model: ${AI_MODEL:claude-opus-5-5}
+    effort: ${AI_EFFORT:medium}
+    max-tokens: ${AI_MAX_TOKENS:16000}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: prod
+strata:
+  cookie:
+    secure: true
+  seed:
+    enabled: ${SEED_DEMO_DATA:false}

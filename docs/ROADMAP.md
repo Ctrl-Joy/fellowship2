@@ -1,0 +1,57 @@
+# Roadmap
+
+Each phase ends with a working, tested application. ✅ done · ◐ partial · ☐ not started.
+
+## Phase 0: Product & architecture ✅
+Spec, architecture, database, API contract, design system, ranking, decisions.
+
+## Phase 1: Foundation ✅
+Spring Boot + Flyway + PostgreSQL, React/Vite/Tailwind design system with dark/light themes, auth (register,
+login, refresh rotation and reuse detection, sessions, verification, reset), profiles, settings, onboarding,
+responsive shell, Docker Compose, CI.
+
+## Phase 2: Core community ✅
+Communities (public/restricted/private), roles, rules, flairs, membership, posts (text/link/image/poll),
+sanitised rich text, image upload, voting + karma, nested comments with lazy replies, feeds and ranking, search,
+saved and hidden posts, notifications (grouped, polled).
+
+## Phase 3: Moderation & quality ☐
+`reports`, `moderation_actions` (auditable: moderator, action, target, reason, community, reversal), user
+block/mute, mod queue, remove/approve/lock/pin, bans and timed suspensions, appeals, admin dashboard (users,
+communities, flags, audit log), spam heuristics (link velocity, duplicate content), topic reputation v1
+(vote events × topic, quality-weighted, anti-farming caps). Moderator UI in community settings.
+
+## Phase 4: Knowledge ◐ (Collections, Context Mode, Digest ✅; Community Pulse ☐)
+Smart Collections (collections, items for posts/comments, notes, tags, ordering, sharing), Context Mode
+(stance labels on comments, argument map built from labels + votes, user-correctable AI suggestions),
+Thread Digest (cached, versioned by thread change, every claim links to a source comment), Community Pulse
+(polls/predictions with history; live results via WebSocket).
+
+## Phase 5: Community AI ✅ (FTS retrieval; pgvector semantic layer deferred, see D-013)
+`AiProvider` abstraction (chat/summarise/embed) configured by env; a local "extractive" fallback provider so it
+runs with no paid API. Ingestion and chunking of posts/comments, FTS + pgvector hybrid retrieval, permission
+filtering *before* retrieval (private communities, deleted content), answer + citations to real post/comment
+ids, conversations, feedback.
+
+## Phase 6: Media ☐
+S3/MinIO storage driver and presigned uploads, podcast shows/episodes/chapters/transcripts/sources, audio and
+video player (speed, chapters, resume, queue), discovery. Upload-first publishing; AI script/TTS generation only
+when providers are configured, otherwise marked unavailable.
+
+## Phase 7: Files & privacy ☐
+Private file assets, share links (expiry, password, revocation, access log), validation and scanning hook.
+Then E2EE as a separate capability: WebCrypto AES-GCM client-side, key in the URL fragment or wrapped with
+PBKDF2/Argon2-derived keys, documented threat model and limits (no server preview or scanning).
+
+## Phase 8: Moderator funding ☐
+Funding pools, contributions (one-time and recurring), allocation policies, transparency report;
+`PaymentProvider` abstraction with webhook verification. **Demo mode only** until a provider and compliance
+review exist; demo transactions are labelled and never represent real money.
+
+## Phase 9: Moderator recognition ☐
+Quality-weighted moderator score (consistency, response time, appeal outcomes, community health, peer
+feedback, explicitly not raw removal counts), periods, badges, leaderboard, profiles.
+
+## Phase 10: Polish ☐
+Performance (Redis feed caching, image thumbnails), accessibility audit, Playwright end-to-end suite for the 23
+flows in the brief, production deployment guide (VPS + TLS), observability dashboards.

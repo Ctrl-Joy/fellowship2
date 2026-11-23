@@ -1,0 +1,16 @@
+strata:
+  ai:
+    provider: offline
+  rate-limit:
+    enabled: false
+  seed:
+    enabled: false
+  storage:
+    local-dir: ./target/test-uploads
+management:
+  health:
+    redis:
+      enabled: false
+logging:
+  level:
+    root: WARN

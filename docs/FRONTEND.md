@@ -1,0 +1,68 @@
+# Strata frontend
+
+React 18 + TypeScript (strict) + Vite 6 + Tailwind 3. Lives in `frontend/`.
+
+## Run
+```bash
+cd frontend
+npm install
+npm run dev        # http://localhost:5173, proxies /api -> http://localhost:8080 (override with VITE_BACKEND_URL)
+npm run build      # tsc -b && vite build
+npm run lint       # type-check only (tsc -b --noEmit)
+npm test           # vitest run
+```
+
+## Structure
+```
+src/
+  app/            Providers (QueryClient, theme sync, session boot), router (lazy routes), route guards
+  routes/         Page components, one folder per area (feed, posts, communities, profile, settings, auth, ...)
+  layouts/        AppLayout (top bar, left nav, mobile tab bar, drawer), PublicLayout, RightRail, PageColumns
+  features/<f>/   api.ts (endpoint calls) · hooks.ts (TanStack Query) · components/ · pure helpers (+ tests)
+  components/ui/  Design-system primitives (Button, Field, Dialog, Menu, Tabs, Tooltip, Switch, Toast, States, ...)
+  services/       apiClient (fetch, auth header, single-flight refresh), ApiError, query-key factory
+  store/          Zustand auth store (access token in memory only)
+  design-system/  brand.ts, tokens.css, BrandMark — the only place to rename/recolour the product
+  hooks/ utils/ types/
+```
+
+## Auth model
+- Access token kept **in memory** (Zustand). Refresh token is the backend's HttpOnly cookie.
+- On boot `POST /auth/refresh` restores the session. Any 401 triggers one shared refresh, then the request is retried once.
+- `RequireAuth` waits for boot, then redirects to `/login?next=…`; `RedirectIfAuthed` honours only same-origin `next` paths
+  and routes users with `onboardingCompleted=false` to `/onboarding`.
+
+## Pages → endpoints
+| Page | Endpoints |
+|---|---|
+| Landing | `GET /communities?sort=popular` |
+| Login / Register | `POST /auth/login`, `POST /auth/register`, `GET /auth/username-available` |
+| Forgot / Reset / Verify | `POST /auth/forgot-password`, `/auth/reset-password`, `/auth/verify-email` |
+| Onboarding | `GET /topics`, `GET /onboarding/suggestions`, `POST /onboarding/complete` |
+| App shell | `GET /me/communities`, `GET /search/suggest`, `GET /notifications/unread-count` (30 s poll), `PATCH /users/me/settings` (theme) |
+| Right rail | `GET /trending/posts`, `GET /communities/trending` |
+| Home | `GET /feed?tab&t&cursor` |
+| Post rows (everywhere) | `POST /posts/{id}/vote`, `PUT/DELETE /posts/{id}/save`, `PUT /posts/{id}/hide`, `DELETE /posts/{id}`, `POST /posts/{id}/poll/vote` |
+| Post detail | `GET /posts/{id}`, `PATCH /posts/{id}`, `GET /communities/{slug}`, `GET /posts/{id}/comments`, `GET /comments/{id}/replies`, `POST /posts/{id}/comments`, `PATCH/DELETE /comments/{id}`, `POST /comments/{id}/vote` |
+| Submit | `GET /me/communities`, `GET /communities/{slug}` (flairs, canPost), `POST /media`, `POST /posts` |
+| Communities directory | `GET /topics`, `GET /communities?q&topic&sort&page` , `POST/DELETE /communities/{slug}/membership` |
+| Create community | `GET /topics`, `POST /communities` |
+| Community page | `GET /communities/{slug}`, `GET /communities/{slug}/posts`, `GET /communities/{slug}/members` |
+| Community settings | `PATCH /communities/{slug}`, `PUT …/rules`, `PUT …/flairs`, `POST …/icon`, `POST …/banner`, `PUT …/members/{u}/role` |
+| Explore | `GET /topics`, `GET /communities?sort=popular`, `GET /feed?tab=rising` |
+| Search | `GET /search?q&type&community&sort&t&cursor` |
+| Profile | `GET /users/{u}`, `GET /users/{u}/posts`, `GET /users/{u}/comments`, `POST/DELETE /users/{u}/follow` |
+| Settings | `PATCH /users/me`, `POST /users/me/avatar|banner`, `POST /users/me/password`, `GET/DELETE /auth/sessions`, `POST /auth/resend-verification`, `POST /users/me/deactivate`, `DELETE /users/me`, `PATCH /users/me/settings` |
+| Saved | `GET /me/saved` |
+| Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
+
+## Not built yet (shown honestly)
+AI Assistant, Collections, Podcasts, Messages, Moderator funding and Leaderboard appear under “Coming next” in the nav and
+all route to one `/soon/:feature` page that collects no data. Reporting/moderation actions, Context Mode and Digest have no UI yet.
+
+## Notes
+- Post bodies are authored as HTML in TipTap and rendered from the server's sanitized `bodyHtml`. Comments are markdown rendered
+  with `react-markdown` + `skipHtml` (no raw HTML); `@username` becomes an internal link.
+- Optimistic updates: votes (posts + comments), saves, follows, joins, mark-read. All roll back on error.
+- Comment threads: top level via cursor, replies merged lazily per parent; visual nesting caps at 4 (mobile) / 6 (desktop),
+  deeper replies open in a focused “Continue this thread” view.
