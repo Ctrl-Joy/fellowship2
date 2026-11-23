@@ -19,10 +19,12 @@ import org.springframework.web.socket.config.annotation.WebSocketTransportRegist
 public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private final StompSecurityInterceptor security;
     private final AppProperties props;
+    private final SessionRegistry sessions;
 
-    public WebSocketConfig(StompSecurityInterceptor security, AppProperties props) {
+    public WebSocketConfig(StompSecurityInterceptor security, AppProperties props, SessionRegistry sessions) {
         this.security = security;
         this.props = props;
+        this.sessions = sessions;
     }
 
     @Override
@@ -50,5 +52,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     @Override
     public void configureWebSocketTransport(WebSocketTransportRegistration registration) {
         registration.setMessageSizeLimit(16 * 1024).setSendBufferSizeLimit(512 * 1024).setSendTimeLimit(15_000);
+        // Track every socket so a suspended or deleted account can be disconnected at once (D-030).
+        registration.addDecoratorFactory(sessions::decorate);
     }
 }

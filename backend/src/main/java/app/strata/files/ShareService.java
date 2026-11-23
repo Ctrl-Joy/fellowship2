@@ -249,7 +249,7 @@ public class ShareService {
         if (recent == null) log(l.id(), viewerId, visitor, "VIEWED");
         Integer remaining = l.maxDownloads() == null ? null : Math.max(0, l.maxDownloads() - l.downloadCount());
         return new ShareMeta(f.e2ee() ? null : f.name(), f.e2ee() ? null : f.contentType(), f.size(), f.e2ee(), l.keyMode(),
-                l.expiresAt(), l.passwordHash() != null, remaining, f.scanStatus());
+                l.expiresAt(), l.passwordHash() != null, remaining, f.scanStatus(), f.scanEngine());
     }
 
     public Unlock unlock(String token, String password, AuthUser viewer, String ip) {

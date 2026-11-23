@@ -63,15 +63,15 @@ public class FileService {
 
     /** Row shape shared with ShareService. */
     record FileRow(long id, long ownerId, String name, String contentType, long size, String storageKey, String sha256,
-                   boolean e2ee, String scanStatus, String scanDetail, Instant createdAt, Instant updatedAt, Instant deletedAt) {}
+                   boolean e2ee, String scanStatus, String scanDetail, String scanEngine, Instant createdAt, Instant updatedAt, Instant deletedAt) {}
 
     static final String FILE_COLUMNS = "f.id, f.owner_id, f.name, f.content_type, f.size_bytes, f.storage_key, f.sha256, f.e2ee, "
-            + "f.scan_status, f.scan_detail, f.created_at, f.updated_at, f.deleted_at";
+            + "f.scan_status, f.scan_detail, f.scan_engine, f.created_at, f.updated_at, f.deleted_at";
 
     static FileRow mapFile(ResultSet rs) throws SQLException {
         return new FileRow(rs.getLong("id"), rs.getLong("owner_id"), rs.getString("name"), rs.getString("content_type"),
                 rs.getLong("size_bytes"), rs.getString("storage_key"), rs.getString("sha256"), rs.getBoolean("e2ee"),
-                rs.getString("scan_status"), rs.getString("scan_detail"), instant(rs, "created_at"), instant(rs, "updated_at"),
+                rs.getString("scan_status"), rs.getString("scan_detail"), rs.getString("scan_engine"), instant(rs, "created_at"), instant(rs, "updated_at"),
                 instant(rs, "deleted_at"));
     }
 
@@ -132,7 +132,11 @@ public class FileService {
         }
         FileScanner.Result scan;
         try {
-            scan = scanner.scan(new FileScanner.Input(name, head, file.getSize(), local, e2ee));
+            Path scanPath = local;
+            String storedKey = key;
+            scan = scanner.scan(new FileScanner.Input(name, head, file.getSize(), local, e2ee, () -> scanPath != null
+                    ? java.nio.file.Files.newInputStream(scanPath)
+                    : storage.get(storedKey).orElseThrow(() -> new IOException("stored object missing")).stream()));
         } finally {
             if (staged != null) {
                 try {
@@ -147,9 +151,10 @@ public class FileService {
             throw ApiException.field("file", scan.reason());
         }
         long id = jdbc.sql("""
-                        INSERT INTO user_files (owner_id, name, content_type, size_bytes, storage_key, sha256, e2ee, scan_status, scan_detail)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
-                .params(user.id(), name, scan.contentType(), file.getSize(), key, sha, e2ee, scan.status().name(), truncate(scan.reason(), 300))
+                        INSERT INTO user_files (owner_id, name, content_type, size_bytes, storage_key, sha256, e2ee, scan_status, scan_detail, scan_engine)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
+                .params(user.id(), name, scan.contentType(), file.getSize(), key, sha, e2ee, scan.status().name(), truncate(scan.reason(), 300),
+                        scan.engine().name())
                 .query(Long.class).single();
         return get(user, id);
     }
@@ -289,7 +294,7 @@ public class FileService {
     // ------------------------------------------------------------------ helpers
 
     FileItem toItem(FileRow f, int activeLinks) {
-        return new FileItem(f.id(), f.name(), f.contentType(), f.size(), f.e2ee(), f.scanStatus(), f.scanDetail(), f.sha256(),
+        return new FileItem(f.id(), f.name(), f.contentType(), f.size(), f.e2ee(), f.scanStatus(), f.scanDetail(), f.scanEngine(), f.sha256(),
                 activeLinks, f.createdAt(), f.updatedAt());
     }
 

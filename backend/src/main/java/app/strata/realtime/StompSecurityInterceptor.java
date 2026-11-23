@@ -1,6 +1,7 @@
 package app.strata.realtime;
 
 import app.strata.common.error.ApiException;
+import app.strata.common.security.AccountStatusCache;
 import app.strata.common.security.AuthUser;
 import app.strata.common.security.JwtService;
 import app.strata.community.Community;
@@ -26,8 +27,10 @@ import org.springframework.stereotype.Component;
  * Authenticates STOMP sessions and authorises every subscription.
  *
  * <ul>
- *   <li>CONNECT must carry a valid access token ({@code Authorization: Bearer ...}). Browsers can't set headers on
- *       the WebSocket handshake itself, so auth happens at the STOMP layer.</li>
+ *   <li>CONNECT must carry a valid access token ({@code Authorization: Bearer ...}) of an ACTIVE account. Browsers
+ *       can't set headers on the WebSocket handshake itself, so auth happens at the STOMP layer. Suspended,
+ *       deactivated and deleted accounts are refused, and their open sessions are closed when the change commits
+ *       ({@link SessionRegistry}, D-030).</li>
  *   <li>SUBSCRIBE is allowed only to your own user queue, the public new-posts topic, communities, posts and pulses
  *       you can view, and mod queues you moderate.
  *       Anything else is refused with an ERROR frame.</li>
@@ -46,10 +49,14 @@ public class StompSecurityInterceptor implements ChannelInterceptor {
     private final CommunityRepository communities;
     private final CommunityAccess access;
     private final PostService posts;
+    private final AccountStatusCache accounts;
+    private final SessionRegistry sessions;
 
     public StompSecurityInterceptor(JwtService jwt, @Lazy PulseService pulses, CommunityRepository communities, CommunityAccess access,
-                                    @Lazy PostService posts) {
+                                    @Lazy PostService posts, AccountStatusCache accounts, SessionRegistry sessions) {
         this.jwt = jwt;
+        this.accounts = accounts;
+        this.sessions = sessions;
         this.posts = posts;
         this.pulses = pulses;
         this.communities = communities;
@@ -66,7 +73,15 @@ public class StompSecurityInterceptor implements ChannelInterceptor {
             String token = header != null && header.startsWith("Bearer ") ? header.substring(7) : null;
             AuthUser user = token == null ? null : jwt.verify(token).orElse(null);
             if (user == null) throw new MessageDeliveryException("Authentication required");
-            acc.setUser(new StompPrincipal(user));
+            // Bind first, then check the account: a suspension that commits in between closes this session too.
+            sessions.bind(acc.getSessionId(), user.id());
+            Optional<AccountStatusCache.State> state = accounts.state(user.id());
+            if (state.isEmpty() || !state.get().active()) {
+                sessions.unbind(acc.getSessionId());
+                throw new MessageDeliveryException("This account can't connect");
+            }
+            // The role comes from the account, not the token, like REST (D-021).
+            acc.setUser(new StompPrincipal(new AuthUser(user.id(), user.username(), state.get().role())));
             return message;
         }
         AuthUser user = userOf(acc.getUser());

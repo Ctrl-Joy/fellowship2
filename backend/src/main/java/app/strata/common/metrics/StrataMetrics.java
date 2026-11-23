@@ -80,4 +80,10 @@ public class StrataMetrics {
         Counter.builder("strata.feed.cache").description("First-page feed id cache lookups").tag("result", hit ? "hit" : "miss")
                 .register(registry).increment();
     }
+
+    /** outcome = clean|infected|unavailable (D-029). */
+    public void antivirusScan(String outcome) {
+        Counter.builder("strata.antivirus.scans").description("Antivirus scans of uploads").tag("engine", "clamav")
+                .tag("outcome", outcome).register(registry).increment();
+    }
 }

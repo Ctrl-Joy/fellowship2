@@ -1,5 +1,7 @@
 package app.strata.user;
 
+import app.strata.common.security.AccountAccessRevoked;
+import org.springframework.context.ApplicationEventPublisher;
 import app.strata.common.error.ApiException;
 import app.strata.common.security.AuthUser;
 import app.strata.community.CommunityMapper;
@@ -30,10 +32,12 @@ public class UserService {
     private final JdbcClient jdbc;
     private final NotificationService notifications;
     private final app.strata.messaging.DmAccess dmAccess;
+    private final ApplicationEventPublisher events;
 
     public UserService(UserRepository users, MembershipDao memberships, CommunityRepository communities, MediaService media,
                        PasswordEncoder encoder, JdbcClient jdbc, NotificationService notifications,
-                       app.strata.messaging.DmAccess dmAccess) {
+                       app.strata.messaging.DmAccess dmAccess, ApplicationEventPublisher events) {
+        this.events = events;
         this.dmAccess = dmAccess;
         this.users = users;
         this.memberships = memberships;
@@ -94,6 +98,7 @@ public class UserService {
         if (!encoder.matches(password, u.getPasswordHash())) throw ApiException.field("password", "Password is incorrect");
         u.setStatus(User.Status.DEACTIVATED);
         revokeSessions(u.getId());
+        events.publishEvent(new AccountAccessRevoked(u.getId(), "deactivated"));
     }
 
     /**
@@ -115,6 +120,7 @@ public class UserService {
         u.setStatus(User.Status.DELETED);
         u.setDeletedAt(Instant.now());
         revokeSessions(u.getId());
+        events.publishEvent(new AccountAccessRevoked(u.getId(), "deleted"));
         jdbc.sql("DELETE FROM user_follows WHERE follower_id = ? OR followee_id = ?").params(u.getId(), u.getId()).update();
         jdbc.sql("DELETE FROM community_members WHERE user_id = ? AND role <> 'OWNER'").param(u.getId()).update();
     }

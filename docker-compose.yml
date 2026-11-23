@@ -50,6 +50,24 @@ services:
       timeout: 3s
       retries: 30
 
+  # Optional antivirus (D-029): ClamAV's clamd, scanned over TCP with INSTREAM. It needs about 1-1.5 GB of RAM once the
+  # signatures are loaded and downloads ~300 MB of signatures on first start (a few minutes), so it sits behind a
+  # profile here:  ANTIVIRUS=clamav docker compose --profile antivirus up --build
+  # Without it the backend runs structural checks only and the UI says "Checked, not an antivirus scan".
+  clamav:
+    image: clamav/clamav:1.4.3
+    profiles: ["antivirus"]
+    restart: unless-stopped
+    volumes:
+      - clamav-db:/var/lib/clamav
+      - ./deploy/clamav/clamd.conf:/etc/clamav/clamd.conf:ro
+    healthcheck:
+      test: ["CMD", "clamdscan", "--ping", "1"]
+      interval: 15s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+
   backend:
     build: ./backend
     depends_on:
@@ -82,6 +100,11 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-strata}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
       FILE_VISITOR_SALT: ${FILE_VISITOR_SALT:-}
+      # none | clamav (start the clamav profile too). Not required locally: uploads fall back to structural checks.
+      ANTIVIRUS: ${ANTIVIRUS:-none}
+      ANTIVIRUS_REQUIRED: ${ANTIVIRUS_REQUIRED:-false}
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
       FUNDING_DEMO_WEBHOOK_SECRET: ${FUNDING_DEMO_WEBHOOK_SECRET:-dev-only-demo-webhook-secret-change-me}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
@@ -102,3 +125,4 @@ volumes:
   pgdata:
   uploads:
   s3data:
+  clamav-db:
