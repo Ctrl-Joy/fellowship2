@@ -65,6 +65,9 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, AUTHENTICATED_GETS).authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/resend-verification").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/sessions/**").authenticated()
+                        // Account security (D-041, D-042); passkey sign-in itself is /auth/passkey-login/**, public.
+                        .requestMatchers("/api/v1/auth/security", "/api/v1/auth/2fa/**", "/api/v1/auth/passkeys",
+                                "/api/v1/auth/passkeys/**").authenticated()
                         // Payment provider webhooks authenticate with a signed body (FundingService.webhook), not a JWT.
                         .requestMatchers(HttpMethod.POST, "/api/v1/funding/webhooks/*").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()

@@ -28,6 +28,13 @@ public interface RefreshTokenRepository extends JpaRepository<RefreshToken, Long
     @Query("update RefreshToken t set t.revokedAt = :now where t.userId = :userId and t.revokedAt is null")
     int revokeAllForUser(@Param("userId") long userId, @Param("now") Instant now);
 
+    /** "Sign out everywhere else": every session of the user except the given family. */
+    @Modifying
+    @Query("""
+            update RefreshToken t set t.revokedAt = :now where t.userId = :userId and t.familyId <> :keep
+              and t.revokedAt is null""")
+    int revokeAllExceptFamily(@Param("userId") long userId, @Param("keep") UUID keep, @Param("now") Instant now);
+
     /** Active sessions = the live (un-rotated, un-revoked, unexpired) head of each family. */
     @Query("""
             select t from RefreshToken t where t.userId = :userId and t.revokedAt is null

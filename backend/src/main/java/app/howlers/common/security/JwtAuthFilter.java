@@ -36,9 +36,17 @@ public class JwtAuthFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain)
             throws ServletException, IOException {
         String header = req.getHeader("Authorization");
-        if (header != null && header.startsWith("Bearer ") && !req.getRequestURI().startsWith("/api/v1/auth/")) {
+        // Under /auth/ a stale or invalid token must not block login, refresh or logout, so it is ignored there rather
+        // than rejected; a valid one still authenticates, which the signed-in auth endpoints (sessions, passkeys,
+        // two-factor settings) need.
+        boolean authPath = req.getRequestURI().startsWith("/api/v1/auth/");
+        if (header != null && header.startsWith("Bearer ")) {
             Optional<AuthUser> token = jwt.verify(header.substring(7));
             if (token.isEmpty()) {
+                if (authPath) {
+                    chain.doFilter(req, res);
+                    return;
+                }
                 reject(res, "Access token expired or invalid");
                 return;
             }
@@ -46,6 +54,10 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             // from the account (a promoted or demoted admin doesn't wait for the token to expire). See D-021.
             Optional<AccountStatusCache.State> state = accounts.state(token.get().id());
             if (state.isEmpty() || !state.get().active()) {
+                if (authPath) {
+                    chain.doFilter(req, res);
+                    return;
+                }
                 reject(res, state.isPresent() && "SUSPENDED".equals(state.get().status())
                         ? "This account is suspended" : "Account is not active");
                 return;

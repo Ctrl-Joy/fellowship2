@@ -15,6 +15,7 @@ class ProductionSafetyCheckTest {
                 .withProperty("howlers.funding.demo-webhook-secret", "a-long-random-webhook-secret")
                 .withProperty("spring.datasource.password", "a-long-db-password-123")
                 .withProperty("howlers.files.visitor-salt", "salty-salt-salt")
+                .withProperty("howlers.account-security.secrets-key", "MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=")
                 .withProperty("howlers.cookie.secure", "true")
                 .withProperty("management.endpoints.web.exposure.include", "health,info,prometheus")
                 .withProperty("management.server.port", "8081")
@@ -38,7 +39,8 @@ class ProductionSafetyCheckTest {
                 .withProperty("howlers.storage.driver", "s3")
                 .withProperty("howlers.storage.s3.secret-key", "minioadmin")
                 .withProperty("management.endpoints.web.exposure.include", "health,prometheus");
-        assertThat(ProductionSafetyCheck.problems(env)).hasSize(7)
+        assertThat(ProductionSafetyCheck.problems(env)).hasSize(8)
+                .anyMatch(p -> p.startsWith("ACCOUNT_SECRETS_KEY is unset"))
                 .anyMatch(p -> p.startsWith("JWT_SECRET"))
                 .anyMatch(p -> p.startsWith("FUNDING_DEMO_WEBHOOK_SECRET"))
                 .anyMatch(p -> p.startsWith("DATABASE_PASSWORD"))
@@ -67,5 +69,13 @@ class ProductionSafetyCheckTest {
                 .withProperty("howlers.funding.demo-webhook-secret", ProductionSafetyCheck.DEV_WEBHOOK_SECRET);
         assertThat(ProductionSafetyCheck.problems(stripe)).singleElement().asString().contains("STRIPE_WEBHOOK_SECRET");
         assertThat(ProductionSafetyCheck.problems(stripe.withProperty("howlers.funding.stripe.webhook-secret", "whsec_x"))).isEmpty();
+    }
+
+    @Test
+    void theAccountSecretsKeyMustBe32Base64Bytes() {
+        assertThat(ProductionSafetyCheck.problems(safe().withProperty("howlers.account-security.secrets-key", "c2hvcnQ=")))
+                .containsExactly("ACCOUNT_SECRETS_KEY must be base64 of exactly 32 random bytes (openssl rand -base64 32)");
+        assertThat(ProductionSafetyCheck.problems(safe().withProperty("howlers.account-security.secrets-key", "")))
+                .singleElement().asString().startsWith("ACCOUNT_SECRETS_KEY is unset");
     }
 }

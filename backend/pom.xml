@@ -25,6 +25,8 @@
         <embedded-postgres.version>2.2.3</embedded-postgres.version>
         <awssdk.version>2.30.18</awssdk.version>
         <stripe.version>34.1.0</stripe.version>
+        <webauthn.version>2.10.1</webauthn.version>
+        <zxing.version>3.5.3</zxing.version>
         <!-- Tests tagged "live" (AI model, ElevenLabs, Brevo) or "stripe-live" call paid external APIs and never run in
              the suite. Run one with -Dsurefire.excludedGroups=none -Dtest=... (Stripe also needs -Dstripe.live=true). -->
         <surefire.excludedGroups>live,stripe-live</surefire.excludedGroups>
@@ -58,6 +60,10 @@
         <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
         <!-- Stripe payments for moderator funding, FUNDING_PROVIDER=stripe (D-034). Pinned; hosted Checkout only. -->
         <dependency><groupId>com.stripe</groupId><artifactId>stripe-java</artifactId><version>${stripe.version}</version></dependency>
+        <!-- Passkeys (WebAuthn registration and assertion ceremonies, D-041). Pinned. -->
+        <dependency><groupId>com.yubico</groupId><artifactId>webauthn-server-core</artifactId><version>${webauthn.version}</version></dependency>
+        <!-- QR codes for TOTP enrolment, rendered server-side as SVG (no external QR service, D-042). Pinned. -->
+        <dependency><groupId>com.google.zxing</groupId><artifactId>core</artifactId><version>${zxing.version}</version></dependency>
         <dependency><groupId>com.anthropic</groupId><artifactId>anthropic-java</artifactId><version>3.12.0</version></dependency>
 
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>

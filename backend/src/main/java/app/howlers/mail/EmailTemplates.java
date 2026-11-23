@@ -13,6 +13,7 @@ import org.springframework.web.util.HtmlUtils;
 public final class EmailTemplates {
     public static final String TAG_VERIFY = "verify-email";
     public static final String TAG_RESET = "reset-password";
+    public static final String TAG_NEW_SIGNIN = "new-signin";
     /** Product name and tagline used in every email (the app is being renamed; config names still say howlers). */
     public static final String BRAND = "Howlers";
     public static final String TAGLINE = "Find your pack & howl together";
@@ -62,6 +63,35 @@ public final class EmailTemplates {
                 "The link expires in " + esc(expiry) + " and works once. Resetting signs you out on every device.",
                 "Didn't request this? Ignore this email; your password stays the same.");
         return new OutgoingEmail(to, username, subject, html, text, TAG_RESET);
+    }
+
+    /**
+     * "New sign-in to your Howlers account" (D-041): when, which browser family on which OS, and how (password,
+     * password plus 2FA, passkey), with a link to the sessions list. No IP address or location is included.
+     */
+    public OutgoingEmail newSignIn(String to, String username, String when, String device, String method) {
+        String link = publicUrl + "/settings?tab=account#sessions";
+        String subject = "New sign-in to your " + appName + " account";
+        String text = "Hi " + username + ",\n\n"
+                + "Your " + appName + " account was just signed in to from a device or browser it hasn't seen before.\n\n"
+                + "When: " + when + "\n"
+                + "Device: " + device + "\n"
+                + "Signed in with: " + method + "\n\n"
+                + "If this was you, there's nothing to do.\n"
+                + "If it wasn't, review your sessions, sign out the ones you don't recognise and change your password:\n"
+                + link + "\n\n"
+                + "You can turn these emails off in Settings > Account & security.\n\n"
+                + "- " + appName + ": " + TAGLINE + "\n";
+        String html = layout(subject,
+                "New sign-in to your account",
+                "Hi " + esc(username) + ", your " + esc(appName) + " account was just signed in to from a device or browser it hasn't seen before."
+                        + "<br><br><strong>When:</strong> " + esc(when)
+                        + "<br><strong>Device:</strong> " + esc(device)
+                        + "<br><strong>Signed in with:</strong> " + esc(method),
+                "Review sessions", link,
+                "If this was you, there's nothing to do. You can turn these emails off in Settings &rsaquo; Account &amp; security.",
+                "Not you? Sign out the sessions you don't recognise and change your password.");
+        return new OutgoingEmail(to, username, subject, html, text, TAG_NEW_SIGNIN);
     }
 
     String link(String path, String token) {

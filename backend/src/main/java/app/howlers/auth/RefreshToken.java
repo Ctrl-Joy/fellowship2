@@ -28,6 +28,9 @@ public class RefreshToken {
     private Instant rotatedAt;
     private String userAgent;
     private String ip;
+    /** PASSWORD | PASSWORD_TOTP | PASSWORD_RECOVERY | PASSKEY; carried through rotation. Null for sessions before V18. */
+    @Column(length = 20)
+    private String authMethod;
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
     @Column(nullable = false)
@@ -44,6 +47,12 @@ public class RefreshToken {
         this.ip = ip;
     }
 
+    public RefreshToken(Long userId, UUID familyId, String tokenHash, Instant expiresAt, String userAgent, String ip,
+                        String authMethod) {
+        this(userId, familyId, tokenHash, expiresAt, userAgent, ip);
+        this.authMethod = authMethod;
+    }
+
     public boolean isUsable(Instant now) {
         return revokedAt == null && rotatedAt == null && expiresAt.isAfter(now);
     }
@@ -58,6 +67,7 @@ public class RefreshToken {
     public void markRotated(Instant at) { this.rotatedAt = at; }
     public String getUserAgent() { return userAgent; }
     public String getIp() { return ip; }
+    public String getAuthMethod() { return authMethod; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getLastUsedAt() { return lastUsedAt; }
 }
