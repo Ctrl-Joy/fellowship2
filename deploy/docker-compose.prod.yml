@@ -98,6 +98,9 @@ services:
       ELEVENLABS_VOICE_A: ${ELEVENLABS_VOICE_A:-XrExE9yKIg1WjnnlVkGX}
       ELEVENLABS_VOICE_B: ${ELEVENLABS_VOICE_B:-JBFqnCBsd6RMkjVDRZzb}
       TTS_DAILY_CHARACTER_BUDGET: ${TTS_DAILY_CHARACTER_BUDGET:-100000}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-}
     expose:
       - "8080"
       - "8081"   # management/metrics: reachable by Prometheus on the internal network only

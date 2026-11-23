@@ -704,3 +704,64 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   so the "last chunk" AAD flag still catches truncation. A failure aborts the writable, which discards the partial file.
   The save dialog needs a user gesture, so it comes after a second click ("Choose where to save"), once the key and
   metadata are verified. Other browsers use the in-memory path, and above 500 MB they show a warning first.
+
+**D-039 Link previews, SEO and the installable app without server-side rendering.**
+- **Crawlers get a preview document, browsers get the SPA.** nginx matches link-preview bots and search crawlers by
+  user agent (facebookexternalhit, Twitterbot, Slackbot, Discordbot, WhatsApp, LinkedInBot, TelegramBot, Googlebot,
+  bingbot, Applebot and others) and, for SPA routes only (real files such as `/og/howlers.png` are served as files),
+  internally proxies to `GET /api/v1/seo/page` with the original URI in `X-Howlers-Path`. The backend answers with a
+  small HTML document: title, description, canonical link (from `APP_PUBLIC_URL`), `og:*`, `twitter:*` and a visible
+  heading, excerpt and link. Full SSR or prerendering would have meant a Node runtime next to nginx for a handful of
+  tags; this keeps one SPA build.
+- **No leaks.** Posts are described only when not removed, held (`pending`) or deleted, in communities that are not
+  PRIVATE and whose status is ACTIVE (quarantined and banned communities are not previewed). Profiles only when the
+  account is ACTIVE and `profile_public`. Podcast episodes only when PUBLISHED. Everything else, including content that
+  doesn't exist, gets the same generic Howlers tags with `noindex` and status 200, so a preview never tells hidden from
+  missing. Restricted communities are readable by everyone, so they are previewed.
+- **One static OG image.** `frontend/public/og/howlers.png` (1200×630) is rendered once from the wolf mark with headless
+  Chromium (`npm run brand:images`) and committed; per-post images were skipped (optional, and rendering text server
+  side safely would need fonts and an image stack in the backend).
+- **robots.txt and sitemaps from the backend** (absolute URLs need `APP_PUBLIC_URL`). `/sitemap.xml` is always a
+  sitemap index pointing at `/sitemaps/{static|communities|posts|podcasts}-N.xml` (10,000 URLs per file, the newest
+  100,000 public posts; both configurable). Private areas (`/api/`, `/admin`, `/settings`, `/messages`, `/files`,
+  share links, ...) are disallowed.
+- **Service worker written by hand, not `vite-plugin-pwa`.** The worker does three small things (shell precache,
+  offline page, push), Workbox would add a large dependency tree and a second place where caching rules live, and five
+  agents edit `package-lock.json` in parallel. A 50-line Vite plugin (`pwa/serviceWorkerPlugin.ts`) emits `sw.js` with
+  a build version and the precache list (offline page, icons, manifest, entry chunks). Lazy chunks and fonts under
+  `/assets/` are cached on first use (hashed, immutable). Navigations are network-only with the offline page as the
+  fallback; `/api/`, `/ws` and cross-origin requests are never intercepted, so no response with personal data is ever
+  stored. A new version waits for the user's "Reload" (`SKIP_WAITING`). The worker is registered in production builds
+  only, unless `VITE_ENABLE_SW_IN_DEV=true` (then it caches nothing).
+- **Canonical links in the SPA** follow the route (path without query or fragment); per-route `document.title` already
+  existed (`useDocumentTitle` on every page).
+
+**D-040 Web push with VAPID and RFC 8291 encryption on the JDK alone.**
+- **No push library.** P-256 ECDH, HKDF-SHA-256, AES-128-GCM and ES256 (`SHA256withECDSAinP1363Format`) are all in the
+  JDK, so `WebPushCrypto` (aes128gcm, single record, RFC 8291) and `Vapid` (RFC 8292 JWT, 12 h expiry, audience = push
+  service origin) are about 300 lines with no new dependency. `nl.martijndwars:web-push` pulls BouncyCastle and an
+  async HTTP client and is barely maintained. The encryption is checked against the RFC 8291 Appendix A test vector in
+  both directions; points off the curve are refused.
+- **Configuration.** `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` (base64url, the `web-push` format) and `VAPID_SUBJECT`.
+  Missing keys = push unavailable, and `GET /api/v1/push/config` says so (Settings shows the reason). A pair that
+  doesn't match, or a bad subject, also switches push off (logged without key material). `VapidKeyGenerator` prints a
+  fresh pair offline.
+- **SSRF.** The server POSTs to a URL the browser chose, so endpoints must be HTTPS on an allow-listed push service
+  (`fcm.googleapis.com`, `push.services.mozilla.com`, `notify.windows.com`, `push.apple.com`, suffix match on a dot
+  boundary), with no user-info, and redirects are never followed. Plain HTTP on 127.0.0.1 is a test-only switch.
+- **Subscriptions** (`push_subscriptions`, V19): one row per device, unique endpoint. If another account enables push
+  in the same browser, the row moves to it. Signing out removes this browser's row and its browser subscription. 404
+  and 410 delete the row at once; other failures count up and drop the device after 10 in a row. At most 10 devices per
+  user.
+- **What is pushed.** Hooks in `NotificationService.push` (after the block/mute check and the insert) and
+  `DmService.send`, queued after commit on virtual threads. Categories per device: REPLIES, MENTIONS, MESSAGES and
+  MODERATION on by default; FOLLOWERS and ACTIVITY (milestones, prediction results) opt-in. Payload: title, the same
+  text as the in-app notification, a relative link, a tag and the type. A DM push says only who wrote, never the
+  message text. Muted and blocked senders don't push. Suspended/deleted accounts get nothing.
+- **Batching and limits.** Grouped notifications (same thread) push once per 5 minutes and carry the group as the
+  notification tag and `Topic` header, so they replace each other on the device and at the push service. At most 6
+  pushes per user per minute; the rest stay in the in-app inbox. Both limits are in memory per instance (enough to stop
+  floods; a cluster could allow N× that).
+- **Testing.** `WebPushIT` runs the whole path against a local fake push service that decrypts each request with the
+  subscription's private key and verifies the VAPID JWT. Delivery through a real browser push service (FCM, Mozilla,
+  Apple) has not been tested.

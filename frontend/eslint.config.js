@@ -27,7 +27,7 @@ export default tseslint.config(
   },
   {
     // Node-side files: Playwright suite and tool configs.
-    files: ['e2e/**/*.ts', '*.config.{js,ts}', 'playwright.config.ts'],
+    files: ['e2e/**/*.ts', '*.config.{js,ts}', 'playwright.config.ts', 'pwa/**/*.ts'],
     languageOptions: { globals: { ...globals.node } },
   },
 );

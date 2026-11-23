@@ -29,6 +29,14 @@ public class NotificationService {
         this.userDirectory = userDirectory;
     }
 
+    /** Web push (D-040): optional so the inbox works the same without it. */
+    private app.howlers.push.PushNotifier pushNotifier;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setPushNotifier(app.howlers.push.PushNotifier pushNotifier) {
+        this.pushNotifier = pushNotifier;
+    }
+
     public record NotificationDto(long id, String type, UserSummary actor, String message, String link, boolean read,
                                   Instant createdAt, int count) {}
 
@@ -113,6 +121,7 @@ public class NotificationService {
             jdbc.sql("INSERT INTO notifications (user_id, type, actor_id, message, link) VALUES (?, ?, ?, ?, ?)")
                     .params(recipientId, type, actorId, message, link).update();
             announce(recipientId);
+            if (pushNotifier != null) pushNotifier.notification(recipientId, type, null, message, link);
             return;
         }
         jdbc.sql("""
@@ -123,6 +132,7 @@ public class NotificationService {
                               actor_id = EXCLUDED.actor_id, message = EXCLUDED.message, link = EXCLUDED.link""")
                 .params(recipientId, type, actorId, groupKey, message, link).update();
         announce(recipientId);
+        if (pushNotifier != null) pushNotifier.notification(recipientId, type, groupKey, message, link);
     }
 
     /** Live badge update; sent after commit, and harmless when the user has no open socket. */

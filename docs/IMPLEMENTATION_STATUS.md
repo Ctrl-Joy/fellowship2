@@ -119,3 +119,15 @@ _Last updated: 2026-11-24 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - ElevenLabs live check run on 2026-11-24 against the owner's account with a TTS-only restricted key: Matilda (HOST A) 3.06 s / 821 ms and George (HOST B) 3.76 s / 436 ms, joined to 7.18 s. The original HOST A default (Sarah, `EXAVITQu4vr4xnAQ5fpe`) returned `voice_not_found` on this account, so the default is now Matilda.
 - Brevo live check run on 2026-11-24 with the owner's restricted key (Transactional email only): Brevo accepted one verification-style email (message id returned). The sender is a Gmail address, which Brevo flags as not authenticated for sending through Brevo, so delivery may land in spam until a custom domain is verified.
 - Stripe live test-mode check run on 2026-11-24 with the owner's sandbox key: `StripeLiveCheckTest` created a 5.00 USD Checkout Session (`cs_test_…`) and returned its hosted URL. No webhook secret is configured locally; payments are confirmed when the buyer returns from Checkout.
+
+## Link previews, SEO, installable app and web push (D-039, D-040)
+| Item | Backend | Frontend |
+|---|---|---|
+| Open Graph / Twitter preview documents for posts, communities, profiles, podcast episodes, landing and static pages; generic `noindex` fallback for private, removed, held, deleted, quarantined/banned and missing content | ✅ `SeoService`, `SeoController`; `SeoIT` 4 | ✅ nginx crawler routing (checked with `nginx -t` and curl against a fake backend in a throwaway container), default meta in `index.html` |
+| OG image 1200×630 and app icons (192, 512, maskable 512, apple-touch 180, badge 72) | | ✅ rendered with headless Chromium by `npm run brand:images`, committed |
+| robots.txt, sitemap index and paged sitemaps (communities, recent public posts, podcasts) | ✅ `SeoIT` | ✅ nginx + Vite dev/preview proxies |
+| Canonical link per route, `document.title` per route | | ✅ `trackCanonical` (Vitest); titles existed |
+| Web manifest, service worker (shell precache, cache-first `/assets/`, offline page, never `/api/`), update prompt | | ✅ `sw.test.ts` 7; checked in headless Chromium against `vite preview`: registers, precaches, controls the page, offline navigation shows the offline page, no `/api` entries cached |
+| Web push: VAPID config, RFC 8291 encryption, subscriptions (V19) with 404/410 cleanup, pushes for replies, mentions, DMs, moderation (+ opt-in followers/activity), blocks/mutes/preferences, batching and rate limit, test push | ✅ `WebPushCryptoTest` 5 (RFC 8291 vector), `WebPushIT` 6 (local fake push service decrypts and verifies) | ✅ Settings › Preferences › Push notifications (per device on/off, categories, test, other devices), resync on boot, release on sign-out |
+| Delivery through a real browser push service (FCM, Mozilla, Apple) | ⚠️ not tested: no VAPID keys are configured for the running backend and no real subscription was made | ⚠️ the Settings card was not exercised in a browser against a push-enabled backend |
+| Per-post dynamic OG images | ❌ not built (optional) | |

@@ -791,3 +791,29 @@ now moves it to private storage too, so the response and events carry signed URL
   accounts, even with an unexpired access token. The session's role is read from the account.
 - When an account is suspended, deactivated, deleted or has its role changed, its open WebSockets on the node are
   closed at once with close code 1008 ("Account access revoked"). Clients should treat this like a revoked session.
+
+## Link previews, robots and sitemaps (D-039)
+Public, no auth. nginx serves `/robots.txt`, `/sitemap.xml` and `/sitemaps/*.xml` from these endpoints and routes
+crawler page requests to `/seo/page` (Vite does the same for robots/sitemaps in dev).
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/api/v1/seo/page?path=/c/x/p/1` | `text/html`: title, description, canonical, `og:*`, `twitter:*`. The `X-Howlers-Path` header (set by nginx to the original request URI) wins over `path`. Hidden or missing content gets generic tags with `noindex`. Cached 5 min. |
+| GET | `/api/v1/seo/robots.txt` | `text/plain`, with `Sitemap: {APP_PUBLIC_URL}/sitemap.xml` |
+| GET | `/api/v1/seo/sitemap.xml` | sitemap index |
+| GET | `/api/v1/seo/sitemaps/{kind}-{n}.xml` | `kind` = `static`, `communities`, `posts`, `podcasts`; 404 past the last page |
+
+## Web push (D-040)
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/api/v1/push/config` | public | `{available, publicKey, unavailableReason, categories, defaultCategories}`; `publicKey` is the VAPID key for `pushManager.subscribe` |
+| GET | `/api/v1/me/push/subscriptions` | user | this account's devices: `{id, label, categories, createdAt, lastUsedAt}` (endpoints are never returned) |
+| POST | `/api/v1/me/push/subscriptions` | user | `{endpoint, keys: {p256dh, auth}, label?, categories?}` → device. Upsert by endpoint (refresh keeps categories when `categories` is omitted). 503 `PUSH_UNAVAILABLE` without VAPID keys; 400 for an endpoint outside the push-service allow-list or invalid keys. 20 per 10 min. |
+| PATCH | `/api/v1/me/push/subscriptions/{id}` | user | `{categories?, label?}` |
+| DELETE | `/api/v1/me/push/subscriptions/{id}` | user | 204 |
+| POST | `/api/v1/me/push/unsubscribe` | user | `{endpoint}`: removes this browser's row (sign-out). 204 |
+| POST | `/api/v1/me/push/subscriptions/{id}/test` | user | sends a test push now: `{outcome: DELIVERED|GONE|REJECTED|FAILED|UNAVAILABLE, status, message}`. DELIVERED means the push service accepted it. 5 per minute. |
+
+Push payload (encrypted, aes128gcm): `{"title", "body", "url" (relative), "tag", "type"}`. Categories: `REPLIES`
+(POST_REPLY, COMMENT_REPLY), `MENTIONS`, `MESSAGES` (DMs: sender only, no text), `MODERATION` (CONTENT_REMOVED, BANNED,
+APPEAL_RESOLVED, COMMUNITY_STATUS, COMMUNITY_ROLE), `FOLLOWERS`, `ACTIVITY` (POST_MILESTONE, PULSE_RESULT).

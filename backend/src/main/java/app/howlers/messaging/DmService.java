@@ -47,6 +47,14 @@ public class DmService {
     private final app.howlers.common.metrics.HowlersMetrics metrics;
     private final LegacyDmMedia legacy;
 
+    /** Web push (D-040): optional so messaging works the same without it. */
+    private app.howlers.push.PushNotifier pushNotifier;
+
+    @org.springframework.beans.factory.annotation.Autowired(required = false)
+    void setPushNotifier(app.howlers.push.PushNotifier pushNotifier) {
+        this.pushNotifier = pushNotifier;
+    }
+
     public DmService(JdbcClient jdbc, DmAccess access, UserDirectory users, StorageService storage, RateLimiter limiter,
                      RealtimePublisher realtime, PresenceTracker presence, DmMediaUrls mediaUrls,
                      app.howlers.common.metrics.HowlersMetrics metrics, LegacyDmMedia legacy) {
@@ -202,6 +210,7 @@ public class DmService {
         realtime.toUser(user.id(), "MESSAGE", msg);
         realtime.toUser(otherId, "MESSAGE", msg.media().isEmpty() ? msg : load(id, otherId));
         realtime.toUser(otherId, "UNREAD_MESSAGES", Map.of("count", unreadCount(otherId)));
+        if (pushNotifier != null) pushNotifier.directMessage(otherId, user.id(), user.username(), conversationId);
         return msg;
     }
 

@@ -231,6 +231,19 @@ howlers:
     mentions:
       max: 8                # distinct @mentions in one post or comment
       reject: 25
+  # Web push (D-040). Unavailable (and the UI says so) until a VAPID key pair is set. Generate one with
+  # `java -cp target/classes app.howlers.push.VapidKeyGenerator` (or `npx web-push generate-vapid-keys`).
+  push:
+    vapid-public-key: ${VAPID_PUBLIC_KEY:}
+    vapid-private-key: ${VAPID_PRIVATE_KEY:}
+    vapid-subject: ${VAPID_SUBJECT:}
+    ttl: ${PUSH_TTL:PT24H}
+    allowed-hosts: ${PUSH_ALLOWED_HOSTS:fcm.googleapis.com,push.services.mozilla.com,notify.windows.com,push.apple.com}
+    max-per-user-per-minute: ${PUSH_MAX_PER_USER_PER_MINUTE:6}
+  # Link previews, robots.txt and sitemaps (D-039). Absolute URLs use howlers.app.public-url (APP_PUBLIC_URL).
+  seo:
+    sitemap-page-size: ${SITEMAP_PAGE_SIZE:10000}
+    sitemap-max-posts: ${SITEMAP_MAX_POSTS:100000}
 
 ---
 spring:

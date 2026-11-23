@@ -302,3 +302,27 @@ If a database was upgraded while a lower-numbered migration was still unmerged (
 migration not applied to database"), start the backend once with `FLYWAY_OUT_OF_ORDER=true` in `.env`
 (`docker compose up -d backend`), then remove the setting. Only do this for migrations that are independent of the
 later ones (new tables or columns), which is how Howlers migrations are written.
+
+## 12. Link previews, sitemaps, the installable app and web push (D-039, D-040)
+- **APP_PUBLIC_URL must be the public origin** (e.g. `https://howlers.example.com`): canonical links, `og:url`,
+  `og:image`, robots.txt and sitemaps are built from it.
+- **Crawler routing** lives in `frontend/nginx.conf`: a `map` on `$http_user_agent` sends link-preview bots and search
+  crawlers that ask for an SPA route to `/api/v1/seo/page` (internal location `/__howlers_preview`, original URI in
+  `X-Howlers-Path`); files (images, `/assets/`) are always served as files. To support another bot, add its UA token to
+  the map. If you put a caching CDN in front of nginx, either bypass the cache for HTML or vary on `User-Agent`,
+  otherwise a cached preview document could be served to browsers.
+- **robots.txt and sitemaps** are proxied to the backend (`/robots.txt`, `/sitemap.xml`, `/sitemaps/*.xml`). Submit
+  `https://<domain>/sitemap.xml` in Google Search Console / Bing Webmaster Tools. Sizes: `SITEMAP_PAGE_SIZE` (default
+  10000, max 50000) and `SITEMAP_MAX_POSTS` (default 100000 newest public posts).
+- **Service worker**: `/sw.js` is served with `Cache-Control: no-cache` so updates are picked up; users see a "new
+  version" prompt. The worker never caches `/api/` or `/ws`.
+- **Web push**: generate a VAPID key pair once and keep it (rotating it invalidates every subscription):
+  ```bash
+  cd backend && ./mvnw -q compile && java -cp target/classes app.howlers.push.VapidKeyGenerator
+  # or: npx web-push generate-vapid-keys
+  ```
+  Put `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` and `VAPID_SUBJECT` (`mailto:` or `https:` contact) in `deploy/.env`.
+  The private key is server-side only and never logged. The backend must reach the push services over HTTPS
+  (`fcm.googleapis.com`, `*.push.services.mozilla.com`, `*.notify.windows.com`, `*.push.apple.com`; override with
+  `PUSH_ALLOWED_HOSTS`). Push needs HTTPS for the site itself (Caddy provides it). On iOS/iPadOS 16.4+ push only works
+  from the app added to the Home Screen.
