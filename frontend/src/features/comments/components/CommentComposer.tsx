@@ -60,6 +60,7 @@ export function CommentComposer({
           <label htmlFor={id} className="sr-only">{submitLabel}</label>
           <Textarea
             id={id}
+            // eslint-disable-next-line jsx-a11y/no-autofocus -- only set by callers that open the composer on an explicit Reply/Edit click
             autoFocus={autoFocus}
             value={body}
             onChange={(e) => setBody(e.target.value)}

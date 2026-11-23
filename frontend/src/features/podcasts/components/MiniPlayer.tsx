@@ -108,6 +108,7 @@ export function MiniPlayer() {
     }
   }, [current, chapterTitle, queue.length, p]);
 
+  // eslint-disable-next-line jsx-a11y/media-has-caption -- hidden and idle: nothing is playing
   if (!current) return <audio ref={audio} preload="metadata" hidden />;
 
   const total = duration || current.durationSeconds || 0;
@@ -125,6 +126,7 @@ export function MiniPlayer() {
       role="region"
       aria-label="Podcast player"
     >
+      {/* eslint-disable-next-line jsx-a11y/media-has-caption -- audio-only player; every published episode has a timed transcript on its episode page (publishing requires one) */}
       <audio
         ref={audio}
         preload="metadata"

@@ -28,6 +28,7 @@ export const PostRow = memo(function PostRow({ post, showCommunity = true }: { p
   const href = postPath(post);
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- mouse shortcut only: the title is a real link, which is what keyboard and screen-reader users use
     <article
       className="group flex cursor-pointer items-center gap-3 rounded-xl px-2 py-2 transition-colors hover:bg-surface-2/50"
       onClick={(e) => {

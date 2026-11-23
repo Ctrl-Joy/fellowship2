@@ -43,7 +43,7 @@ function DmImage({ img, conversationId }: { img: DmMedia; conversationId: number
         src={r.src}
         srcSet={r.srcSet}
         sizes="(min-width: 768px) 320px, 70vw"
-        alt="Attached image"
+        alt="Attachment"
         loading="lazy"
         decoding="async"
         width={img.width ?? undefined}
@@ -299,7 +299,7 @@ export function Thread({ id }: { id: number }) {
                 <div className={cn('max-w-[78%] space-y-1', p.status === 'sending' && 'opacity-70')}>
                   {p.previews.length > 0 && (
                     <div className={cn('grid gap-1', p.previews.length > 1 && 'grid-cols-2')}>
-                      {p.previews.map((u) => <img key={u} src={u} alt="Attached image" className="max-h-64 w-full rounded-xl object-cover" />)}
+                      {p.previews.map((u) => <img key={u} src={u} alt="Attachment preview" className="max-h-64 w-full rounded-xl object-cover" />)}
                     </div>
                   )}
                   {p.body && <p className="whitespace-pre-wrap break-words rounded-2xl bg-brand px-3 py-1.5 text-sm text-brand-fg">{p.body}</p>}

@@ -1,6 +1,8 @@
 import type { UserSummary } from './api';
 
 export type ScanStatus = 'CLEAN' | 'REJECTED' | 'UNSCANNED';
+/** STRUCTURAL: type and structure checks only (not an antivirus scan). CLAMAV: also scanned by ClamAV (D-029). */
+export type ScanEngine = 'STRUCTURAL' | 'CLAMAV';
 export type KeyMode = 'FRAGMENT' | 'PASSPHRASE';
 export type LinkStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED' | 'EXHAUSTED';
 export type AccessEvent =
@@ -21,6 +23,7 @@ export interface FileItem {
   e2ee: boolean;
   scanStatus: ScanStatus;
   scanDetail: string | null;
+  scanEngine: ScanEngine;
   sha256: string;
   activeLinks: number;
   createdAt: string;
@@ -86,6 +89,7 @@ export interface ShareMeta {
   requiresPassword: boolean;
   downloadsRemaining: number | null;
   scanStatus: ScanStatus;
+  scanEngine: ScanEngine;
 }
 
 export interface ShareUnlock {

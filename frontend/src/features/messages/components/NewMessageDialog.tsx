@@ -49,6 +49,7 @@ export function NewMessageDialog({ open, onOpenChange }: { open: boolean; onOpen
           if (q.trim()) go(users[0]?.username ?? q);
         }}
       >
+        {/* eslint-disable-next-line jsx-a11y/no-autofocus -- the dialog exists to type a username; focus belongs here */}
         <Input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="username" aria-label="Username" autoComplete="off" />
         {error && <p role="alert" className="text-sm text-danger">{error}</p>}
         <ul className="max-h-72 overflow-y-auto" aria-label="Matching people">

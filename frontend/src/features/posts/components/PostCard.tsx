@@ -106,6 +106,7 @@ export const PostCard = memo(function PostCard({ post, showCommunity = true }: {
   const href = postPath(post);
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- mouse shortcut only: the title is a real link, which is what keyboard and screen-reader users use
     <article
       className="group relative cursor-pointer rounded-2xl px-3 py-2.5 transition-colors hover:bg-surface-2/50 sm:px-4"
       onClick={(e) => {

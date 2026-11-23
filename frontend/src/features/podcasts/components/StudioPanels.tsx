@@ -73,9 +73,13 @@ export function MediaPanel({ e, caps, locked }: { e: EpisodeDetail; caps?: Podca
       </div>
       {e.mediaUrl ? (
         <div className="space-y-2">
+          {/* Studio preview of the moderator's own upload, before a transcript may exist. Published episodes show the
+              transcript as captions (video) and as a timed transcript (audio) on the episode page. */}
           {e.mediaKind === 'VIDEO' ? (
+            // eslint-disable-next-line jsx-a11y/media-has-caption -- studio preview of an upload; captions are added on the episode page
             <video src={e.mediaUrl} controls preload="metadata" className="aspect-video w-full rounded-xl bg-black" />
           ) : (
+            // eslint-disable-next-line jsx-a11y/media-has-caption -- studio preview of an upload; the transcript is imported below
             <audio src={e.mediaUrl} controls preload="metadata" className="w-full" />
           )}
           <p className="text-xs text-muted">{e.mediaKind === 'VIDEO' ? 'Video' : 'Audio'} · {formatDuration(e.durationSeconds)} · {e.mediaContentType}</p>

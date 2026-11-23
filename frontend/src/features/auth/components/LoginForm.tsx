@@ -27,7 +27,7 @@ export function LoginForm({ onSuccess }: { onSuccess: (me: Me) => void }) {
     >
       <FormAlert message={formError} />
       <Field label="Username or email" error={formState.errors.login?.message}>
-        {(a) => <Input {...a} autoComplete="username" autoFocus {...register('login')} />}
+        {(a) => <Input {...a} autoComplete="username" {...register('login')} />}
       </Field>
       <Field label="Password" error={formState.errors.password?.message}>
         {(a) => <Input {...a} type="password" autoComplete="current-password" {...register('password')} />}

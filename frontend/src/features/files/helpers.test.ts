@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { downloadsText, expiryFromPreset, formatBytes, passphraseProblem, shareUrl, typeLabel, usageFraction } from './helpers';
+import { downloadsText, expiryFromPreset, formatBytes, passphraseProblem, scanSummary, shareUrl, typeLabel, usageFraction } from './helpers';
 
 describe('files helpers', () => {
+  it('never calls a structural check an antivirus scan', () => {
+    expect(scanSummary('CLAMAV').text).toContain('Scanned by ClamAV');
+    expect(scanSummary('STRUCTURAL').text).toContain('Not an antivirus scan');
+    expect(scanSummary(undefined).badge).toBe('Checked');
+  });
+
   it('formats byte sizes', () => {
     expect(formatBytes(0)).toBe('0 B');
     expect(formatBytes(1023)).toBe('1023 B');

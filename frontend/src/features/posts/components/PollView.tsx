@@ -46,6 +46,7 @@ export function PollView({ postId, poll, compact }: { postId: number; poll: Poll
     }));
     const height = data.length * (compact ? 30 : 36) + 8;
     return (
+      // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-static-element-interactions -- only stops a stray click from opening the post; not an interaction
       <div className="rounded-md border border-border bg-surface-2/50 p-3" onClick={(e) => e.stopPropagation()}>
         <div style={{ height }} aria-hidden="true">
           <ResponsiveContainer width="100%" height="100%">
@@ -86,6 +87,7 @@ export function PollView({ postId, poll, compact }: { postId: number; poll: Poll
   }
 
   return (
+    // eslint-disable-next-line jsx-a11y/click-events-have-key-events, jsx-a11y/no-noninteractive-element-interactions -- only stops a click on the poll from opening the post; the radios inside are the controls
     <fieldset className="rounded-md border border-border bg-surface-2/50 p-3" onClick={(e) => e.stopPropagation()}>
       <legend className="sr-only">Poll options</legend>
       <div className="space-y-1.5">

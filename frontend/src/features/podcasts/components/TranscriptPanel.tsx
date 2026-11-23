@@ -17,7 +17,7 @@ export function TranscriptPanel({ episodeId, time, active, onJump }: { episodeId
   const segs = useTranscript(episodeId, query, true);
   const [follow, setFollow] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches);
   const box = useRef<HTMLDivElement>(null);
-  const items = segs.data ?? [];
+  const items = useMemo(() => segs.data ?? [], [segs.data]);
   const current = useMemo(() => (active && !query ? activeSegmentIndex(items, time) : -1), [items, time, active, query]);
 
   useEffect(() => {

@@ -9,7 +9,7 @@ import type { FileItem, KeyMode } from '@/types/files';
 import { cn } from '@/utils/format';
 import { fetchOwnContent, filesApi, useFileMutation } from '../api';
 import { decryptMeta, importKey, parseKeyInput, wrapKey } from '../crypto';
-import { EXPIRY_PRESETS, expiryFromPreset, formatBytes, passphraseProblem, shareUrl, type ExpiryPreset } from '../helpers';
+import { EXPIRY_PRESETS, expiryFromPreset, formatBytes, passphraseProblem, scanSummary, shareUrl, type ExpiryPreset } from '../helpers';
 import { keyStore } from '../keyStore';
 import { E2eeNote } from './E2eeNote';
 
@@ -268,7 +268,7 @@ export function ShareDialog({
           </Field>
           {!file.e2ee && file.scanStatus === 'CLEAN' && (
             <p className="text-xs text-faint">
-              {formatBytes(file.sizeBytes)} · passed type and structure checks (not an antivirus scan).
+              {formatBytes(file.sizeBytes)} · {scanSummary(file.scanEngine).text}
             </p>
           )}
           <FormAlert message={error} />
