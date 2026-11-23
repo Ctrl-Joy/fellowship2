@@ -46,8 +46,8 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Smart Collections: private by default, notes, tags, search, type filter, move, reorder (drag + arrows), share link / revoke, shared view | ✅ | ✅ | KnowledgeLayerIT, tags.test.ts, browser |
 
 ## Tests (latest run)
-- Backend `./mvnw test`: **64 passed, 0 failed** (AdminIT 3, ApiSecurityIT 6, CommunityAiIT 4, DirectMessagesIT 4, KnowledgeLayerIT 4, ModerationAndPulseIT 4, PodcastIT 3, RealtimeIT 5, SpamSignalsTest 3, TranscriptParserTest 5, TrustAndSafetyIT 10, ScoreMathTest 6, TextSafetyTest 3, TextSignalsTest 3, VoteConcurrencyIT 1).
-- Frontend `npx vitest run`: **94 passed** across 14 files; `npm run build` passes with zero type errors.
+- Backend `./mvnw test`: **102 passed, 0 failed** (AdminIT 3, CommunityAiIT 4, ApiSecurityIT 6, TextSafetyTest 3, DefaultFileScannerTest 4, FilesIT 4, FundingIT 6, FundingUnitTest 7, KnowledgeLayerIT 4, TextSignalsTest 3, DirectMessagesIT 4, RealtimeIT 5, ModerationAndPulseIT 4, PodcastIT 3, TranscriptParserTest 5, ModeratorScoreMathTest 5, ReputationAndRecognitionIT 4, ReputationMathTest 8, SpamSignalsTest 3, TrustAndSafetyIT 10, ScoreMathTest 6, VoteConcurrencyIT 1).
+- Frontend `npx vitest run`: **125 passed** across 18 files; `npm run build` passes with zero type errors.
 - API smoke script (47 checks across auth, communities, posts, polls, votes, comments, feeds, search,
   notifications, permissions): **47/47 after fixing the Rising-feed SQL bug it found**.
 
