@@ -68,7 +68,7 @@ export function ConversationList({ activeId, q, onQueryChange }: { activeId: num
         <Button size="sm" variant="ghost" className="ml-auto text-text" onClick={() => setCreatingRoom(true)} aria-label="New pack room">
           <Users size={16} /> Room
         </Button>
-        <Button size="sm" variant="ghost" className="text-text" onClick={() => setComposing(true)}>
+        <Button size="sm" variant="ghost" className="text-text" onClick={() => setComposing(true)} aria-label="Start a new message">
           <PenSquare size={16} /> New
         </Button>
       </div>

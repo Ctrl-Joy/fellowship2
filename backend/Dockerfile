@@ -3,7 +3,9 @@ FROM eclipse-temurin:21-jdk AS build
 WORKDIR /src
 COPY .mvn .mvn
 COPY mvnw pom.xml ./
-RUN chmod +x mvnw && ./mvnw -q -B dependency:go-offline
+# dependency:resolve follows the project's managed graph; go-offline ignores exclusions/management and trips on a
+# transitive jackson SNAPSHOT version range from the passkey library.
+RUN chmod +x mvnw && ./mvnw -q -B dependency:resolve dependency:resolve-plugins
 COPY src src
 RUN ./mvnw -q -B -DskipTests package
 

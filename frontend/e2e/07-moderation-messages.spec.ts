@@ -56,7 +56,7 @@ test('23 · send a private message that arrives live', async ({ sessions }) => {
   await expect(receiver.getByRole('textbox', { name: 'Message' })).toBeVisible();
 
   const page = await sessions.open('mira_k', '/messages');
-  await page.getByRole('button', { name: 'New' }).click();
+  await page.getByRole('button', { name: 'Start a new message', exact: true }).click();
   const dialog = page.getByRole('dialog', { name: 'New message' });
   await dialog.getByRole('textbox', { name: 'Username' }).fill('dev_ost');
   await dialog.getByRole('list', { name: 'Matching people' }).getByRole('button', { name: /u\/dev_ostrander/ }).click();

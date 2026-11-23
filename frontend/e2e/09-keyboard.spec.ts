@@ -35,7 +35,7 @@ test('keyboard focus is visible', async ({ sessions }) => {
 
 test('dialogs trap focus, close on Escape and return focus', async ({ sessions }) => {
   const page = await sessions.open('paperback_jo', '/messages');
-  const opener = page.getByRole('main').getByRole('button', { name: 'New', exact: true });
+  const opener = page.getByRole('main').getByRole('button', { name: 'Start a new message', exact: true });
   await opener.focus();
   await page.keyboard.press('Enter');
   const dialog = page.getByRole('dialog', { name: 'New message' });
