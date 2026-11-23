@@ -70,7 +70,7 @@ export default function TopicLeadersPage() {
         {q.isPending ? (
           <div className="space-y-3 p-4">{Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-10" />)}</div>
         ) : d!.entries.length === 0 ? (
-          <EmptyState icon={Award} title="No reputation here yet" description="When members upvote posts and comments in this topic, the people who wrote them appear here." />
+          <EmptyState icon={Award} title="No reputation here yet" description="When members upvote posts and comments in this topic, the people who wrote them appear here." mascot="sit" />
         ) : (
           <ol className="divide-y divide-border" aria-label={`${d!.topic.name} leaderboard`}>
             {d!.entries.map((e) => (

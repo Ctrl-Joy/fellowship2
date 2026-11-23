@@ -11,8 +11,10 @@ export default function NotFoundPage() {
     <PageColumns>
       <EmptyState
         icon={MapPinOff}
-        title="This page doesn’t exist"
-        description="The link may be broken, or the page may have moved."
+        title="This trail goes nowhere"
+        description="This page doesn’t exist. The link may be broken, or the page may have moved."
+        mascot="sit"
+        headingLevel={1}
         action={<Link to="/home" className={buttonClasses('primary', 'sm')}>Go home</Link>}
       />
     </PageColumns>

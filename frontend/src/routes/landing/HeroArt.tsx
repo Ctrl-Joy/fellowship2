@@ -1,7 +1,7 @@
 import { forwardRef, type CSSProperties } from 'react';
 import { ArrowBigDown, ArrowBigUp, BarChart3, Bookmark, Headphones, Home, MessageSquare, Search, Sparkles } from 'lucide-react';
 import { Moon } from './NightSky';
-import { Pup, Sparkle } from './Pups';
+import { Pup, Sparkle } from '@/design-system/Pups';
 
 const v = (vars: Record<string, string | number>) => vars as CSSProperties;
 

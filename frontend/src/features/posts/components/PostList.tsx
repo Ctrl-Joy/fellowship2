@@ -1,6 +1,7 @@
 import type { InfiniteData, UseInfiniteQueryResult } from '@tanstack/react-query';
 import { FileText, type LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
+import type { MascotPose } from '@/design-system/Mascot';
 import { Skeleton } from '@/components/ui/Display';
 import { EmptyState, ErrorState, LoadMore } from '@/components/ui/States';
 import type { CursorPage, PostSummary } from '@/types/api';
@@ -22,7 +23,7 @@ export function PostRowSkeleton() {
 interface Props {
   query: UseInfiniteQueryResult<InfiniteData<CursorPage<PostSummary>>, Error>;
   showCommunity?: boolean;
-  empty: { icon?: LucideIcon; title: string; description?: string; action?: ReactNode };
+  empty: { icon?: LucideIcon; title: string; description?: string; action?: ReactNode; mascot?: MascotPose };
 }
 
 /** Renders an infinite cursor feed with loading, empty, error and load-more states. */
@@ -42,7 +43,7 @@ export function PostList({ query, showCommunity = true, empty }: Props) {
   if (!posts.length) {
     return (
       <div className="rounded-2xl border border-border">
-        <EmptyState icon={empty.icon ?? FileText} title={empty.title} description={empty.description} action={empty.action} />
+        <EmptyState icon={empty.icon ?? FileText} title={empty.title} description={empty.description} action={empty.action} mascot={empty.mascot} />
       </div>
     );
   }

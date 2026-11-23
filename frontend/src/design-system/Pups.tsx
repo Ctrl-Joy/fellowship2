@@ -2,11 +2,14 @@ import type { CSSProperties } from 'react';
 
 /**
  * Howlers mascots: round, friendly wolf pups drawn as inline SVG (original art, decorative, always aria-hidden).
- * Animation hooks are class names styled in landing.css: pup-body (hop/bob), pup-head (tilt), pup-eyes (blink),
- * pup-arm (wave), pup-tail (sway).
+ * Animation hooks are class names styled in landing.css (and mascot.css for the in-app Mascot): pup-body (hop/bob),
+ * pup-head (tilt), pup-eyes (blink), pup-arm (wave), pup-tail (sway).
+ *
+ * Fur `theme` reads the --pup-* tokens from tokens.css, so in-app mascots stay visible on white and on near-black
+ * surfaces; the named furs are fixed colours for the always-dark landing page.
  */
 
-export type PupFur = 'frost' | 'sand' | 'dusk' | 'mint';
+export type PupFur = 'frost' | 'sand' | 'dusk' | 'mint' | 'theme';
 export type PupPose = 'sit' | 'headphones' | 'howl' | 'wave' | 'sleepy';
 
 const FURS: Record<PupFur, { fur: string; shade: string; light: string }> = {
@@ -14,7 +17,10 @@ const FURS: Record<PupFur, { fur: string; shade: string; light: string }> = {
   sand: { fur: '#f3b97c', shade: '#d9935a', light: '#fff2df' },
   dusk: { fur: '#8f88f2', shade: '#6d66d4', light: '#ece9ff' },
   mint: { fur: '#62d3b8', shade: '#3caf95', light: '#e3fff7' },
+  theme: { fur: 'var(--pup-fur, #c9d3f7)', shade: 'var(--pup-shade, #a3afe0)', light: 'var(--pup-light, #ffffff)' },
 };
+const BAND = 'var(--pup-band, #2b2468)';
+const SHADOW = 'var(--pup-shadow, #05031a)';
 
 const INK = '#1d1840';
 const EAR = '#ff9fc6';
@@ -35,7 +41,7 @@ export function Pup({ pose = 'sit', fur = 'frost', flip, className, style }: Pup
   const headTilt = pose === 'howl' ? 'rotate(-18 60 78)' : pose === 'sleepy' ? 'rotate(8 60 78)' : undefined;
   return (
     <svg viewBox="0 0 120 124" className={className} style={style} aria-hidden="true" focusable="false">
-      <ellipse className="pup-shadow" cx="60" cy="118" rx="30" ry="3.6" fill="#05031a" opacity="0.35" />
+      <ellipse className="pup-shadow" cx="60" cy="118" rx="30" ry="3.6" fill={SHADOW} opacity="0.35" />
       <g transform={flip ? 'translate(120 0) scale(-1 1)' : undefined}>
       <g className="pup-body">
         {/* tail */}
@@ -121,7 +127,7 @@ export function Pup({ pose = 'sit', fur = 'frost', flip, className, style }: Pup
             <ellipse cx="83.5" cy="65" rx="5.2" ry="3.1" fill={CHEEK} opacity="0.55" />
             {pose === 'headphones' && (
               <g>
-                <path d="M26 52 Q25 16 60 15 Q95 16 94 52" stroke="#2b2468" strokeWidth="6" fill="none" strokeLinecap="round" />
+                <path d="M26 52 Q25 16 60 15 Q95 16 94 52" stroke={BAND} strokeWidth="6" fill="none" strokeLinecap="round" />
                 <rect x="18.5" y="45" width="14" height="21" rx="6.5" fill="#ff7fb6" />
                 <rect x="21.5" y="49" width="6" height="13" rx="3" fill="#ffd0e6" />
                 <rect x="87.5" y="45" width="14" height="21" rx="6.5" fill="#ff7fb6" />

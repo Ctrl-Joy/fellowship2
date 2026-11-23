@@ -28,6 +28,7 @@ export function CommunityPodcasts({ c }: { c: CommunityDetail }) {
           icon={Headphones}
           title="No episodes yet"
           description={c.viewer.canModerate ? 'Create the first episode in the studio: upload a recording and its transcript, then publish.' : 'When moderators publish episodes, they appear here.'}
+          mascot="headphones"
         />
       )}
       <div className="space-y-1">{items.map((e) => <EpisodeRow key={e.id} e={e} />)}</div>

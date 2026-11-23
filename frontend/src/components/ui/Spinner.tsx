@@ -1,3 +1,4 @@
+import { Mascot } from '@/design-system/Mascot';
 import { cn } from '@/utils/format';
 
 export function Spinner({ size = 16, className }: { size?: number; className?: string }) {
@@ -18,7 +19,8 @@ export function Spinner({ size = 16, className }: { size?: number; className?: s
 
 export function PageSpinner() {
   return (
-    <div className="flex min-h-[40vh] items-center justify-center text-muted">
+    <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 text-muted">
+      <Mascot pose="headphones" size={56} />
       <Spinner size={22} />
     </div>
   );

@@ -7,7 +7,7 @@ import { FeatureSections } from './FeatureSections';
 import { HeroArt } from './HeroArt';
 import { useIntro, usePointerEffects, useRevealAndPlayGate } from './motion';
 import { Aurora, Ridge, Stars } from './NightSky';
-import { Pup } from './Pups';
+import { Pup } from '@/design-system/Pups';
 import { ClosingCta, FaqSection, PackMarquee, SafetySection } from './SafetyFaq';
 import './landing.css';
 

@@ -1,3 +1,4 @@
+import type { MascotPose } from '@/design-system/Mascot';
 import { Clock, Flame, Sparkles, TrendingUp, Trophy, Users } from 'lucide-react';
 import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
@@ -32,13 +33,13 @@ const RANGES: { value: TimeRange; label: string }[] = [
   { value: 'all', label: 'All time' },
 ];
 
-const EMPTY: Record<FeedTab, { title: string; description: string }> = {
-  foryou: { title: 'Your feed is quiet', description: 'Join a few communities or follow people and their best posts will show up here.' },
-  following: { title: 'Nothing from people you follow', description: 'Follow members whose posts you enjoy — their new posts appear here first.' },
-  latest: { title: 'No posts yet', description: 'Be the first to start a discussion.' },
-  popular: { title: 'Nothing popular yet', description: 'Posts with strong engagement appear here.' },
-  rising: { title: 'Nothing rising right now', description: 'Fresh posts gaining traction appear here.' },
-  top: { title: 'No top posts in this range', description: 'Try a longer time range.' },
+const EMPTY: Record<FeedTab, { title: string; description: string; mascot: MascotPose }> = {
+  foryou: { title: 'Your den is quiet', description: 'Join a few communities or follow people, and their best posts will show up here.', mascot: 'wave' },
+  following: { title: 'No howls from your pack yet', description: 'Follow members whose posts you enjoy. Their new posts appear here first.', mascot: 'sit' },
+  latest: { title: 'No posts yet', description: 'Be the first to start a discussion. The pack is listening.', mascot: 'howl' },
+  popular: { title: 'Nothing popular yet', description: 'Posts with strong engagement appear here.', mascot: 'headphones' },
+  rising: { title: 'Nothing rising right now', description: 'Fresh posts gaining traction appear here. Check back soon.', mascot: 'sleepy' },
+  top: { title: 'No top posts in this range', description: 'Try a longer time range.', mascot: 'sit' },
 };
 
 /**

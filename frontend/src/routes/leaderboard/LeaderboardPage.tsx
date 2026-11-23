@@ -107,6 +107,7 @@ function ModeratorsTab() {
             icon={ShieldCheck}
             title={`No ranked moderators for ${periodLabel(d!.period)}`}
             description={`Moderators appear once they have at least ${d!.formula.minActivity} removals, bans or handled reports in the month. Scores are computed from real moderation activity only, so a quiet month stays empty.`}
+            mascot="sleepy"
           />
         ) : (
           <ol className="divide-y divide-border" aria-label={`Moderator ranking for ${periodLabel(d!.period)}`}>

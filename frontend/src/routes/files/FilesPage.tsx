@@ -304,8 +304,9 @@ export default function FilesPage() {
           {list.data && files.length === 0 && (
             <EmptyState
               icon={FolderLock}
-              title={debounced ? 'No files match' : 'No files yet'}
-              description={debounced ? 'Try another part of the name.' : 'Upload a document, image, recording or archive. It stays private until you share a link.'}
+              title={debounced ? 'No files match' : 'Your den is empty'}
+              description={debounced ? 'Try another part of the name.' : 'No files yet. Upload a document, image, recording or archive. It stays private until you share a link.'}
+              mascot={debounced ? 'sit' : 'sleepy'}
             />
           )}
           {files.length > 0 && (

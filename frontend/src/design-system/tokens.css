@@ -18,7 +18,8 @@
   --brand-fg: 255 255 255;
   --down: 106 90 224;
   --danger: 176 45 38;
-  --warning: 133 92 0;
+  --danger-fg: 255 255 255;
+  --warning: 122 84 0;
   --info: 24 94 200;
   --shadow-float: 0 8px 24px rgb(0 0 0 / 0.12);
   color-scheme: light;
@@ -42,6 +43,7 @@
   --brand-fg: 11 14 16;
   --down: 150 136 255;
   --danger: 239 92 84;
+  --danger-fg: 11 14 16;
   --warning: 226 178 56;
   --info: 98 170 255;
   --shadow-float: 0 10px 28px rgb(0 0 0 / 0.5);

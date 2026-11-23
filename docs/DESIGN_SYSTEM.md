@@ -90,8 +90,10 @@ It is the one place where the "no gradients behind content" and "page titles ≤
 - **Type.** Display headings use **Unbounded 800** (self-hosted via `@fontsource/unbounded`, latin subset only; the
   `font-display` Tailwind family), uppercase, tight tracking; the last line of each heading gets the "moon glow"
   gradient (`#ffe9b0 → #ffc4d8 → #b8a8ff`). Body stays Inter.
-- **Mascots.** Original wolf pups drawn as inline SVG (`Pups.tsx`): one howling at the moon, one with headphones, one
-  waving, one asleep in a nightcap. They're decorative and always `aria-hidden`.
+- **Mascots.** Original wolf pups drawn as inline SVG (`design-system/Pups.tsx`): one howling at the moon, one with
+  headphones, one waving, one asleep in a nightcap. They're decorative and always `aria-hidden`. Inside the app they
+  appear through `Mascot` (empty states, 404 and route errors, offline/maintenance errors, the full-page loader) with
+  the theme-aware `theme` fur (D-048).
 - **Product mocks** in the hero and the feature rows use the real dark-theme tokens (`#0B0E10`, `#1A1F23`, jade
   `#2ECC94`, indigo `#7A7DFF`) and real feature names. They are illustrations (the window says so); the marquee under the
   hero lists real communities from the API, falling back to feature names, never invented communities.
