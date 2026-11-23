@@ -19,5 +19,5 @@ ENV STORAGE_LOCAL_DIR=/app/data/uploads \
     JAVA_OPTS="-XX:MaxRAMPercentage=75 -XX:+ExitOnOutOfMemoryError"
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=60s --retries=5 \
-  CMD wget -qO- http://localhost:8080/actuator/health/readiness || exit 1
+  CMD wget -qO- http://localhost:8080/readyz || exit 1
 ENTRYPOINT ["sh", "-c", "exec java $JAVA_OPTS -jar app.jar"]

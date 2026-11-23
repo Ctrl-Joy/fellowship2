@@ -21,8 +21,19 @@ public record AppProperties(Jwt jwt, Cookie cookie, Cors cors, App app, Mail mai
     /** mode: "log" (dev: prints mail to the log) or "smtp". */
     public record Mail(String mode, String from) {}
 
-    /** driver: "local" (filesystem). Object-storage driver is planned, see docs/DECISIONS.md. */
-    public record Storage(String driver, String localDir, long maxImageBytes, long maxMediaMb) {}
+    /**
+     * driver: "local" (filesystem) or "s3" (any S3-compatible service: AWS S3, MinIO). See D-007 and D-023.
+     * {@code s3} may be null when the local driver is used.
+     */
+    public record Storage(String driver, String localDir, long maxImageBytes, long maxMediaMb, S3 s3) {}
+
+    /**
+     * S3-compatible object storage. {@code endpoint} is blank for AWS (region endpoint) or e.g. {@code http://minio:9000};
+     * {@code pathStyle} must be true for MinIO. Credentials come from the environment, never from the repo. Blank
+     * credentials fall back to the AWS default chain (instance roles, AWS_* env vars).
+     */
+    public record S3(String bucket, String endpoint, String region, String accessKey, String secretKey, boolean pathStyle,
+                     long multipartThresholdMb, boolean createBucket) {}
 
     public record RateLimit(boolean enabled) {}
 

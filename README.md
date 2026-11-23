@@ -59,7 +59,7 @@ cd frontend && npx vitest run && npm run build
 ## Docs
 [Product spec](docs/PRODUCT_SPEC.md) · [Architecture](docs/ARCHITECTURE.md) · [Database](docs/DATABASE.md) ·
 [API](docs/API.md) · [Ranking](docs/RANKING.md) · [Design system](docs/DESIGN_SYSTEM.md) ·
-[Frontend](docs/FRONTEND.md) · [Decisions](docs/DECISIONS.md) · [Roadmap](docs/ROADMAP.md)
+[Frontend](docs/FRONTEND.md) · [Decisions](docs/DECISIONS.md) · [Roadmap](docs/ROADMAP.md) · [Deployment](docs/DEPLOYMENT.md)
 
 ## Production notes
 Use `SPRING_PROFILES_ACTIVE=prod` (secure cookies, seeding off), serve over HTTPS (`COOKIE_SECURE=true`), set a

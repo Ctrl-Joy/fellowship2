@@ -23,6 +23,7 @@
         <springdoc.version>2.8.17</springdoc.version>
         <jsoup.version>1.24.1</jsoup.version>
         <embedded-postgres.version>2.2.3</embedded-postgres.version>
+        <awssdk.version>2.30.18</awssdk.version>
     </properties>
 
     <dependencies>
@@ -44,6 +45,13 @@
 
         <dependency><groupId>org.springdoc</groupId><artifactId>springdoc-openapi-starter-webmvc-ui</artifactId><version>${springdoc.version}</version></dependency>
         <dependency><groupId>org.jsoup</groupId><artifactId>jsoup</artifactId><version>${jsoup.version}</version></dependency>
+        <!-- S3-compatible object storage (AWS S3, MinIO), selected with strata.storage.driver=s3 (D-023). -->
+        <dependency><groupId>software.amazon.awssdk</groupId><artifactId>s3</artifactId><version>${awssdk.version}</version>
+            <exclusions><exclusion><groupId>software.amazon.awssdk</groupId><artifactId>netty-nio-client</artifactId></exclusion></exclusions>
+        </dependency>
+        <dependency><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId><version>${awssdk.version}</version></dependency>
+        <!-- Prometheus scrape endpoint (/actuator/prometheus on the management port in prod, D-025). -->
+        <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
         <dependency><groupId>com.anthropic</groupId><artifactId>anthropic-java</artifactId><version>3.12.0</version></dependency>
 
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>

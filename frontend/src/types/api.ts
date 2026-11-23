@@ -106,11 +106,18 @@ export interface Poll {
   myOptionIds: ID[];
   options: PollOption[];
 }
+/** Resized variants of an uploaded image (D-024); null fields mean that size wasn't made. */
+export interface Thumbnails {
+  w320: string | null;
+  w960: string | null;
+}
 export interface MediaRef {
   id: ID;
   url: string;
   width: number | null;
   height: number | null;
+  /** null for older uploads, GIF, WebP and small images: use `url`. */
+  thumbnails?: Thumbnails | null;
 }
 export interface PostSummary {
   id: ID;

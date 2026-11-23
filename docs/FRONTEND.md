@@ -213,3 +213,17 @@ Code in `features/reputation/` (`api.ts`, pure `logic.ts` + `logic.test.ts`, com
 - **Onboarding:** "Skip for now" calls `POST /onboarding/skip` and stores the returned `Me`.
 - Pure logic: `features/admin/helpers.ts` (chart series, offered account actions, audit sentences, rule labels) and
   `features/mutes/api.ts` lookups, tested in `helpers.test.ts` and `mutes.test.ts`.
+
+## Infrastructure polish (Phase 10)
+- **Responsive images** (`utils/images.ts`, tested in `images.test.ts`): `responsiveImage(media)` builds `src` + `srcSet` with
+  width descriptors from `thumbnails` (320/960 variants plus the original's real width); `FEED_IMAGE_SIZES` is the `sizes`
+  for feed and post images. `sizedUrl(url, 320|960)` appends `?w=` to our own media URLs only (external, `blob:` and
+  `data:` URLs are left alone). Used by `PostCard` (card media), `PostRow` (compact thumbnail), the post page gallery,
+  `Avatar` (all avatars and community icons ask for 320 px), the right-rail and collection thumbnails. All of them load
+  lazily with `decoding="async"`. Banners keep the original (960 px would look soft on wide screens).
+- **Private DM images** (`features/messages`): the composer uploads through `dmApi.uploadMedia` (`POST /me/dm-media`).
+  `DmImage` renders a signed image with `srcset`; signed URLs expire, so a failed load invalidates the thread query once
+  to fetch fresh URLs. `DmMessage.media` is `DmMedia[]` (`types/messages.ts`).
+- **Demo data notice** (`features/demo`): `DemoNotice` sits under the top bar when `GET /demo/status` says the database
+  holds the fictional demo data. It is a `role="note"` strip with a labelled dismiss button; dismissal is remembered in
+  localStorage (wrapped in try/catch, tested in `api.test.ts`), so it shows again in a private window.

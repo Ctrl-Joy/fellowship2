@@ -30,6 +30,7 @@ export interface MediaUpload {
   width: number | null;
   height: number | null;
   contentType: string;
+  thumbnails?: import('@/types/api').Thumbnails | null;
 }
 
 export const postsApi = {

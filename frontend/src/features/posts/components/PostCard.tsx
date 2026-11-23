@@ -12,6 +12,7 @@ import { postPath } from '../paths';
 import { ActionPill } from './ActionPill';
 import { PollView } from './PollView';
 import { copyPostLink, PostMenu } from './PostMenu';
+import { FEED_IMAGE_SIZES, responsiveImage } from '@/utils/images';
 import { VoteControl } from './VoteControl';
 
 /** "c/slug • 5h" line; shows the author instead when we're already inside the community. */
@@ -54,9 +55,11 @@ function CardMedia({ post }: { post: PostSummary }) {
     return (
       <div className="relative mt-2 overflow-hidden rounded-2xl border border-border bg-black">
         <img
-          src={img.url}
+          {...responsiveImage(img)}
+          sizes={FEED_IMAGE_SIZES}
           alt=""
           loading="lazy"
+          decoding="async"
           width={img.width ?? undefined}
           height={img.height ?? undefined}
           className="mx-auto max-h-[540px] w-full object-contain"

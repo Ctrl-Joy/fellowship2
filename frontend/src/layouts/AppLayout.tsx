@@ -3,6 +3,7 @@ import { X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { BrandMark } from '@/design-system/BrandMark';
+import { DemoNotice } from '@/features/demo/DemoNotice';
 import { SearchBox } from '@/features/search/components/SearchBox';
 import { LeftNav } from './LeftNav';
 import { MobileTabBar } from './MobileTabBar';
@@ -65,6 +66,7 @@ export function AppLayout() {
         Skip to content
       </a>
       <TopBar onOpenDrawer={() => setDrawer(true)} onOpenSearch={() => setSearch(true)} />
+      <DemoNotice />
       <div className="flex">
         <aside className="sticky top-14 hidden h-[calc(100vh-56px)] w-16 shrink-0 overflow-y-auto border-r border-border [scrollbar-width:thin] md:block xl:w-[272px]">
           <div className="xl:hidden"><LeftNav compact /></div>

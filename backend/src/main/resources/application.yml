@@ -54,12 +54,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        # Prometheus is exposed only in prod, on the separate management port (D-026).
+        include: ${MANAGEMENT_EXPOSURE:health,info}
   endpoint:
     health:
       probes:
         enabled: true
+        # /livez and /readyz on the main port too, so container health checks work when management moves to its own port.
+        add-additional-paths: true
       show-details: when-authorized
+      group:
+        # /readyz: ready only when the database and storage answer (Redis is optional: rate limits and the feed cache degrade).
+        readiness:
+          include: readinessState,db,storage
+  metrics:
+    tags:
+      application: strata
+    distribution:
+      # Histogram buckets so Grafana can compute p95 latency (deploy/grafana/dashboards/strata-overview.json).
+      percentiles-histogram:
+        http.server.requests: true
   health:
     mail:
       enabled: false
@@ -97,8 +111,20 @@ strata:
     mode: ${MAIL_MODE:log}
     from: ${MAIL_FROM:no-reply@strata.local}
   storage:
-    driver: local
+    # local | s3 (D-023). s3 works with AWS S3 and MinIO; the bucket stays private and every read goes through the API.
+    driver: ${STORAGE_DRIVER:local}
     local-dir: ${STORAGE_LOCAL_DIR:./data/uploads}
+    s3:
+      bucket: ${S3_BUCKET:strata}
+      endpoint: ${S3_ENDPOINT:}
+      region: ${S3_REGION:us-east-1}
+      access-key: ${S3_ACCESS_KEY:}
+      secret-key: ${S3_SECRET_KEY:}
+      path-style: ${S3_PATH_STYLE:false}
+      # Streams larger than this are sent as multipart uploads (8 MB parts).
+      multipart-threshold-mb: 8
+      # Create the bucket at startup if it doesn't exist (handy for MinIO in development; off for AWS in prod).
+      create-bucket: ${S3_CREATE_BUCKET:false}
     max-image-bytes: 10485760
     max-media-mb: ${MAX_MEDIA_MB:500}
   files:
@@ -111,6 +137,10 @@ strata:
     enabled: ${RATE_LIMIT_ENABLED:true}
   seed:
     enabled: ${SEED_DEMO_DATA:true}
+  # First-page feed id lists cached in Redis (D-025). Only rank order is cached; posts are hydrated per viewer.
+  feed-cache:
+    enabled: ${FEED_CACHE_ENABLED:true}
+    ttl: ${FEED_CACHE_TTL:PT30S}
   ai:
     provider: ${AI_PROVIDER:auto}
     api-key: ${ANTHROPIC_API_KEY:}
@@ -156,3 +186,16 @@ strata:
     secure: true
   seed:
     enabled: ${SEED_DEMO_DATA:false}
+# Metrics and the full actuator live on a separate port that is never published (Caddy/nginx only proxy 8080).
+management:
+  server:
+    port: ${MANAGEMENT_PORT:8081}
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_EXPOSURE:health,info,prometheus}
+# One JSON object per line (Elastic Common Schema), including the request's traceId from the MDC.
+logging:
+  structured:
+    format:
+      console: ${LOG_FORMAT:ecs}

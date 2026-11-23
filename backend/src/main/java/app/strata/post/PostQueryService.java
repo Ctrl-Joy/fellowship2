@@ -10,7 +10,9 @@ import app.strata.post.dto.PostDtos.PollDto;
 import app.strata.post.dto.PostDtos.PollOptionDto;
 import app.strata.post.dto.PostDtos.PostSummary;
 import app.strata.post.dto.PostDtos.SummaryViewer;
+import app.strata.storage.ImageVariants;
 import app.strata.storage.StorageService;
+import app.strata.storage.Thumbnails;
 import app.strata.user.UserDirectory;
 import app.strata.user.dto.UserDtos.UserSummary;
 import java.net.URI;
@@ -74,6 +76,14 @@ public class PostQueryService {
             """;
 
     public CursorPage<PostSummary> page(Spec spec) {
+        IdPage ids = ids(spec);
+        return new CursorPage<>(hydrate(ids.ids(), spec.viewerId()), ids.nextCursor());
+    }
+
+    /** One page of ordered post ids and the cursor after it, without hydration (cacheable for anonymous scopes). */
+    public record IdPage(List<Long> ids, String nextCursor) {}
+
+    public IdPage ids(Spec spec) {
         StringBuilder sql = new StringBuilder("SELECT p.id, ");
         Map<String, Object> params = new HashMap<>(spec.params() == null ? Map.of() : spec.params());
         params.put("viewer", spec.viewerId() == null ? -1L : spec.viewerId());
@@ -148,7 +158,20 @@ public class PostQueryService {
                 default -> Cursors.encode(last.k(), last.id());
             };
         }
-        return new CursorPage<>(hydrate(pageRows.stream().map(IdKey::id).toList(), spec.viewerId()), next);
+        return new IdPage(pageRows.stream().map(IdKey::id).toList(), next);
+    }
+
+    /**
+     * The subset of {@code ids}, in the same order, that {@code viewerId} may see in a list right now: the same
+     * visibility rules as {@link #page} (deleted, removed, banned, hidden, blocked, private) plus {@code extraSql}
+     * (mutes). Used to personalise a cached anonymous id list (D-025).
+     */
+    public List<Long> visibleTo(List<Long> ids, Long viewerId, String extraSql) {
+        if (ids.isEmpty()) return List.of();
+        Set<Long> ok = new HashSet<>(jdbc.sql("SELECT p.id FROM posts p JOIN communities c ON c.id = p.community_id WHERE p.id IN (:ids) AND "
+                        + VISIBILITY + (extraSql == null || extraSql.isBlank() ? "" : " AND (" + extraSql + ")"))
+                .param("ids", ids).param("viewer", viewerId == null ? -1L : viewerId).query(Long.class).list());
+        return ids.stream().filter(ok::contains).toList();
     }
 
     /** Pinned posts for a community, shown above the first page of the HOT sort. */
@@ -246,13 +269,15 @@ public class PostQueryService {
     private Map<Long, List<MediaRef>> media(Collection<Long> ids) {
         Map<Long, List<MediaRef>> out = new LinkedHashMap<>();
         jdbc.sql("""
-                        SELECT pm.post_id, m.id, m.storage_key, m.width, m.height FROM post_media pm
+                        SELECT pm.post_id, m.id, m.storage_key, m.width, m.height, m.variant_widths FROM post_media pm
                         JOIN media_assets m ON m.id = pm.media_id WHERE pm.post_id IN (:ids)
                         ORDER BY pm.post_id, pm.position""")
                 .param("ids", ids)
                 .query((rs, i) -> {
+                    String key = rs.getString(3);
                     out.computeIfAbsent(rs.getLong(1), k -> new ArrayList<>()).add(new MediaRef(rs.getLong(2),
-                            storage.publicUrl(rs.getString(3)), (Integer) rs.getObject(4), (Integer) rs.getObject(5)));
+                            storage.publicUrl(key), (Integer) rs.getObject(4), (Integer) rs.getObject(5),
+                            Thumbnails.of(rs.getString(6), w -> storage.publicUrl(ImageVariants.keyFor(key, w)))));
                     return null;
                 }).list();
         return out;

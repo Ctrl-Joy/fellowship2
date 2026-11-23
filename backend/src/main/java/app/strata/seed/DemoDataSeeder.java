@@ -32,6 +32,7 @@ import org.springframework.transaction.support.TransactionTemplate;
  * must never be enabled in production (the prod profile disables seeding by default).
  */
 @Component
+@org.springframework.core.annotation.Order(10) // before DemoActivitySeeder, which builds on these rows
 public class DemoDataSeeder implements ApplicationRunner {
     private static final Logger log = LoggerFactory.getLogger(DemoDataSeeder.class);
     public static final String DEMO_PASSWORD = "strata-demo-1";

@@ -41,7 +41,10 @@ public class ClaudeProvider implements AiProvider {
     private final AppProperties.Ai cfg;
     private final AnthropicClient client;
 
-    public ClaudeProvider(AppProperties props) {
+    private final app.strata.common.metrics.StrataMetrics metrics;
+
+    public ClaudeProvider(AppProperties props, app.strata.common.metrics.StrataMetrics metrics) {
+        this.metrics = metrics;
         this.cfg = props.ai();
         String key = cfg.apiKey();
         this.client = key == null || key.isBlank() ? null : AnthropicOkHttpClient.builder().apiKey(key).build();
@@ -79,10 +82,19 @@ public class ClaudeProvider implements AiProvider {
         }
         p.addUserMessage(AnswerPrompt.userTurn(r));
 
-        BetaMessage msg = client.beta().messages().create(p.build());
+        long started = System.nanoTime();
+        BetaMessage msg;
+        try {
+            msg = client.beta().messages().create(p.build());
+        } catch (RuntimeException e) {
+            metrics.aiRequest("answer", "error", java.time.Duration.ofNanos(System.nanoTime() - started), 0, 0);
+            throw e;
+        }
         Optional<BetaStopReason> stop = msg.stopReason();
         Integer in = (int) msg.usage().inputTokens();
         Integer out = (int) msg.usage().outputTokens();
+        metrics.aiRequest("answer", stop.isPresent() && stop.get().equals(BetaStopReason.REFUSAL) ? "refused" : "ok",
+                java.time.Duration.ofNanos(System.nanoTime() - started), in, out);
         if (stop.isPresent() && stop.get().equals(BetaStopReason.REFUSAL)) {
             log.info("Community AI request declined by safety classifier");
             return new Answer("I can't help with that request.", List.of(), "The model declined to answer this question.", in, out);
@@ -119,11 +131,17 @@ public class ClaudeProvider implements AiProvider {
                 .addUserMessage(userTurn)
                 .build();
         BetaMessageAccumulator acc = BetaMessageAccumulator.create();
+        long started = System.nanoTime();
         try (StreamResponse<BetaRawMessageStreamEvent> stream = client.beta().messages().createStreaming(params)) {
             stream.stream().forEach(acc::accumulate);
+        } catch (RuntimeException e) {
+            metrics.aiRequest("long", "error", java.time.Duration.ofNanos(System.nanoTime() - started), 0, 0);
+            throw e;
         }
         BetaMessage msg = acc.message();
         Optional<BetaStopReason> stop = msg.stopReason();
+        metrics.aiRequest("long", stop.isPresent() && stop.get().equals(BetaStopReason.REFUSAL) ? "refused" : "ok",
+                java.time.Duration.ofNanos(System.nanoTime() - started), msg.usage().inputTokens(), msg.usage().outputTokens());
         String text = msg.content().stream().flatMap(b -> b.text().stream()).map(t -> t.text()).collect(Collectors.joining("\n\n"));
         return new LongText(text, stop.isPresent() && stop.get().equals(BetaStopReason.MAX_TOKENS),
                 stop.isPresent() && stop.get().equals(BetaStopReason.REFUSAL), msg.usage().inputTokens(), msg.usage().outputTokens());

@@ -61,6 +61,15 @@ review exist; demo transactions are labelled and never represent real money.
 Quality-weighted moderator score (consistency, response time, appeal outcomes, community health, peer
 feedback, explicitly not raw removal counts), periods, badges, leaderboard, profiles.
 
-## Phase 10: Polish ☐
+## Phase 10: Polish ◐ (infrastructure ✅; accessibility audit and Playwright ☐)
 Performance (Redis feed caching, image thumbnails), accessibility audit, Playwright end-to-end suite for the 23
 flows in the brief, production deployment guide (VPS + TLS), observability dashboards.
+
+**Infrastructure ✅ (D-023 to D-026):** S3/MinIO storage driver (private bucket, streamed multipart uploads, ranged
+reads through the API); 320/960 px image variants with `srcset` and lazy loading; Redis first-page feed id cache with
+per-viewer hydration and graceful fallback; private DM images through participant-signed URLs; Prometheus metrics on
+an internal management port, JSON logs with trace ids and a Grafana dashboard; prod refuses dev secrets; HSTS and a
+checked CSP; `docs/DEPLOYMENT.md` with `deploy/docker-compose.prod.yml` + Caddy (not executed: no Docker on the dev
+machine); richer demo seed (moderation history, public collections, a demo funding pool) with an in-app demo notice.
+Still open: accessibility audit, Playwright suite, presigned media URLs (only if API bandwidth becomes a problem),
+migrating legacy public DM image URLs.

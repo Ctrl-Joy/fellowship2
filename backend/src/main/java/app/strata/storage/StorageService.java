@@ -2,14 +2,25 @@ package app.strata.storage;
 
 import java.io.InputStream;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import org.springframework.core.io.Resource;
 
 /**
  * Binary storage abstraction. Metadata lives in PostgreSQL; bytes live here. The local filesystem driver
- * is used in development and single-node deployments; an S3-compatible driver plugs in behind this
- * interface (see docs/DECISIONS.md, D-007).
+ * is used in development and single-node deployments; {@link S3StorageService} talks to any S3-compatible
+ * service (see docs/DECISIONS.md, D-007 and D-023). The driver is chosen by {@code strata.storage.driver}.
  */
 public interface StorageService {
+    /**
+     * Keys are generated server-side ({@code folder/random.ext}, image variants add {@code _w320} etc.); this guards
+     * against traversal or odd keys if one is ever user-influenced.
+     */
+    Pattern SAFE_KEY = Pattern.compile("^[a-z]+/[A-Za-z0-9_-]{8,72}\\.(png|jpg|webp|gif|mp3|m4a|ogg|wav|mp4|webm|bin)$");
+
+    static boolean isSafeKey(String key) {
+        return key != null && SAFE_KEY.matcher(key).matches();
+    }
+
     void put(String key, byte[] bytes, String contentType);
 
     /** Streams large objects (audio/video) without buffering them in memory. */
@@ -24,6 +35,10 @@ public interface StorageService {
     Optional<Resource> resource(String key);
 
     void delete(String key);
+
+    default boolean exists(String key) {
+        return resource(key).isPresent();
+    }
 
     /** Public URL path for a stored key, relative to the API origin. */
     default String publicUrl(String key) {

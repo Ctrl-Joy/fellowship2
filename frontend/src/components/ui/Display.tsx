@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { sizedUrl } from '@/utils/images';
 import { cn } from '@/utils/format';
 
 export function Badge({
@@ -59,9 +60,11 @@ export function Avatar({
   if (src) {
     return (
       <img
-        src={src}
+        // Avatars and icons are at most 96 px: the 320 px variant is plenty (the API falls back to the original).
+        src={sizedUrl(src, 320)}
         alt=""
         loading="lazy"
+        decoding="async"
         className={cn('shrink-0 object-cover bg-surface-2', shape, avatarSizes[size], className)}
       />
     );

@@ -10,6 +10,7 @@ import { useAuth } from '@/features/auth/hooks';
 import { useUiPrefs } from '@/store/uiPrefs';
 import { compactNumber, pluralize } from '@/utils/format';
 import { brand } from '@/design-system/brand';
+import { sizedUrl } from '@/utils/images';
 import { ActivePulsesRail } from '@/features/pulse/components/PulseSection';
 
 /** Rail panels share one look: dark rounded panel, small uppercase heading. */
@@ -41,7 +42,7 @@ function RecentPostsCard() {
               <Link to={`/c/${p.slug}/p/${p.id}`} className="mt-1 line-clamp-2 text-sm font-semibold leading-snug hover:underline">{p.title}</Link>
               <div className="mt-1 text-xs text-faint">{pluralize(p.score, 'upvote')} · {pluralize(p.commentCount, 'comment')}</div>
             </div>
-            {p.thumb && <img src={p.thumb} alt="" className="h-16 w-16 shrink-0 rounded-lg object-cover" />}
+            {p.thumb && <img src={sizedUrl(p.thumb, 320)} alt="" loading="lazy" decoding="async" className="h-16 w-16 shrink-0 rounded-lg object-cover" />}
           </li>
         ))}
       </ul>

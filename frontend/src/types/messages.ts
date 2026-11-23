@@ -1,5 +1,14 @@
 import type { ID, MediaRef, UserSummary } from './api';
 
+/**
+ * A DM image. `signed` URLs (images sent since D-024) work only for conversation participants and expire after
+ * 30 to 60 minutes; refetch the messages for fresh ones. Older attachments have a public, unsigned URL.
+ */
+export interface DmMedia extends MediaRef {
+  signed: boolean;
+  expiresAt: string | null;
+}
+
 export type DmPolicy = 'EVERYONE' | 'FOLLOWING' | 'NOBODY';
 
 export interface DmMessage {
@@ -8,7 +17,7 @@ export interface DmMessage {
   senderId: ID;
   /** Plain text, ≤4000 chars; "" when deleted. */
   body: string;
-  media: MediaRef[];
+  media: DmMedia[];
   createdAt: string;
   deleted: boolean;
 }

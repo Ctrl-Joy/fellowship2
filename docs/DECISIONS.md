@@ -297,3 +297,98 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   moderator role in the page's communities, or the viewer is an admin), so feed cards show the existing
   remove/approve/lock/pin menu without per-row requests.
 - **Onboarding skip** is now persisted (`POST /onboarding/skip` marks the account as onboarded without changing anything else).
+
+**D-023 S3-compatible storage driver; the bucket stays private and the API proxies every read.**
+- **Selection.** `strata.storage.driver` (`STORAGE_DRIVER`) is `local` (default outside Docker) or `s3`.
+  `S3StorageService` uses the AWS SDK v2 sync client with the Apache HTTP client and works with AWS S3 and MinIO
+  (`S3_PATH_STYLE=true` and `S3_ENDPOINT` for MinIO). Credentials come from `S3_ACCESS_KEY`/`S3_SECRET_KEY`; blank means
+  the AWS default chain (instance role). Checksums are sent only when an operation requires them, which keeps older
+  MinIO releases compatible. `docker-compose.yml` now runs MinIO with a one-shot `minio-init` that creates the bucket
+  and sets anonymous access to `none` (this replaces D-007's "MinIO not shipped yet").
+- **Why proxy instead of presigned URLs.** Media URLs (`/api/v1/files/**`) are computed at read time from storage keys,
+  so the driver can change without a data migration. Proxying keeps one origin (no bucket host in the CSP, no CORS on
+  the bucket), keeps `private/` objects unreachable even if a bucket policy is misconfigured, and keeps Range working:
+  `resource(key)` returns a Resource whose stream opens lazily, so Spring's "skip to the range start" becomes an S3
+  `Range: bytes=N-` GET instead of downloading the prefix, and closing a partial read aborts the connection instead of
+  draining it. The cost is API bandwidth for media. If that ever matters, short-lived presigned GETs for large public
+  media (podcasts) would be a local change in `MediaController` (described in DEPLOYMENT.md, not built).
+- **Uploads stream.** Streams up to 8 MB become one PutObject; larger ones become a multipart upload in 8 MB parts
+  (at most one part in memory). A failed multipart upload is aborted. No ACLs are ever set on objects.
+- **Zip checks on object storage.** The file scanner's archive checks read a local file. With S3 there is none, so a
+  zip-looking upload is staged to a temp file for the scan and deleted right after.
+- **Testing without Docker.** `S3StorageServiceTest` runs the driver against an in-memory `S3Client` that implements the
+  operations it uses with S3 semantics (ranges, multipart parts, 404s), plus Spring's real `ResourceRegionHttpMessageConverter`
+  for the Range path. An embedded S3 mock (s3mock) wasn't used: it's a Spring Boot application itself and would pull a
+  second Boot version onto the test classpath. The driver was **not** run against a real MinIO (no Docker on the dev machine).
+
+**D-024 Image variants, and private DM images (closes the D-019 gap for new messages).**
+- **Variants.** On upload (post images, avatars, banners, community icons, podcast covers, DM images) PNG and JPEG get
+  320 px and 960 px wide copies next to the original (`<key>_w320.<ext>`), only when the original is wider (never
+  upscaled), in the same format (PNG keeps transparency). They're re-encoded from pixels, so they carry no EXIF/GPS/XMP;
+  the JPEG EXIF orientation is applied first so phone photos stay upright. GIFs keep only the original (animations are
+  never flattened to one frame) and WebP has no variants (the JDK can't decode it). If resizing fails, the upload still
+  succeeds with the original only. Known gap: the original keeps its metadata (originals are stored byte-exact).
+- **Exposure.** `media_assets.variant_widths` (V12) records which variants exist; post media refs and the upload response
+  carry `thumbnails: {w320, w960}` (null when none). Avatars, banners and icons are stored as plain URLs, so
+  `/files/{key}?w=320|960` serves the variant when it exists and otherwise the original. The frontend uses `srcset`/`sizes`
+  for post images, `?w=320` for avatars, icons and small thumbnails, lazy loading and async decoding. Banners keep the
+  original (960 px would look soft on wide screens).
+- **Private DM images.** `POST /me/dm-media` stores the image (and its variants) under `private/`, which `/files/**`
+  refuses. Each message read returns, per reader, `/api/v1/dm-media/{grant}`: an HMAC grant (the same `DownloadGrants`
+  as files, new kind `D`) naming the asset and the reader. Every request re-checks that the reader uploaded it or is a
+  participant of a conversation where it's attached to a message that isn't deleted, so deleting the message ends the
+  recipient's access at once. Grants last 30 to 60 minutes and are identical within a 30-minute window (cache-friendly,
+  `Cache-Control: private`); the thread refetches once when an image fails to load. Realtime `MESSAGE` events are built
+  per recipient, since URLs are signed per viewer. A grant is a bearer URL for its lifetime (like any signed link); it
+  can't be minted for someone else and isn't accepted by `/downloads/{grant}`. DM images can't be attached to posts.
+- **Legacy.** Images sent before this change keep their public `/files/media/...` URLs (`signed: false`): unguessable but
+  not access-controlled. Moving them would need a data migration that rewrites keys; not done.
+  `POST /me/conversations/{id}/messages` still accepts the sender's public uploads for compatibility; the app's own
+  client always uses `/me/dm-media`.
+
+**D-025 First-page feed id cache in Redis; only rank order is cached.**
+- **What.** The first page of Popular (hot), Latest, Rising and Top (per time window), and of public community feeds
+  (every sort), is cached for 30 s (`strata.feed-cache.ttl`) as `"nextCursor|id,id,..."`, keyed by feed, sort, window and
+  page size. Members-only communities, personal tabs (For You, Following) and later pages are never cached. Feeds have
+  no NSFW filter today, so the key has no NSFW dimension; if one is added, it must join the key.
+- **Per-viewer correctness.** The cached list is the anonymous order. On every request the ids are re-filtered for the
+  viewer with one query (hidden posts, blocked and muted authors, muted communities on Home, and anything deleted,
+  removed or banned since) and hydrated fresh, so `myVote`, `saved`, `viewer.canModerate`, scores and comment counts are
+  always computed for the requester; no per-user field is ever written to Redis. Caching only anonymous requests would
+  have been simpler but would miss most traffic once people sign in. A viewer can get a slightly short page when the
+  filter drops items; the cursor still continues after the last cached id.
+- **Staleness.** Tolerated, not invalidated: a new post can take up to the TTL to enter a cached first page, while
+  deletions and removals disappear at once (they're re-checked). The live "N new posts" pill (D-018) covers freshness.
+- **Redis down.** The first failure logs once and the cache steps aside for 30 s at a time, so an outage costs latency
+  (feeds computed directly), never errors or a Redis timeout per request. `FeedCacheIT` proves per-viewer fields with a
+  warm cache, the staleness and deletion behaviour, and the fallback.
+
+**D-026 Observability and production guard rails.**
+- **Metrics.** Micrometer with the Prometheus registry. Custom meters (low-cardinality tags only, never ids or slugs):
+  `strata_votes_total{target,direction}`, `strata_posts_total{type,outcome}`, `strata_comments_total{outcome}`,
+  `strata_messages_sent_total{media}`, `strata_websocket_sessions`, `strata_ai_request_seconds{operation,outcome}` (histogram),
+  `strata_ai_tokens{operation,direction}`, `strata_spam_flags_total{kind,action,signal}`, `strata_feed_cache_total{result}`,
+  plus Boot's HTTP (with histogram buckets for p95), JVM, Hikari and Tomcat metrics. All tagged `application=strata`.
+  (Meters aren't named `*.created`: the Prometheus client reserves the `_created` suffix and silently drops it.)
+- **Not public in prod.** The prod profile moves the actuator to `MANAGEMENT_PORT` (8081) and exposes `health,info,prometheus`
+  there. Only 8080 is proxied by nginx/Caddy and 8081 is never published, so Prometheus scrapes it on the internal
+  network. `/livez` and `/readyz` stay on the main port for container health checks. Outside prod only `health,info` are
+  exposed. The safety check (below) refuses a prod config that exposes Prometheus on the public port.
+- **Logs.** The prod profile writes one JSON object per line (Elastic Common Schema, Spring Boot structured logging),
+  including the MDC `traceId` that `TraceIdFilter` sets and returns as `X-Trace-Id`. `LOG_FORMAT=logstash|gelf` switches format.
+- **Dashboard.** `deploy/grafana/dashboards/strata-overview.json`, provisioned by the optional `monitoring` compose profile:
+  request rate and p95, WebSocket sessions, votes/posts/comments/messages per minute, AI latency, tokens and outcomes,
+  spam holds, feed cache hit ratio, heap and DB pool.
+- **Refuse unsafe prod.** `ProductionSafetyCheck` (prod profile only) lists every problem and stops startup when: the JWT
+  secret is the dev default, too short or not base64; the funding webhook secret is the dev default or shorter than 16
+  characters (when funding is on); the DB password is empty, a known default or shorter than 12 characters;
+  `FILE_VISITOR_SALT` is unset; cookies aren't secure; the S3 secret is a well-known default; or metrics are exposed on
+  the public port.
+- **Headers.** The API sends HSTS (1 year, includeSubDomains) on HTTPS requests (behind the proxy, `X-Forwarded-Proto`
+  decides); Caddy sends it for the SPA. The nginx CSP was checked: `connect-src` lists `ws(s)://$host` because older
+  Safari doesn't count WebSockets under `'self'`; `style-src 'unsafe-inline'` stays for Recharts and Radix inline styles;
+  `script-src 'self'` only; `object-src 'none'`, `form-action 'self'`. nginx now forwards the original `X-Forwarded-Proto`
+  from Caddy instead of overwriting it with `http`.
+- **Bug found by the richer seed.** Recomputing moderator scores failed with a NOT NULL violation whenever a moderator
+  earned no badge (`string_to_array('')` is NULL); it now stores an empty array. A real community would have hit it in its
+  first quiet month.

@@ -197,7 +197,7 @@ public class RecognitionService {
                     median_response_minutes, appeals_upheld, appeals_overturned, endorsements, co_moderators, community_reports,
                     community_reports_resolved, removal_rate, prev_removal_rate, consistency, responsiveness, appeal_quality,
                     health, peer, score, activity, badges)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, string_to_array(nullif(?, ''), ','))""", rows);
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, coalesce(string_to_array(nullif(?, ''), ','), '{}'::text[]))""", rows);
         return rows.size();
     }
 

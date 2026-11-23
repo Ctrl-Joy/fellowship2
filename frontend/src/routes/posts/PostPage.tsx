@@ -21,6 +21,7 @@ import { usePost, usePostVote, useSavePost } from '@/features/posts/hooks';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { PageColumns } from '@/layouts/PageColumns';
 import { ApiError, errorMessage } from '@/services/apiError';
+import { FEED_IMAGE_SIZES, responsiveImage } from '@/utils/images';
 import { cn, compactNumber, timeAgo } from '@/utils/format';
 
 function PostSkeleton() {
@@ -151,7 +152,7 @@ export default function PostPage() {
               <div className={cn('mt-4 grid gap-2', p.media.length > 1 && 'sm:grid-cols-2')}>
                 {p.media.map((m) => (
                   <a key={m.id} href={m.url} target="_blank" rel="noopener noreferrer">
-                    <img src={m.url} alt="" loading="lazy" width={m.width ?? undefined} height={m.height ?? undefined} className="max-h-[560px] w-full rounded-md border border-border bg-surface-2 object-contain" />
+                    <img {...responsiveImage(m)} sizes={FEED_IMAGE_SIZES} alt="" loading="lazy" decoding="async" width={m.width ?? undefined} height={m.height ?? undefined} className="max-h-[560px] w-full rounded-md border border-border bg-surface-2 object-contain" />
                   </a>
                 ))}
               </div>
