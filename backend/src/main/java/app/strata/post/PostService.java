@@ -81,6 +81,7 @@ public class PostService {
         Community c = communities.findBySlug(req.communitySlug())
                 .orElseThrow(() -> ApiException.field("communitySlug", "Community not found"));
         Optional<CommunityRole> role = access.roleOf(c, user);
+        access.requireNotBanned(c.getId(), user);
         if (!access.canPost(c, role, user)) {
             throw ApiException.forbidden(c.visibility() == Community.Visibility.RESTRICTED
                     ? "Only approved contributors can post here" : "Join this community to post");

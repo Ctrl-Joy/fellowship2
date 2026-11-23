@@ -129,6 +129,9 @@ public class UserService {
                         "SELECT EXISTS (SELECT 1 FROM user_follows WHERE follower_id = ? AND followee_id = ?)")
                 .params(viewer.id(), u.getId()).query(Boolean.class).single();
         boolean isPrivate = !u.isProfilePublic() && !self;
+        boolean blocked = viewer != null && !self && jdbc.sql(
+                        "SELECT EXISTS (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?)")
+                .params(viewer.id(), u.getId()).query(Boolean.class).single();
         List<CommunityRef> joined = List.of();
         if (!isPrivate && (u.isShowCommunities() || self)) {
             joined = communities.findByIdIn(memberships.joinedCommunityIds(u.getId())).stream()
@@ -140,7 +143,7 @@ public class UserService {
                 .map(CommunityMapper::ref).toList();
         return new PublicProfile(u.getId(), u.getUsername(), u.getDisplayName(), u.getAvatarUrl(), u.getBannerUrl(),
                 isPrivate ? null : u.getBio(), u.getCreatedAt(), u.getPostKarma(), u.getCommentKarma(), u.getFollowerCount(),
-                u.getFollowingCount(), following, self, isPrivate, joined, moderated);
+                u.getFollowingCount(), following, self, isPrivate, blocked, joined, moderated);
     }
 
     public User requireByUsername(String username) {

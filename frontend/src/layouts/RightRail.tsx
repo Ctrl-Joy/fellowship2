@@ -10,6 +10,7 @@ import { useAuth } from '@/features/auth/hooks';
 import { useUiPrefs } from '@/store/uiPrefs';
 import { compactNumber, pluralize } from '@/utils/format';
 import { brand } from '@/design-system/brand';
+import { ActivePulsesRail } from '@/features/pulse/components/PulseSection';
 
 /** Rail panels share one look: dark rounded panel, small uppercase heading. */
 export function RailPanel({ title, action, children }: { title: string; action?: ReactNode; children: ReactNode }) {
@@ -114,6 +115,7 @@ export function RightRail() {
   return (
     <>
       <JoinCard />
+      <ActivePulsesRail />
       <RecentPostsCard />
       <TrendingCommunitiesCard />
       <TrendingPostsCard />

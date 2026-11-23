@@ -77,6 +77,8 @@ export interface CommunityDetail extends CommunitySummary {
     canPost: boolean;
     canModerate: boolean;
     canView: boolean;
+    banned?: boolean;
+    bannedUntil?: string | null;
   };
 }
 export interface CommunityMember {
@@ -158,6 +160,8 @@ export interface CommentNode {
   replyCount: number;
   replies: CommentNode[];
   moreReplies: number;
+  /** Author is blocked by the viewer; body is hidden server-side. */
+  blocked?: boolean;
 }
 export interface UserComment {
   comment: CommentNode;
@@ -201,6 +205,7 @@ export interface PublicProfile {
   followingCount: number;
   isFollowing: boolean;
   isSelf: boolean;
+  isBlocked?: boolean;
   communities: CommunityRef[];
   moderatorOf: CommunityRef[];
 }
@@ -224,7 +229,11 @@ export type NotificationType =
   | 'MENTION'
   | 'NEW_FOLLOWER'
   | 'POST_MILESTONE'
-  | 'COMMUNITY_ROLE';
+  | 'COMMUNITY_ROLE'
+  | 'CONTENT_REMOVED'
+  | 'BANNED'
+  | 'APPEAL_RESOLVED'
+  | 'PULSE_RESULT';
 export interface AppNotification {
   id: ID;
   type: NotificationType;

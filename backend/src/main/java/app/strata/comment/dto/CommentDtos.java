@@ -12,7 +12,7 @@ public final class CommentDtos {
 
     public record CommentNode(long id, long postId, Long parentId, int depth, String body, UserSummary author,
                               int score, int myVote, boolean deleted, boolean removed, Instant createdAt,
-                              Instant editedAt, int replyCount, List<CommentNode> replies, int moreReplies) {}
+                              Instant editedAt, int replyCount, List<CommentNode> replies, int moreReplies, boolean blocked) {}
 
     public record CreateCommentRequest(@NotBlank @Size(max = 10_000) String body, Long parentId) {}
 

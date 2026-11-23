@@ -1,4 +1,7 @@
-import { ChevronRight, FolderPlus, MessageSquare, MoreHorizontal, Pencil, Plus, Share2, Trash2 } from 'lucide-react';
+import { CheckCircle2, ChevronRight, Flag, FolderPlus, MessageSquare, MoreHorizontal, Pencil, Plus, Share2, ShieldX, Trash2 } from 'lucide-react';
+import { modApi, useModMutation } from '@/features/moderation/api';
+import { ReasonDialog } from '@/features/moderation/components/ReasonDialog';
+import { ReportDialog } from '@/features/moderation/components/ReportDialog';
 import { AddToCollectionDialog } from '@/features/collections/components/AddToCollectionDialog';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -25,6 +28,9 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [collect, setCollect] = useState(false);
+  const [reporting, setReporting] = useState(false);
+  const [removing, setRemoving] = useState(false);
+  const mod = useModMutation(t.communitySlug, ({ verb, reason }: { verb: 'remove' | 'approve'; reason?: string }) => modApi.comment(node.id, verb, reason));
   const vote = useCommentVote(t.postId, node.id);
   const create = useCreateComment(t.postId);
   const update = useUpdateComment(t.postId);
@@ -97,6 +103,8 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                         update.mutate({ id: node.id, body }, { onSuccess: () => setEditing(false), onError: (e) => toast.error(errorMessage(e)) })
                       }
                     />
+                  ) : node.blocked ? (
+                    <p className="text-sm italic text-faint">Comment from a user you blocked</p>
                   ) : gone ? (
                     <p className="text-sm italic text-faint">{node.removed ? '[removed by moderators]' : '[deleted]'}</p>
                   ) : (
@@ -138,14 +146,27 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                         <FolderPlus size={14} /> Save
                       </button>
                     )}
-                    {isOwner && (
+                    {(isOwner || (isAuthed && !gone && !node.deleted) || (t.canModerate && !node.deleted)) && (
                       <Menu>
                         <MenuTrigger aria-label="Comment actions" className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text">
                           <MoreHorizontal size={16} />
                         </MenuTrigger>
                         <MenuContent align="start">
-                          <MenuItem icon={<Pencil />} onSelect={() => setEditing(true)}>Edit</MenuItem>
-                          <MenuItem icon={<Trash2 />} danger onSelect={() => setConfirmDelete(true)}>Delete</MenuItem>
+                          {isOwner && <MenuItem icon={<Pencil />} onSelect={() => setEditing(true)}>Edit</MenuItem>}
+                          {isOwner && <MenuItem icon={<Trash2 />} danger onSelect={() => setConfirmDelete(true)}>Delete</MenuItem>}
+                          {!isOwner && isAuthed && !gone && <MenuItem icon={<Flag />} onSelect={() => setReporting(true)}>Report</MenuItem>}
+                          {t.canModerate && !node.deleted && (node.removed ? (
+                            <MenuItem icon={<CheckCircle2 />} onSelect={() => mod.mutate({ verb: 'approve' }, { onSuccess: () => toast.success('Comment restored'), onError: (e) => toast.error(errorMessage(e)) })}>
+                              Approve (restore)
+                            </MenuItem>
+                          ) : (
+                            <>
+                              <MenuItem icon={<ShieldX />} danger onSelect={() => setRemoving(true)}>Remove (moderator)</MenuItem>
+                              <MenuItem icon={<CheckCircle2 />} onSelect={() => mod.mutate({ verb: 'approve' }, { onSuccess: () => toast.success('Reports dismissed'), onError: (e) => toast.error(errorMessage(e)) })}>
+                                Approve (dismiss reports)
+                              </MenuItem>
+                            </>
+                          ))}
                         </MenuContent>
                       </Menu>
                     )}
@@ -207,6 +228,28 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
         </div>
       </div>
 
+      {reporting && (
+        <ReportDialog
+          target={{ type: 'COMMENT', postId: t.postId, commentId: node.id, communitySlug: t.communitySlug, label: node.body.slice(0, 120) }}
+          open={reporting}
+          onOpenChange={setReporting}
+        />
+      )}
+      {t.canModerate && (
+        <ReasonDialog
+          open={removing}
+          onOpenChange={setRemoving}
+          title="Remove this comment?"
+          confirmLabel="Remove"
+          loading={mod.isPending}
+          onConfirm={(reason) =>
+            mod.mutate(
+              { verb: 'remove', reason: reason || undefined },
+              { onSuccess: () => { setRemoving(false); toast.success('Comment removed'); }, onError: (e) => toast.error(errorMessage(e)) },
+            )
+          }
+        />
+      )}
       {collect && (
         <AddToCollectionDialog
           target={{ postId: t.postId, commentId: node.id, title: node.body.slice(0, 120) }}

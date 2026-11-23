@@ -24,7 +24,8 @@ public final class CommunityDtos {
 
     public record ModeratorDto(UserSummary user, String role) {}
 
-    public record ViewerDto(boolean isMember, String role, boolean canPost, boolean canModerate, boolean canView) {}
+    public record ViewerDto(boolean isMember, String role, boolean canPost, boolean canModerate, boolean canView,
+                            boolean banned, Instant bannedUntil) {}
 
     public record CommunitySummary(long id, String slug, String name, String description, String iconUrl,
                                    String bannerUrl, TopicDto topic, String visibility, int memberCount,

@@ -23,7 +23,7 @@ public final class UserDtos {
     public record PublicProfile(long id, String username, String displayName, String avatarUrl, String bannerUrl,
                                 String bio, Instant createdAt, int postKarma, int commentKarma, int followerCount,
                                 int followingCount, boolean isFollowing, boolean isSelf, boolean isPrivate,
-                                List<CommunityRef> communities, List<CommunityRef> moderatorOf) {}
+                                boolean isBlocked, List<CommunityRef> communities, List<CommunityRef> moderatorOf) {}
 
     public record UpdateProfileRequest(@Size(max = 50) String displayName, @Size(max = 500) String bio) {}
 

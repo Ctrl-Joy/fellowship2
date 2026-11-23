@@ -65,6 +65,7 @@ public class PostQueryService {
              AND (c.visibility <> 'PRIVATE' OR EXISTS (SELECT 1 FROM community_members vm
                                                        WHERE vm.community_id = c.id AND vm.user_id = :viewer))
              AND NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.post_id = p.id AND hp.user_id = :viewer)
+             AND NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.blocker_id = :viewer AND ub.blocked_id = p.author_id)
             """;
 
     public CursorPage<PostSummary> page(Spec spec) {

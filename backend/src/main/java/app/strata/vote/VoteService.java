@@ -123,6 +123,7 @@ public class VoteService {
         Community community = communities.findById(t.communityId()).orElseThrow(() -> ApiException.notFound("Community"));
         Optional<app.strata.community.CommunityRole> role = access.roleOf(community, user);
         if (!access.canView(community, role, user)) throw ApiException.forbidden("This community is private");
+        access.requireNotBanned(community.getId(), user);
     }
 
     private void lock(int k1, int k2) {

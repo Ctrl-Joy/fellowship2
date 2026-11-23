@@ -15,13 +15,13 @@ Communities (public/restricted/private), roles, rules, flairs, membership, posts
 sanitised rich text, image upload, voting + karma, nested comments with lazy replies, feeds and ranking, search,
 saved and hidden posts, notifications (grouped, polled).
 
-## Phase 3: Moderation & quality ☐
+## Phase 3: Moderation & quality ◐ (reports, queue, remove/approve/lock/pin, bans, appeals, audit log, blocking ✅; admin dashboard, mute, spam heuristics, topic reputation ☐)
 `reports`, `moderation_actions` (auditable: moderator, action, target, reason, community, reversal), user
 block/mute, mod queue, remove/approve/lock/pin, bans and timed suspensions, appeals, admin dashboard (users,
 communities, flags, audit log), spam heuristics (link velocity, duplicate content), topic reputation v1
 (vote events × topic, quality-weighted, anti-farming caps). Moderator UI in community settings.
 
-## Phase 4: Knowledge ◐ (Collections, Context Mode, Digest ✅; Community Pulse ☐)
+## Phase 4: Knowledge ✅ (Collections, Context Mode, Digest, Community Pulse; live results poll every 15 s rather than WebSocket)
 Smart Collections (collections, items for posts/comments, notes, tags, ordering, sharing), Context Mode
 (stance labels on comments, argument map built from labels + votes, user-correctable AI suggestions),
 Thread Digest (cached, versioned by thread change, every claim links to a source comment), Community Pulse

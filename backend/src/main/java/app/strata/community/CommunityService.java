@@ -96,8 +96,10 @@ public class CommunityService {
         Community c = require(slug);
         Optional<CommunityRole> role = access.roleOf(c, user);
         boolean canView = access.canView(c, role, user);
+        Optional<CommunityAccess.Ban> ban = access.banOf(c.getId(), user);
         ViewerDto viewer = new ViewerDto(role.isPresent(), role.map(Enum::name).orElse(null),
-                access.canPost(c, role, user), access.canModerate(role, user), canView);
+                access.canPost(c, role, user), access.canModerate(role, user), canView,
+                ban.isPresent(), ban.flatMap(CommunityAccess.Ban::until).orElse(null));
         List<MembershipDao.MemberRow> mods = memberships.moderators(c.getId());
         Map<Long, UserSummary> modUsers = userDirectory.summaries(mods.stream().map(MembershipDao.MemberRow::userId).toList());
         List<ModeratorDto> moderators = mods.stream().filter(m -> modUsers.containsKey(m.userId()))
@@ -176,6 +178,7 @@ public class CommunityService {
         if (c.visibility() == Community.Visibility.PRIVATE && !user.isAdmin()) {
             throw ApiException.forbidden("Private communities are invite-only");
         }
+        access.requireNotBanned(c.getId(), user);
         memberships.join(c.getId(), user.id(), CommunityRole.MEMBER);
     }
 

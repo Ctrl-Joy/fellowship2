@@ -67,3 +67,17 @@ generic patterns rather than copying any page.
 - **Trust.** Every answer stores the exact sources shown to the model. Citations that don't map to a source are stripped.
   When an old answer is re-read, sources that were later deleted or made private are redacted. The model call runs outside
   any DB transaction.
+
+**D-014 Moderation is community-scoped and auditable.** Every moderator action is appended to `moderation_actions`
+with moderator, target, reason, expiry and a reversal flag. Rows are never deleted: approvals, unbans and accepted
+appeals mark the original action as reversed. Bans are enforced in `CommunityAccess`, which every participation path
+(post, comment, vote, pulse vote, join) calls, so a ban can't be bypassed through another endpoint. Rank rules: nobody
+bans the owner, and moderators are only banned by someone strictly above them. Notifications about removals and bans
+carry no moderator identity, because actions are taken on behalf of the team. Moderators see the text of removed
+comments so they can review appeals; everyone else sees `[removed]`.
+
+**D-015 Community Pulse has no stakes, and results show only after you vote.** Pulses are created by moderators. Status is
+derived on read (closes_at / closed early / resolved), so no scheduler is needed. Tallies stay hidden until you vote or the
+pulse closes, so early results don't anchor later voters. Votes reuse the same advisory-lock and relative-counter pattern as
+post votes. Predictions record accuracy only, never money or points (per the brief). Live results refetch every 15 s; a
+WebSocket push is deferred until messaging adds STOMP.

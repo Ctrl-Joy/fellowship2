@@ -114,7 +114,7 @@ export default function PostPage() {
               </div>
             </div>
             <div className="ml-auto">
-              <PostMenu post={p} onEdit={p.viewer.canEdit ? () => setEditing(true) : undefined} afterDelete={() => navigate(`/c/${p.community.slug}`)} />
+              <PostMenu post={p} canModerate={p.viewer.canModerate} onEdit={p.viewer.canEdit ? () => setEditing(true) : undefined} afterDelete={() => navigate(`/c/${p.community.slug}`)} />
             </div>
           </div>
           <div className="min-w-0">
@@ -177,7 +177,7 @@ export default function PostPage() {
       </div>
 
       <div className="mt-6 px-4 sm:px-2">
-        <DiscussionTabs postId={p.id} commentCount={p.commentCount} comments={<CommentSection postId={p.id} locked={p.locked} commentCount={p.commentCount} opId={p.author?.id ?? null} />} />
+        <DiscussionTabs postId={p.id} commentCount={p.commentCount} comments={<CommentSection postId={p.id} locked={p.locked} commentCount={p.commentCount} opId={p.author?.id ?? null} canModerate={p.viewer.canModerate} communitySlug={p.community.slug} />} />
       </div>
 
       {editing && p.viewer.canEdit && (

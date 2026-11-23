@@ -1,4 +1,5 @@
 import { zodResolver } from '@hookform/resolvers/zod';
+import { BlockedUsersCard } from '@/features/moderation/components/BlockControls';
 import { Laptop, MailWarning } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -214,6 +215,7 @@ export function AccountSettings({ me }: { me: Me }) {
       <EmailCard me={me} />
       <PasswordCard />
       <SessionsCard />
+      <BlockedUsersCard />
       <DangerCard />
     </div>
   );

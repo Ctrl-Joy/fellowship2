@@ -5,6 +5,9 @@ export interface ThreadCtx {
   locked: boolean;
   /** Post author's id, used for the OP badge. */
   opId: number | null;
+  /** Viewer moderates this community: comment Remove/Approve are shown. */
+  canModerate: boolean;
+  communitySlug: string;
   /** Visual nesting limit (4 on mobile, 6 on desktop); deeper replies continue in focus mode. */
   maxLevel: number;
   focus: (commentId: number) => void;

@@ -24,7 +24,21 @@ const SORTS: { value: CommentSort; label: string }[] = [
   { value: 'old', label: 'Oldest' },
 ];
 
-export function CommentSection({ postId, locked, commentCount, opId = null }: { postId: number; locked: boolean; commentCount: number; opId?: number | null }) {
+export function CommentSection({
+  postId,
+  locked,
+  commentCount,
+  opId = null,
+  canModerate = false,
+  communitySlug = '',
+}: {
+  postId: number;
+  locked: boolean;
+  commentCount: number;
+  opId?: number | null;
+  canModerate?: boolean;
+  communitySlug?: string;
+}) {
   const { isAuthed } = useAuth();
   const [sort, setSort] = useState<CommentSort>('best');
   const [focusId, setFocusId] = useState<number | null>(null);
@@ -58,6 +72,8 @@ export function CommentSection({ postId, locked, commentCount, opId = null }: { 
       postId,
       locked,
       opId,
+      canModerate,
+      communitySlug,
       maxLevel: desktop ? 6 : 4,
       focus: (id) => {
         setFocusId(id);
@@ -66,7 +82,7 @@ export function CommentSection({ postId, locked, commentCount, opId = null }: { 
       loadMore,
       loadingFor,
     }),
-    [postId, locked, opId, desktop, loadMore, loadingFor],
+    [postId, locked, opId, canModerate, communitySlug, desktop, loadMore, loadingFor],
   );
 
   const forest = comments.data?.pages.flatMap((p) => p.items) ?? [];

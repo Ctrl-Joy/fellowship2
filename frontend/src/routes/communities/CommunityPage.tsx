@@ -1,4 +1,4 @@
-import { Clock, Flame, Lock, Plus, Settings, Sparkles, TrendingUp, Trophy, UsersRound } from 'lucide-react';
+import { Ban, Clock, Flame, Lock, Plus, Settings, ShieldCheck, Sparkles, TrendingUp, Trophy, UsersRound } from 'lucide-react';
 import { useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { buttonClasses } from '@/components/ui/Button';
@@ -10,6 +10,9 @@ import { useAuth } from '@/features/auth/hooks';
 import { AboutCard, ModeratorsCard, RulesCard } from '@/features/communities/components/CommunitySidebar';
 import { JoinButton } from '@/features/communities/components/JoinButton';
 import { MembersList } from '@/features/communities/components/MembersList';
+import { useModStats } from '@/features/moderation/api';
+import { formatBanExpiry } from '@/features/moderation/helpers';
+import { CommunityPulseRail, PulseSection } from '@/features/pulse/components/PulseSection';
 import { useCommunity } from '@/features/communities/hooks';
 import { FeedControls, SortMenu } from '@/features/posts/components/FeedControls';
 import { PostList } from '@/features/posts/components/PostList';
@@ -20,7 +23,7 @@ import { PageColumns } from '@/layouts/PageColumns';
 import { ApiError } from '@/services/apiError';
 import type { CommunityDetail, CommunitySort, TimeRange } from '@/types/api';
 
-type View = 'posts' | 'about' | 'members';
+type View = 'posts' | 'about' | 'members' | 'pulse';
 
 function Header({ c }: { c: CommunityDetail }) {
   const { isAuthed } = useAuth();
@@ -44,8 +47,8 @@ function Header({ c }: { c: CommunityDetail }) {
       </div>
       <div className="flex flex-wrap items-end gap-3 px-4 sm:px-4">
         <Avatar src={c.iconUrl} name={c.slug} size="xl" className="-mt-10 border-4 border-bg sm:-mt-12" />
-        <div className="min-w-0 flex-1 pb-1">
-          <h1 className="truncate text-2xl font-bold tracking-tight sm:text-[28px]">c/{c.slug}</h1>
+        <div className="min-w-[200px] flex-1 pb-1">
+          <h1 className="break-words text-2xl font-bold tracking-tight sm:text-[28px]">c/{c.slug}</h1>
           <p className="text-sm text-muted">
             {c.name}
             {c.visibility === 'PRIVATE' && <> · <Lock size={12} className="inline" /> Private</>}
@@ -63,15 +66,34 @@ function Header({ c }: { c: CommunityDetail }) {
               <Sparkles size={16} /> Ask
             </Link>
           )}
-          {(isAuthed || !c.viewer.isMember) && <JoinButton slug={c.slug} isMember={c.viewer.isMember} isOwner={c.viewer.role === 'OWNER'} size="md" />}
+          {!c.viewer.banned && (isAuthed || !c.viewer.isMember) && <JoinButton slug={c.slug} isMember={c.viewer.isMember} isOwner={c.viewer.role === 'OWNER'} size="md" />}
+          {c.viewer.canModerate && <ModToolsLink slug={c.slug} />}
           {c.viewer.canModerate && (
-            <Link to={`/c/${c.slug}/settings`} className={buttonClasses('secondary', 'md', 'w-10 px-0')} aria-label="Community settings" title="Mod tools">
+            <Link to={`/c/${c.slug}/settings`} className={buttonClasses('secondary', 'md', 'w-10 px-0')} aria-label="Community settings" title="Community settings">
               <Settings size={18} />
             </Link>
           )}
         </div>
       </div>
+      {c.viewer.banned && (
+        <div role="status" className="mx-3 mt-3 flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm sm:mx-0">
+          <Ban size={16} className="shrink-0 text-danger" />
+          <span>You're banned from c/{c.slug} {formatBanExpiry(c.viewer.bannedUntil ?? null)}. You can still read, but not post, comment or vote.</span>
+        </div>
+      )}
     </div>
+  );
+}
+
+/** "Mod tools" pill with the open-report count. */
+function ModToolsLink({ slug }: { slug: string }) {
+  const stats = useModStats(slug);
+  const open = stats.data?.openReports ?? 0;
+  return (
+    <Link to={`/c/${slug}/mod`} className={buttonClasses('secondary', 'md')} title="Moderation queue, appeals, bans and log">
+      <ShieldCheck size={16} /> Mod tools
+      {open > 0 && <span className="rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">{open}</span>}
+    </Link>
   );
 }
 
@@ -155,6 +177,7 @@ export default function CommunityPage() {
   const rail = (
     <>
       <AboutCard c={c} />
+      {c.viewer.canView && view !== 'pulse' && <CommunityPulseRail c={c} />}
       <RulesCard c={c} />
       <ModeratorsCard c={c} />
     </>
@@ -180,6 +203,7 @@ export default function CommunityPage() {
               }}
               options={[
                 { value: 'posts', label: 'Posts' },
+                { value: 'pulse', label: 'Pulse' },
                 { value: 'about', label: 'About' },
                 { value: 'members', label: 'Members' },
               ]}
@@ -196,11 +220,13 @@ export default function CommunityPage() {
               }}
               options={[
                 { value: 'posts', label: 'Posts' },
+                { value: 'pulse', label: 'Pulse' },
                 { value: 'members', label: 'Members' },
               ]}
             />
           </div>
           {view === 'posts' && <Posts c={c} />}
+          {view === 'pulse' && <PulseSection c={c} />}
           {view === 'about' && <div className="space-y-4 px-4 sm:px-0 lg:hidden">{rail}</div>}
           {view === 'about' && <div className="hidden lg:block"><Posts c={c} /></div>}
           {view === 'members' && (

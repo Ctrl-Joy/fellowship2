@@ -226,3 +226,67 @@ every `Line { text, commentId, kind: DATA|ANECDOTE|OPINION|SPECULATION|STATEMENT
 `Source { n, kind: POST|COMMENT, postId, commentId, title, communitySlug, author, score, createdAt, excerpt, link, cited }`.
 Every `[n]` in `content` is guaranteed to satisfy 1 ≤ n ≤ sources.length. Citations the model invents are stripped server-side.
 `postId` scopes the question to one thread, and `communitySlug` to one community. Both are permission-checked.
+
+## Moderation (Phase 3)
+All `/mod/**` and `/communities/{slug}/mod/**` endpoints require a community MODERATOR/ADMIN/OWNER (or platform admin);
+everyone else gets 403. Every action is written to the moderation log.
+
+```ts
+QueueItem { targetType: "POST"|"COMMENT", postId, commentId|null, title, excerpt, author: UserSummary|null,
+            removed, locked, pinned, createdAt, reportCount, reasons: {reason, count}[], details: string[] /* ≤5 newest */,
+            firstReportedAt, lastReportedAt }
+ModAction { id, action: "REMOVE_POST"|"APPROVE_POST"|"REMOVE_COMMENT"|"APPROVE_COMMENT"|"LOCK"|"UNLOCK"|"PIN"|"UNPIN"|"BAN"|"UNBAN",
+            moderator: UserSummary|null, targetUser: UserSummary|null, postId|null, commentId|null, targetTitle|null,
+            reason|null, expiresAt|null, reversed: boolean, createdAt }
+Ban     { user: UserSummary, reason, expiresAt|null /* null = permanent */, bannedBy: UserSummary|null, createdAt }
+Appeal  { id, action: ModAction, user: UserSummary, message, status: "PENDING"|"ACCEPTED"|"REJECTED", response|null, createdAt, resolvedAt|null }
+ModStats { openReports, pendingAppeals, activeBans, actionsLast30Days, removedLast30Days }
+MyModAction { action: ModAction, community: CommunityRef, appeal: Appeal|null, canAppeal: boolean }
+```
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/reports` | auth. `{targetType, postId, commentId?, reason (≤100), details? (≤1000)}` → 204. 409 if you already have an open report on it. 20/hour |
+| GET | `/communities/{slug}/mod/queue` | open reports grouped by target, most reported first (≤100) |
+| GET | `/communities/{slug}/mod/stats` | `ModStats` |
+| GET | `/communities/{slug}/mod/log?cursor` | cursor page of `ModAction`, newest first |
+| GET | `/communities/{slug}/mod/bans` | active `Ban[]` |
+| POST | `/communities/{slug}/mod/bans` | `{username, reason (1..300), days?: 1..3650 \| null}` → `Ban`. Can't ban yourself or a moderator of equal/higher rank |
+| DELETE | `/communities/{slug}/mod/bans/{username}` | 204 |
+| GET | `/communities/{slug}/mod/appeals?status=PENDING\|ALL` | `Appeal[]` |
+| POST | `/mod/appeals/{id}/resolve` | `{accept: boolean, response? (≤1000)}` → `Appeal`. Accepting reverses the action (restore content / lift ban) |
+| POST | `/mod/posts/{id}/{remove\|approve\|lock\|unlock\|pin\|unpin}` | `{reason?}` → `PostDetail`. Max 3 pinned per community. Remove/approve resolve the post's open reports |
+| POST | `/mod/comments/{id}/{remove\|approve}` | `{reason?}` → 204 |
+| GET | `/me/mod-actions/{id}` | the affected user only → `MyModAction` |
+| POST | `/me/mod-actions/{id}/appeal` | `{message (10..2000)}` → `Appeal`. One appeal per action; only REMOVE_* and BAN, not reversed |
+| GET | `/me/blocks` | `UserSummary[]` |
+| PUT / DELETE | `/users/{username}/block` | 204. Blocked users' posts disappear from your feeds/search; their comments render as `[blocked user]`; they can't notify you |
+
+Additions to existing DTOs: `CommunityDetail.viewer.banned: boolean`, `CommunityDetail.viewer.bannedUntil: string|null`;
+`PublicProfile.isBlocked: boolean`; `CommentNode.blocked: boolean`.
+Notification types added: `CONTENT_REMOVED` (link `/mod-actions/{id}`), `BANNED` (link `/mod-actions/{id}`),
+`APPEAL_RESOLVED`, `PULSE_RESULT`. Banned users get 403 on post/comment/vote/pulse-vote in that community.
+
+## Community Pulse (Phase 4)
+```ts
+Pulse { id, community: CommunityRef, type: "POLL"|"PREDICTION"|"OPINION"|"DEBATE", title, description,
+        multiple, anonymous, allowChange, closesAt, status: "OPEN"|"CLOSED"|"RESOLVED", createdAt, author: UserSummary|null,
+        totalVoters, myOptionIds: number[], resultsVisible: boolean /* true after you vote, or once closed */,
+        options: { id, label, votes: number|null /* null while results hidden */, correct: boolean }[],
+        resolvedOptionId|null, accuracy: number|null /* share of PREDICTION voters who picked correctly, 0..1 */,
+        viewer: { canVote: boolean, canManage: boolean } }
+PulseReason { author: UserSummary|null /* null when anonymous */, optionId, text, createdAt }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/communities/{slug}/pulses?status=active` | `Pulse[]` open, soonest closing first |
+| GET | `/communities/{slug}/pulses?status=closed&cursor` | cursor page of closed/resolved `Pulse`, newest first (history) |
+| GET | `/pulses/active?limit=5` | open pulses from your joined communities (anonymous: popular public ones) |
+| POST | `/communities/{slug}/pulses` | mods. `{type, title (≤200), description? (≤1000), options: string[2..8], multiple, anonymous, allowChange, durationHours: 1..720}` → `Pulse` |
+| GET | `/pulses/{id}` | `Pulse` |
+| POST | `/pulses/{id}/vote` | `{optionIds (1..8), reasoning? (≤500)}` → `Pulse`. 409 if already voted and `allowChange=false`; 400 if closed |
+| POST | `/pulses/{id}/close` | mods → `Pulse` |
+| POST | `/pulses/{id}/resolve` | mods, PREDICTION only, after close: `{optionId}` → `Pulse`; notifies voters (`PULSE_RESULT`) |
+| GET | `/pulses/{id}/reasons` | `PulseReason[]` (≤50 newest; empty while results hidden) |
+| DELETE | `/pulses/{id}` | mods → 204 |
+
+Pulses close automatically at `closesAt` (status is computed on read). Live results: the UI refetches open pulses every 15 s.

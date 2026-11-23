@@ -29,10 +29,11 @@ and support for the moderators who keep communities healthy.
 | Communities, roles, rules, flairs, membership | 2 | ✅ |
 | Posts (text/link/image/poll), voting, karma, nested comments | 2 | ✅ |
 | Feeds (For You/Following/Latest/Popular/Rising/Top), search, saved, notifications | 2 | ✅ |
-| Reporting, blocking, mod queue, bans, locks/pins, audit log, admin | 3 | planned |
+| Reporting, blocking, mod queue, bans, locks/pins, appeals, audit log | 3 | ✅ |
+| Admin dashboard, mute, spam heuristics | 3 | planned |
 | Topic reputation | 3–4 | planned |
 | Smart Collections, Context Mode, Thread Digest | 4 | ✅ |
-| Community Pulse | 4 | planned |
+| Community Pulse | 4 | ✅ |
 | Community AI (RAG with citations) | 5 | ✅ |
 | Podcasts (upload-first; generation only with configured providers) | 6 | planned |
 | Secure file sharing → E2EE | 7 | planned |

@@ -28,7 +28,9 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -97,7 +99,8 @@ public class CommentService {
 
     @Transactional(readOnly = true)
     public CursorPage<CommentNode> topLevel(long postId, AuthUser user, String sortParam, String cursor, int limit) {
-        posts.context(postId, user);
+        PostContext ctx = posts.context(postId, user);
+        boolean mod = access.canModerate(ctx.role(), user);
         Sort sort = Sort.parse(sortParam);
         int offset = Cursors.decodeOffset(cursor);
         List<Row> rows = jdbc.sql("SELECT " + COLS + " FROM comments c WHERE c.post_id = :p AND c.parent_id IS NULL ORDER BY "
@@ -106,7 +109,7 @@ public class CommentService {
                 .query(this::row).list();
         boolean more = rows.size() > limit;
         List<Row> page = more ? rows.subList(0, limit) : rows;
-        List<CommentNode> nodes = buildTree(page, sort, new int[]{5, 3}, user);
+        List<CommentNode> nodes = buildTree(page, sort, new int[]{5, 3}, user, mod);
         return new CursorPage<>(nodes, more ? Cursors.encodeOffset(offset + limit) : null);
     }
 
@@ -114,7 +117,8 @@ public class CommentService {
     public CursorPage<CommentNode> replies(long commentId, AuthUser user, String sortParam, String cursor, int limit) {
         Long postId = jdbc.sql("SELECT post_id FROM comments WHERE id = ?").param(commentId).query(Long.class)
                 .optional().orElseThrow(() -> ApiException.notFound("Comment"));
-        posts.context(postId, user);
+        PostContext ctx = posts.context(postId, user);
+        boolean mod = access.canModerate(ctx.role(), user);
         Sort sort = Sort.parse(sortParam);
         int offset = Cursors.decodeOffset(cursor);
         List<Row> rows = jdbc.sql("SELECT " + COLS + " FROM comments c WHERE c.parent_id = :p ORDER BY "
@@ -123,11 +127,11 @@ public class CommentService {
                 .query(this::row).list();
         boolean more = rows.size() > limit;
         List<Row> page = more ? rows.subList(0, limit) : rows;
-        return new CursorPage<>(buildTree(page, sort, new int[]{3}, user), more ? Cursors.encodeOffset(offset + limit) : null);
+        return new CursorPage<>(buildTree(page, sort, new int[]{3}, user, mod), more ? Cursors.encodeOffset(offset + limit) : null);
     }
 
     /** Offset cursors here: comment ranks change as people vote, and threads are small per page. */
-    private List<CommentNode> buildTree(List<Row> roots, Sort sort, int[] fanOut, AuthUser user) {
+    private List<CommentNode> buildTree(List<Row> roots, Sort sort, int[] fanOut, AuthUser user, boolean mod) {
         Map<Long, List<Row>> children = new HashMap<>();
         List<Row> all = new ArrayList<>(roots);
         List<Long> frontier = roots.stream().filter(r -> r.replyCount() > 0).map(Row::id).toList();
@@ -149,17 +153,31 @@ public class CommentService {
                     .query((rs, i) -> Map.entry(rs.getLong(1), rs.getInt(2))).list()
                     .forEach(e -> myVotes.put(e.getKey(), e.getValue()));
         }
-        return roots.stream().map(r -> toNode(r, children, authors, myVotes)).toList();
+        Set<Long> blocked = blockedBy(user);
+        return roots.stream().map(r -> toNode(r, children, authors, myVotes, blocked, mod)).toList();
     }
 
-    private CommentNode toNode(Row r, Map<Long, List<Row>> children, Map<Long, UserSummary> authors, Map<Long, Integer> votes) {
+    /** Users the viewer has blocked; their comments keep their place in the tree but not their content. */
+    private Set<Long> blockedBy(AuthUser user) {
+        if (user == null) return Set.of();
+        return new HashSet<>(jdbc.sql("SELECT blocked_id FROM user_blocks WHERE blocker_id = ?").param(user.id())
+                .query(Long.class).list());
+    }
+
+    private CommentNode toNode(Row r, Map<Long, List<Row>> children, Map<Long, UserSummary> authors, Map<Long, Integer> votes,
+                               Set<Long> blocked, boolean mod) {
         List<CommentNode> kids = children.getOrDefault(r.id(), List.of()).stream()
-                .map(k -> toNode(k, children, authors, votes)).toList();
-        boolean hidden = r.deleted() || r.removed();
-        String body = r.deleted() ? "[deleted]" : r.removed() ? "[removed by moderators]" : r.body();
+                .map(k -> toNode(k, children, authors, votes, blocked, mod)).toList();
+        boolean isBlocked = r.authorId() != null && blocked.contains(r.authorId()) && !r.deleted();
+        boolean revealRemoved = mod && r.removed() && !r.deleted();
+        boolean hidden = r.deleted() || (r.removed() && !revealRemoved) || isBlocked;
+        String body = r.deleted() ? "[deleted]"
+                : isBlocked ? "[blocked user]"
+                : r.removed() && !revealRemoved ? "[removed by moderators]" : r.body();
         return new CommentNode(r.id(), r.postId(), r.parentId(), r.depth(), body,
                 hidden ? null : authors.get(r.authorId()), r.score(), votes.getOrDefault(r.id(), 0), r.deleted(),
-                r.removed(), r.createdAt(), r.editedAt(), r.replyCount(), kids, Math.max(0, r.replyCount() - kids.size()));
+                r.removed(), r.createdAt(), r.editedAt(), r.replyCount(), kids, Math.max(0, r.replyCount() - kids.size()),
+                isBlocked);
     }
 
     @Transactional(readOnly = true)
@@ -190,7 +208,7 @@ public class CommentService {
                     .forEach(e -> votes.put(e.getKey(), e.getValue()));
         }
         List<UserComment> items = page.stream().map(u -> new UserComment(
-                toNode(u.row(), Map.of(), authors, votes),
+                toNode(u.row(), Map.of(), authors, votes, Set.of(), false),
                 new PostRef(u.row().postId(), u.title(), new CommunityRef(u.communityId(), u.slug(), u.name(), u.icon()))))
                 .toList();
         return new CursorPage<>(items, more ? Cursors.encode(0, page.getLast().row().id()) : null);
@@ -205,6 +223,7 @@ public class CommentService {
         Post post = ctx.post();
         if (!post.isLive()) throw ApiException.badRequest("You can't comment on deleted or removed posts");
         if (post.isLocked() && !access.canModerate(ctx.role(), user)) throw ApiException.forbidden("This thread is locked");
+        access.requireNotBanned(ctx.community().getId(), user);
         if (!access.canComment(ctx.community(), ctx.role(), user)) throw ApiException.forbidden("Join this community to comment");
         String body = req.body().strip();
         if (body.isEmpty()) throw ApiException.field("body", "Comment can't be empty");
@@ -271,7 +290,7 @@ public class CommentService {
 
     private CommentNode single(long id, AuthUser user) {
         Row r = load(id);
-        return buildTree(List.of(r), Sort.BEST, new int[0], user).getFirst();
+        return buildTree(List.of(r), Sort.BEST, new int[0], user, false).getFirst();
     }
 
     private Row load(long id) {

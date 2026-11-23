@@ -1,4 +1,5 @@
 import { CalendarDays, MessageSquare, Settings, UserX } from 'lucide-react';
+import { BlockButton } from '@/features/moderation/components/BlockControls';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { Avatar, Badge, Card, CardHeader, Skeleton } from '@/components/ui/Display';
@@ -36,6 +37,8 @@ function Header({ p }: { p: PublicProfile }) {
         {p.isSelf ? (
           <Link to="/settings" className={buttonClasses('outline', 'sm')}><Settings size={15} /> Edit profile</Link>
         ) : isAuthed ? (
+          <div className="flex items-center gap-2">
+          <BlockButton username={p.username} isBlocked={!!p.isBlocked} />
           <Button
             size="sm"
             variant={p.isFollowing ? 'outline' : 'primary'}
@@ -44,6 +47,7 @@ function Header({ p }: { p: PublicProfile }) {
           >
             {p.isFollowing ? 'Following' : 'Follow'}
           </Button>
+          </div>
         ) : (
           <Link to={`/login?next=/u/${p.username}`} className={buttonClasses('primary', 'sm')}>Follow</Link>
         )}

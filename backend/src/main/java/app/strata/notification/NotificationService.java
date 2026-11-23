@@ -64,8 +64,35 @@ public class NotificationService {
                 "You are now a " + role.toLowerCase() + " of c/" + slug, "/c/" + slug);
     }
 
+    /** Moderator identity is intentionally not attached (actor null): actions are taken on behalf of the team. */
+    public void contentRemoved(long recipientId, String slug, String what, long actionId, String reason) {
+        push(recipientId, "CONTENT_REMOVED", null, null,
+                "Your " + what + " in c/" + slug + " was removed by moderators" + (reason == null || reason.isBlank() ? "" : ": " + clip(reason)),
+                "/mod-actions/" + actionId);
+    }
+
+    public void banned(long recipientId, String slug, long actionId, String untilText) {
+        push(recipientId, "BANNED", null, null, "You were banned from c/" + slug + " " + untilText, "/mod-actions/" + actionId);
+    }
+
+    public void appealResolved(long recipientId, String slug, boolean accepted, long actionId) {
+        push(recipientId, "APPEAL_RESOLVED", null, null,
+                "Your appeal in c/" + slug + " was " + (accepted ? "accepted and the action was reversed" : "reviewed and not accepted"),
+                "/mod-actions/" + actionId);
+    }
+
+    public void pulseResult(long recipientId, String slug, long pulseId, String title, boolean correct) {
+        push(recipientId, "PULSE_RESULT", null, "pulse:" + pulseId,
+                "The prediction “" + clip(title) + "” in c/" + slug + " was resolved" + (correct ? ". You called it!" : ""),
+                "/c/" + slug + "?view=pulse#pulse-" + pulseId);
+    }
+
     private void push(long recipientId, String type, Long actorId, String groupKey, String message, String link) {
         if (actorId != null && actorId == recipientId) return;
+        if (actorId != null && jdbc.sql("SELECT EXISTS (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?)")
+                .params(recipientId, actorId).query(Boolean.class).single()) {
+            return;
+        }
         if (groupKey == null) {
             jdbc.sql("INSERT INTO notifications (user_id, type, actor_id, message, link) VALUES (?, ?, ?, ?, ?)")
                     .params(recipientId, type, actorId, message, link).update();
