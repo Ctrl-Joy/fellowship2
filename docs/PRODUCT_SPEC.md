@@ -30,7 +30,7 @@ and support for the moderators who keep communities healthy.
 | Posts (text/link/image/poll), voting, karma, nested comments | 2 | ✅ |
 | Feeds (For You/Following/Latest/Popular/Rising/Top), search, saved, notifications | 2 | ✅ |
 | Reporting, blocking, mod queue, bans, locks/pins, appeals, audit log | 3 | ✅ |
-| Admin dashboard, mute, spam heuristics | 3 | planned |
+| Admin dashboard, mute, spam heuristics | 3 | ✅ |
 | Topic reputation | 3–4 | planned |
 | Smart Collections, Context Mode, Thread Digest | 4 | ✅ |
 | Community Pulse | 4 | ✅ |

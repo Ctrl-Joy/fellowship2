@@ -60,7 +60,7 @@ export const PostRow = memo(function PostRow({ post, showCommunity = true }: { p
             <button type="button" onClick={() => copyPostLink(post)} aria-label="Copy link" className="hidden h-7 items-center rounded-full px-2 hover:bg-surface-2 hover:text-text sm:inline-flex">
               <Share2 size={14} />
             </button>
-            <PostMenu post={post} />
+            <PostMenu post={post} canModerate={!!post.viewer?.canModerate} />
           </div>
         </div>
       </div>

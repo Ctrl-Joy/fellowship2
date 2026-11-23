@@ -15,6 +15,13 @@ export function useOnboardingSuggestions(topicIds: number[], enabled: boolean) {
   });
 }
 
+export function useSkipOnboarding() {
+  return useMutation({
+    mutationFn: onboardingApi.skip,
+    onSuccess: (me) => useAuthStore.getState().setUser(me),
+  });
+}
+
 export function useCompleteOnboarding() {
   const qc = useQueryClient();
   return useMutation({

@@ -24,7 +24,8 @@ import { Markdown } from './Markdown';
 export function CommentItem({ node, level }: { node: CommentNode; level: number }) {
   const t = useThread();
   const { user, isAuthed } = useAuth();
-  const [collapsed, setCollapsed] = useState(false);
+  // Comments from people the viewer muted arrive collapsed; they stay one click away (mutes are private).
+  const [collapsed, setCollapsed] = useState(!!node.muted);
   const [replying, setReplying] = useState(false);
   const [editing, setEditing] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -91,6 +92,12 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
               <span aria-hidden="true">•</span>
               <time dateTime={node.createdAt} title={new Date(node.createdAt).toLocaleString()}>{timeAgo(node.createdAt)}</time>
               {node.editedAt && !gone && <span className="text-faint">(edited)</span>}
+              {node.pending && (
+                <span className="rounded-full bg-warning/15 px-1.5 text-[10px] font-bold uppercase text-warning" title="Held by the spam checks. Only you and the moderators can see it until it’s approved.">
+                  Awaiting review
+                </span>
+              )}
+              {node.muted && collapsed && <span className="text-faint">· muted</span>}
               {collapsed && (
                 <button type="button" onClick={() => setCollapsed(false)} aria-expanded={false} className="ml-1 inline-flex items-center gap-1 rounded-full bg-surface-2 px-2 py-0.5 font-semibold text-text hover:bg-surface-3">
                   <Plus size={12} /> {node.replyCount > 0 ? `${node.replyCount} more` : 'Show'}
@@ -171,8 +178,8 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                           ) : (
                             <>
                               <MenuItem icon={<ShieldX />} danger onSelect={() => setRemoving(true)}>Remove (moderator)</MenuItem>
-                              <MenuItem icon={<CheckCircle2 />} onSelect={() => mod.mutate({ verb: 'approve' }, { onSuccess: () => toast.success('Reports dismissed'), onError: (e) => toast.error(errorMessage(e)) })}>
-                                Approve (dismiss reports)
+                              <MenuItem icon={<CheckCircle2 />} onSelect={() => mod.mutate({ verb: 'approve' }, { onSuccess: () => toast.success(node.pending ? 'Approved and published' : 'Reports dismissed'), onError: (e) => toast.error(errorMessage(e)) })}>
+                                {node.pending ? 'Approve and publish' : 'Approve (dismiss reports)'}
                               </MenuItem>
                             </>
                           ))}

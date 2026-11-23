@@ -53,7 +53,7 @@ export function patchPostEverywhere(qc: QueryClient, id: number, patch: PostPatc
   const detail = qc.getQueryData<PostDetail>(qk.post(id));
   if (detail) {
     const next = patch(detail);
-    if (next && next !== detail) qc.setQueryData<PostDetail>(qk.post(id), { ...detail, ...next });
+    if (next && next !== detail) qc.setQueryData<PostDetail>(qk.post(id), { ...detail, ...next, viewer: detail.viewer }); // feed rows carry a narrower viewer
   }
 }
 

@@ -32,11 +32,16 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Direct messages: get-or-create 1:1 conversations, text + up to 4 own images, history paging, unread counts, read receipts ("Seen"), typing, presence, soft delete, search, `dmPolicy` (everyone / people I follow / nobody, reply always allowed), blocks in both directions | ✅ | ✅ | DirectMessagesIT (4), RealtimeIT, browser: two users chatting live (message, unread badge, reply, "Seen" and incoming reply without reload) |
 | Real-time channel: STOMP over WebSocket at `/ws`, token checked on CONNECT, permission-checked SUBSCRIBE, events sent after commit; live Pulse and mod-queue refresh | ✅ | ✅ auto-reconnect with backoff | RealtimeIT (live delivery, typing, bad token rejected, foreign mod queue refused) |
 | Live feeds and threads: "N new posts" pill on home and community feeds (never auto-inserts), new comments inserted live on post pages, post and comment scores batched every ~2 s; private communities only on members' topics | ✅ | ✅ | RealtimeIT (new post/comment/score delivery, private isolation), live/logic.test.ts, tree.test.ts, browser: pill appeared and loaded a post made by another user; open post page showed a new comment (highlighted) and score 0→2 without reload |
+| Admin dashboard: overview with real counts and a 14-day sign-up chart, user search/detail, suspend/unsuspend with reason (sessions revoked, live tokens cut on the next request), promote/demote (never yourself), community quarantine/ban/restore with banner and moderator notification, site-wide spam flags and reports, append-only audit log; demo admin `admin_demo` | ✅ | ✅ | AdminIT (3), helpers.test.ts |
+| Mute (private): users (feeds, collapsed comments, no notifications) and communities (home feeds); Settings → Muted | ✅ | ✅ | TrustAndSafetyIT, mutes.test.ts |
+| Spam heuristics at write time (link velocity, duplicates across communities, new-account bursts, excessive mentions): hold for review or reject, flags in the mod queue ("Held" tab) and admin Flags; approve releases with deferred notifications; thresholds in `strata.spam.*` | ✅ | ✅ | TrustAndSafetyIT (each heuristic, hold/approve/remove), SpamSignalsTest |
+| Feed rows carry `viewer.canModerate` (one batched query per page); mod actions in feed card menus | ✅ | ✅ | TrustAndSafetyIT |
+| Onboarding skip persists | ✅ | ✅ | TrustAndSafetyIT |
 | Smart Collections: private by default, notes, tags, search, type filter, move, reorder (drag + arrows), share link / revoke, shared view | ✅ | ✅ | KnowledgeLayerIT, tags.test.ts, browser |
 
 ## Tests (latest run)
-- Backend `./mvnw test`: **48 passed, 0 failed** (ApiSecurityIT 6, CommunityAiIT 4, DirectMessagesIT 4, KnowledgeLayerIT 4, ModerationAndPulseIT 4, PodcastIT 3, RealtimeIT 5, TranscriptParserTest 5, ScoreMathTest 6, TextSafetyTest 3, TextSignalsTest 3, VoteConcurrencyIT 1).
-- Frontend `npx vitest run`: **84 passed** across 12 files; `npm run build` passes with zero type errors.
+- Backend `./mvnw test`: **64 passed, 0 failed** (AdminIT 3, ApiSecurityIT 6, CommunityAiIT 4, DirectMessagesIT 4, KnowledgeLayerIT 4, ModerationAndPulseIT 4, PodcastIT 3, RealtimeIT 5, SpamSignalsTest 3, TranscriptParserTest 5, TrustAndSafetyIT 10, ScoreMathTest 6, TextSafetyTest 3, TextSignalsTest 3, VoteConcurrencyIT 1).
+- Frontend `npx vitest run`: **94 passed** across 14 files; `npm run build` passes with zero type errors.
 - API smoke script (47 checks across auth, communities, posts, polls, votes, comments, feeds, search,
   notifications, permissions): **47/47 after fixing the Rising-feed SQL bug it found**.
 
@@ -44,14 +49,15 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - `docker compose up` and the Dockerfiles were **not executed**: Docker isn't installed on the dev machine.
   CI builds the images.
 - Pinning and locking posts exist in the schema, but they have no endpoints yet (Phase 3 moderation).
-- Skipping onboarding doesn't persist, so the user is offered it again on the next login.
 - No Playwright suite yet (Phase 10). No ESLint (the frontend `lint` script is a type-check only).
 - Email delivery is log-mode unless SMTP is configured.
 - Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
-- Not built yet: admin dashboard, mute, spam heuristics and topic reputation (rest of Phase 3), and Phases 7–9 (files, funding, leaderboard). Podcast audio/video generation (TTS) isn't configured, and the S3 storage driver is still pending.
+- Not built yet: topic reputation (rest of Phase 3), and Phases 7–9 (files, funding, leaderboard). Podcast audio/video generation (TTS) isn't configured, and the S3 storage driver is still pending.
 - Real-time broker and presence are in-memory, per instance (D-017): fine for one backend node, not for several.
 - DM images use the same unguessable-but-public media URLs as post images (see D-016); messages are not end-to-end encrypted.
-- Mod tools on individual posts and comments appear on the post page only. Feed rows don't carry moderator rights, so feeds don't show them; the mod queue covers them. The UI lists them under "Coming next" and routes them to one
-  informational page, with no non-functional controls.
+- Spam heuristics are rate and repetition rules only (no content judgement): see D-021 for what they don't catch. A
+  suspended user's open WebSocket isn't closed until it reconnects (REST calls fail at once). The account-status cache is
+  per node (up to 30 s delay across several nodes).
+- Admin dashboard, mutes and holds were verified by integration tests and builds only; not exercised in a browser.

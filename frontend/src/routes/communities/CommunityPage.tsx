@@ -1,4 +1,5 @@
-import { Ban, Clock, Flame, Lock, Plus, Settings, ShieldCheck, Sparkles, TrendingUp, Trophy, UsersRound } from 'lucide-react';
+import { Ban, Clock, Flame, Lock, Plus, Settings, ShieldAlert, ShieldCheck, Sparkles, TrendingUp, Trophy, UsersRound } from 'lucide-react';
+import { MuteCommunityButton } from '@/features/mutes/components/MuteControls';
 import { useEffect } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { buttonClasses } from '@/components/ui/Button';
@@ -71,6 +72,7 @@ function Header({ c }: { c: CommunityDetail }) {
             </Link>
           )}
           {!c.viewer.banned && (isAuthed || !c.viewer.isMember) && <JoinButton slug={c.slug} isMember={c.viewer.isMember} isOwner={c.viewer.role === 'OWNER'} size="md" />}
+          {isAuthed && c.viewer.canView && <MuteCommunityButton slug={c.slug} />}
           {c.viewer.canModerate && <ModToolsLink slug={c.slug} />}
           {c.viewer.canModerate && (
             <Link to={`/c/${c.slug}/settings`} className={buttonClasses('secondary', 'md', 'w-10 px-0')} aria-label="Community settings" title="Community settings">
@@ -79,6 +81,24 @@ function Header({ c }: { c: CommunityDetail }) {
           )}
         </div>
       </div>
+      {c.status === 'QUARANTINED' && (
+        <div role="status" className="mx-3 mt-3 flex items-start gap-2 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm sm:mx-0">
+          <ShieldAlert size={16} className="mt-0.5 shrink-0 text-warning" />
+          <span>
+            This community is quarantined by the site admins{c.statusReason ? `: “${c.statusReason}”` : ''}. It doesn’t appear in Popular,
+            All, trending or site search.
+          </span>
+        </div>
+      )}
+      {c.status === 'BANNED' && (
+        <div role="status" className="mx-3 mt-3 flex items-start gap-2 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm sm:mx-0">
+          <Ban size={16} className="mt-0.5 shrink-0 text-danger" />
+          <span>
+            This community was banned by the site admins{c.statusReason ? `: “${c.statusReason}”` : ''}.
+            {c.viewer.canView ? ' You can see it because you are an admin.' : ' Its posts are no longer available.'}
+          </span>
+        </div>
+      )}
       {c.viewer.banned && (
         <div role="status" className="mx-3 mt-3 flex items-center gap-2 rounded-xl border border-danger/40 bg-danger/10 px-4 py-3 text-sm sm:mx-0">
           <Ban size={16} className="shrink-0 text-danger" />
@@ -202,7 +222,11 @@ export default function CommunityPage() {
       <Header c={c} />
       {!c.viewer.canView ? (
         <Card className="mx-4 sm:mx-0">
-          <EmptyState icon={Lock} title="This community is private" description="Only members can see its posts. Request access by joining if the moderators allow it." />
+          {c.status === 'BANNED' ? (
+            <EmptyState icon={Ban} title="This community has been banned" description="Its posts and discussions are no longer available." />
+          ) : (
+            <EmptyState icon={Lock} title="This community is private" description="Only members can see its posts. Request access by joining if the moderators allow it." />
+          )}
         </Card>
       ) : (
         <>

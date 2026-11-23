@@ -1,3 +1,4 @@
+import { toast } from '@/components/ui/Toast';
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
 import { mk, qk } from '@/services/queryKeys';
 import type { CommentNode, CommentSort, CursorPage, PostDetail, VoteValue } from '@/types/api';
@@ -43,7 +44,9 @@ export function useCreateComment(postId: number) {
       commentsApi.create(postId, body, parentId),
     onSuccess: (c) => {
       patchForests(qc, postId, (nodes, i) => (c.parentId == null ? (i === 0 ? insertReply(nodes, c) : nodes) : insertReply(nodes, c)));
-      qc.setQueryData<PostDetail>(qk.post(postId), (p) => (p ? { ...p, commentCount: p.commentCount + 1 } : p));
+      // A comment held by the spam checks isn't counted until a moderator approves it (D-021).
+      if (!c.pending) qc.setQueryData<PostDetail>(qk.post(postId), (p) => (p ? { ...p, commentCount: p.commentCount + 1 } : p));
+      else toast.info('Your comment is waiting for a moderator to review it. Only you and the moderators can see it for now.');
     },
   });
 }

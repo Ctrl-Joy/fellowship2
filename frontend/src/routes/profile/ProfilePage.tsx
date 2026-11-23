@@ -1,5 +1,6 @@
 import { CalendarDays, MessageSquare, Settings, UserX } from 'lucide-react';
 import { BlockButton } from '@/features/moderation/components/BlockControls';
+import { MuteUserButton } from '@/features/mutes/components/MuteControls';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { Button, buttonClasses } from '@/components/ui/Button';
 import { Avatar, Badge, Card, CardHeader, Skeleton } from '@/components/ui/Display';
@@ -39,6 +40,7 @@ function Header({ p }: { p: PublicProfile }) {
           <Link to="/settings" className={buttonClasses('outline', 'sm')}><Settings size={15} /> Edit profile</Link>
         ) : isAuthed ? (
           <div className="flex items-center gap-2">
+          <MuteUserButton username={p.username} />
           <BlockButton username={p.username} isBlocked={!!p.isBlocked} />
           {p.canMessage && <MessageButton username={p.username} />}
           <Button

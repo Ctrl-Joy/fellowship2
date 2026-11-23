@@ -65,6 +65,7 @@ export const router = createBrowserRouter([
       { path: '/messages', element: authed(page(() => import('@/routes/messages/MessagesPage'))) },
       { path: '/messages/:id', element: authed(page(() => import('@/routes/messages/MessagesPage'))) },
       { path: '/notifications', element: authed(page(() => import('@/routes/notifications/NotificationsPage'))) },
+      { path: '/admin', element: authed(page(() => import('@/routes/admin/AdminPage'))) },
       { path: '/soon/messages', element: <Navigate to="/messages" replace /> },
       { path: '/soon/:feature', element: page(() => import('@/routes/static/ComingSoonPage')) },
       { path: '*', element: page(() => import('@/routes/static/NotFoundPage')) },

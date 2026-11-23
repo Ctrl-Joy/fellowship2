@@ -40,6 +40,7 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 |---|---|
 | V1 | core schema (identity, communities, posts, comments, votes, media, polls, notifications) |
 | V2 | reference topics |
+| V10 | admin, mutes, spam: `communities.status`/`status_reason`, `users.suspended_reason`/`suspended_at`, `posts`/`comments` `pending` + `link_count`, `posts.content_hash`/`link_hash`, `spam_flags`, `user_mutes`, `community_mutes`, append-only `admin_actions` (trigger) |
 
 Future phases add tables (reports, moderation_actions, collections, pulses, digests, ai_*, podcasts, files,
 funding_*) as new migrations — never by editing applied ones.

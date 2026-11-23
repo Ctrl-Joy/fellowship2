@@ -80,7 +80,11 @@ export interface CommunityDetail extends CommunitySummary {
     banned?: boolean;
     bannedUntil?: string | null;
   };
+  /** Set by platform admins (D-021). */
+  status?: CommunityStatus;
+  statusReason?: string | null;
 }
+export type CommunityStatus = 'ACTIVE' | 'QUARANTINED' | 'BANNED';
 export interface CommunityMember {
   user: UserSummary;
   role: CommunityRole;
@@ -132,6 +136,10 @@ export interface PostSummary {
   removed: boolean;
   createdAt: string;
   editedAt: string | null;
+  /** Held for review by the spam heuristics; only the author and moderators ever receive it (D-021). */
+  pending?: boolean;
+  /** Per-viewer rights on feed rows (one batched query per page). */
+  viewer?: { canModerate: boolean } | null;
 }
 export interface PostDetail extends PostSummary {
   bodyHtml: string;
@@ -162,6 +170,10 @@ export interface CommentNode {
   moreReplies: number;
   /** Author is blocked by the viewer; body is hidden server-side. */
   blocked?: boolean;
+  /** Held for review; only the author and moderators receive it. */
+  pending?: boolean;
+  /** Author is muted by the viewer: shown collapsed, still expandable. */
+  muted?: boolean;
 }
 export interface UserComment {
   comment: CommentNode;
