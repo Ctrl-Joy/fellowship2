@@ -76,3 +76,30 @@ Pagination/“Load more” sentinel.
 ## States
 Every data view implements: skeleton loading, empty state (icon + one sentence + an action), error state
 (message + retry), and success toasts for mutations.
+
+## Landing page (Howlers)
+The public landing page (`frontend/src/routes/landing/`) is the product's front door and has its own art direction.
+It is the one place where the "no gradients behind content" and "page titles ≤ 30px" rules don't apply.
+
+- **Always dark, by design.** It's a night-sky scene (indigo/violet sky, stars, aurora ribbons, a glowing moon, layered
+  mountains and pines), so it ignores the app's light/dark theme. `PublicLayout` puts the `dark` class on the landing's
+  wrapper, which scopes the dark tokens to that subtree only, and hides the theme toggle there (it would do nothing
+  visible). Every other public page still follows the theme. Contrast was checked against the night background:
+  body copy `#c9c4ee` and meta `#a9a3d6` on `#0d0b26`–`#2a1b63` are ≥ 7:1 and ≥ 5:1; axe reports no serious or critical
+  issues in either app theme at 1280 px and 375 px.
+- **Type.** Display headings use **Unbounded 800** (self-hosted via `@fontsource/unbounded`, latin subset only; the
+  `font-display` Tailwind family), uppercase, tight tracking; the last line of each heading gets the "moon glow"
+  gradient (`#ffe9b0 → #ffc4d8 → #b8a8ff`). Body stays Inter.
+- **Mascots.** Original wolf pups drawn as inline SVG (`Pups.tsx`): one howling at the moon, one with headphones, one
+  waving, one asleep in a nightcap. They're decorative and always `aria-hidden`.
+- **Product mocks** in the hero and the feature rows use the real dark-theme tokens (`#0B0E10`, `#1A1F23`, jade
+  `#2ECC94`, indigo `#7A7DFF`) and real feature names. They are illustrations (the window says so); the marquee under the
+  hero lists real communities from the API, falling back to feature names, never invented communities.
+- **Motion** (`landing.css` + `motion.ts`): easing `--e: cubic-bezier(.22,1,.36,1)`, spring
+  `cubic-bezier(.34,1.56,.64,1)`; an intro (masked line reveal, staggered fade-ups, art entrance) that starts when the
+  display font is ready; ambient loops (twinkle, bob, blink, wave, hop, howl rings, typing dots, message cycles,
+  floating +1s, marquee); pointer parallax and tilt cards for fine pointers only; scroll reveal via
+  IntersectionObserver. Transforms and opacity only; loops pause off-screen and in hidden tabs; everything is off under
+  `prefers-reduced-motion`, with all content visible and static.
+- **Brand.** The public header and footer use `HowlersMark` (`design-system/HowlersMark.tsx`) and the tagline
+  "Find your pack & howl together". `brand.ts` is renamed separately.

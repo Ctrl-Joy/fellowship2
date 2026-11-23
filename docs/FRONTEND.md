@@ -270,3 +270,12 @@ jar with the seed on, `AI_PROVIDER=offline` and an empty `ANTHROPIC_API_KEY`, se
 `vite preview --port 5174` (same proxy) with `CORS_ALLOWED_ORIGINS=http://localhost:5174`, waits for readiness and runs
 the suite. It references no repository secrets (every value is a throwaway CI-only string), checks out without persisted
 credentials, and uploads the report and traces only when it fails.
+
+## Landing page (Howlers)
+`/` is `routes/landing/LandingPage.tsx`: hero (`HeroArt`, `NightSky`, `Pups`), a marquee of real communities
+(`GET /communities?sort=popular&size=12`, falls back to feature names), six feature rows (`FeatureSections`), safety
+cards, a searchable FAQ (`faq.ts`, `filterFaq`) and a closing CTA (`SafetyFaq.tsx`). Signed-in visitors see "Open your
+feed" instead of "Join the pack"; there's no redirect. Motion helpers live in `motion.ts` (intro sequencer, reveal
+observer, play gate, parallax/tilt maths) with Vitest coverage in `motion.test.ts`; styles and keyframes in
+`landing.css`. The page is always dark (see DESIGN_SYSTEM.md, "Landing page"). E2E: `e2e/10-landing.spec.ts`, and the
+landing stays in the axe audit (`08-accessibility`).

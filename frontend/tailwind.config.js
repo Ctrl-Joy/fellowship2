@@ -28,6 +28,7 @@ export default {
         sans: ['"Inter Variable"', 'Inter', 'system-ui', 'sans-serif'],
         serif: ['"Source Serif 4 Variable"', 'Georgia', 'serif'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        display: ['Unbounded', '"Inter Variable"', '"Arial Black"', 'sans-serif'],
       },
       fontSize: {
         xs: ['12px', '16px'],
