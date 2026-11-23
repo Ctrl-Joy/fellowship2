@@ -1,6 +1,8 @@
 strata:
   ai:
     provider: offline
+  mail:
+    mode: log        # never send real mail from tests, even if backend/.env.local sets MAIL_MODE=brevo
   rate-limit:
     enabled: false
   seed:

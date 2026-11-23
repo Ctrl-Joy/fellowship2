@@ -8,6 +8,7 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Register / login / logout | ✅ | ✅ | ApiSecurityIT, API smoke run, browser |
 | Refresh rotation + reuse detection, Origin check | ✅ | ✅ single-flight refresh | ApiSecurityIT, apiClient tests |
 | Email verification / password reset (log-mode mail) | ✅ | ✅ | API smoke run |
+| Transactional email via Brevo API or SMTP (D-038): after-commit async sending, retries on 429/5xx, HTML + text templates, verify page states (verified / already verified / expired / invalid) with resend, per-address forgot-password limit | ✅ | ✅ | AuthEmailIT (6), BrevoMailTransportTest (12, local stub server), MailDispatcherTest (10), EmailTemplatesTest (6), verifyOutcome.test.ts (3); live send not run (backend/.env.local had no BREVO_API_KEY, MAIL_FROM_ADDRESS or MAIL_TEST_TO); not verified in a browser |
 | Sessions list / revoke | ✅ | ✅ | — |
 | Profile, avatar/banner, settings, privacy, deactivate, delete (anonymise) | ✅ | ✅ | API smoke run |
 | Onboarding (topics → communities → people → theme) | ✅ | ✅ | API smoke run |
@@ -73,7 +74,9 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - Pinning and locking posts exist in the schema, but they have no endpoints yet (Phase 3 moderation).
 - No ESLint (the frontend `lint` script is a type-check only). The Playwright suite exists (D-027); its CI job was
   written but not executed here (no GitHub runner from this machine).
-- Email delivery is log-mode unless SMTP is configured.
+- Email delivery (D-038): `MAIL_MODE=log` (default, links in the backend log), `smtp`, or `brevo` (Brevo's REST API).
+  The Brevo client is tested against a local stub server; whether a live send was run is recorded in the D-038 row
+  above. Brevo click tracking can't be turned off per message through the API (account setting or Enterprise only).
 - Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).

@@ -38,6 +38,12 @@ spring:
     port: ${SMTP_PORT:1025}
     username: ${SMTP_USER:}
     password: ${SMTP_PASSWORD:}
+    properties:
+      # STARTTLS when the server offers it (587, e.g. Brevo's relay smtp-relay.brevo.com); credentials are sent when SMTP_USER is set.
+      mail.smtp.starttls.enable: ${SMTP_STARTTLS:true}
+      mail.smtp.connectiontimeout: 10000
+      mail.smtp.timeout: 10000
+      mail.smtp.writetimeout: 10000
   jackson:
     default-property-inclusion: always
     serialization:
@@ -108,8 +114,17 @@ strata:
     public-url: ${APP_PUBLIC_URL:http://localhost:5173}
     name: Strata
   mail:
+    # log | smtp | brevo (D-038). The from address must be a sender (or domain) verified in the provider account.
     mode: ${MAIL_MODE:log}
-    from: ${MAIL_FROM:no-reply@strata.local}
+    from-address: ${MAIL_FROM_ADDRESS:${MAIL_FROM:no-reply@strata.local}}
+    from-name: ${MAIL_FROM_NAME:Howlers}
+    reply-to: ${MAIL_REPLY_TO:}
+    brevo:
+      api-key: ${BREVO_API_KEY:}
+      base-url: ${BREVO_BASE_URL:https://api.brevo.com}
+      # removeTrackingPixel is an Enterprise-plan option in Brevo; other plans reject or ignore it, so it's opt-in.
+      remove-tracking-pixel: ${BREVO_REMOVE_TRACKING_PIXEL:false}
+      timeout: 10s
   storage:
     # local | s3 (D-023). s3 works with AWS S3 and S3-compatible servers (SeaweedFS in compose); the bucket stays private and every read goes through the API.
     driver: ${STORAGE_DRIVER:local}

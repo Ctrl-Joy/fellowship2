@@ -420,3 +420,47 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   but `/me/mod-actions/{id}` and the appeal response still returned `action.moderator`, and the page printed
   "by u/name". Both now return `moderator: null` to the affected user; moderators still see it in the log and appeals.
 
+
+**D-038 Transactional email through Brevo.**
+- **Three transports, one pipeline.** `MAIL_MODE` picks `log` (dev, prints the plain-text body under `MAIL-DEV`),
+  `smtp` (any relay; Brevo's relay `smtp-relay.brevo.com:587` works with the Brevo SMTP login and SMTP key) or `brevo`
+  (`POST https://api.brevo.com/v3/smtp/email` with the `api-key` header, JDK `HttpClient`, no SDK). An unknown mode,
+  `brevo` without `BREVO_API_KEY`, or a blank sender stops startup with a clear message. Tests pin `log`, so a
+  developer's `backend/.env.local` can never make the suite send mail.
+- **The sender must be verified.** `MAIL_FROM_ADDRESS` (the older `MAIL_FROM` still works) must be a sender verified
+  in the owner's Brevo account, or sit on a domain authenticated there (SPF/DKIM). Brevo answers 400 otherwise; the
+  startup log says this and prints the mode, the sender and "API key configured", never the key.
+- **After commit, off the request thread.** `MailDispatcher` registers an after-commit hook when a transaction is
+  active, so a verification email can't point at a token that was rolled back, and a rolled-back registration sends
+  nothing (`AuthEmailIT`). Delivery runs on a two-thread executor with a bounded queue (1000); there was no shared
+  async executor, and a dedicated one keeps a slow provider from starving anything else. A full queue drops the
+  message with an error log rather than blocking the request; shutdown waits up to 10 s for the queue.
+- **Retries.** 429, 5xx and network errors are retried up to 4 attempts (2 s, 4 s, 8 s; a longer `Retry-After` wins,
+  capped at 30 s). 400/401/403 are logged once as an error naming the likely cause (unverified sender, rejected key or
+  IP restriction) and not retried. Every attempt of a message carries the same `IdempotencyKey` header (Brevo's
+  documented spelling), and a `duplicate_request` answer counts as delivered.
+- **Logging.** Outside `log` mode only the message kind (`verify-email`, `reset-password`), a masked recipient
+  (`a***@example.com`) and Brevo's message id are logged. Bodies, tokens and links never are; Brevo's error text is
+  logged shortened (it describes the request, not the content).
+- **Branding.** Email copy and the default sender name (`MAIL_FROM_NAME`) say "Howlers" with the tagline "Find your
+  pack & howl together" (`EmailTemplates.BRAND`/`TAGLINE`), per the owner's rename; other "Strata" strings and config
+  names are left for the global rename.
+- **Templates.** `EmailTemplates` renders each email as accessible HTML (one inline-styled table, `lang`, real heading,
+  a button and the plain URL as a fallback) plus a plain-text alternative, with the app name, the action link from
+  `APP_PUBLIC_URL`, the expiry, the tagline, and a "didn't request this?" line. Every interpolated value is HTML-escaped, tokens are
+  URL-encoded, and there are no images, remote CSS or pixels. These are the only emails the app sends today:
+  `emailNotifications` is a stored preference with no email producer yet.
+- **Tracking, honestly.** Brevo's API has no per-message switch for click tracking or (except on Enterprise) the open
+  pixel. Each recipient is sent with `contactPixelTrackingConsent: false` (anonymises opens/clicks where the account has
+  per-contact consent enabled), and `BREVO_REMOVE_TRACKING_PIXEL=true` adds `removeTrackingPixel: true` for
+  Enterprise accounts (off by default because other plans don't support it). Click tracking, if enabled on the
+  account, rewrites links through Brevo's redirect; DEPLOYMENT.md says how to check. `MAIL_MODE=smtp` has the same
+  account-level tracking.
+- **Verify page states.** `POST /auth/verify-email` now returns `{status: VERIFIED|ALREADY_VERIFIED}` and errors
+  `LINK_EXPIRED` (expired, or replaced by a newer link) or `LINK_INVALID`. Once an address is verified, any of that
+  user's verify links reports "already verified" rather than an error. The page offers a resend button when signed in.
+- **Rate limits kept and tightened.** Resend stays 3/hour per user; forgot-password stays 5/hour per IP and gains
+  3/hour per address (hashed key), so one inbox can't be flooded from many IPs; verify-email gets 30/hour per IP.
+- **Live check.** `BrevoLiveMailTest` (tagged `live`, skipped unless `-Dstrata.liveMail=true`) reads `BREVO_API_KEY`,
+  `MAIL_FROM_ADDRESS` and `MAIL_TEST_TO` from `backend/.env.local` and sends one verification-style email with a dummy
+  token. The suite itself only talks to a local JDK `HttpServer` stub.

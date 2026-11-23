@@ -62,9 +62,9 @@ CommentNode {
 | POST | `/auth/refresh` | – (cookie) | `AuthResponse` + rotated cookie |
 | POST | `/auth/logout` | – | 204, revokes current session |
 | GET | `/auth/username-available?username=` | – | `{available, reason|null}` |
-| POST | `/auth/verify-email` | `{token}` | 204 |
-| POST | `/auth/resend-verification` | – (auth) | 204 |
-| POST | `/auth/forgot-password` | `{email}` | 204 (always) |
+| POST | `/auth/verify-email` | `{token}` | `{status: "VERIFIED"\|"ALREADY_VERIFIED"}`; 400 `LINK_EXPIRED` (expired or replaced by a newer link) or `LINK_INVALID` |
+| POST | `/auth/resend-verification` | – (auth) | 204; 400 if already verified; 3/hour per user |
+| POST | `/auth/forgot-password` | `{email}` | 204 (always); 5/hour per IP and 3/hour per address |
 | POST | `/auth/reset-password` | `{token, newPassword}` | 204, revokes all sessions |
 | GET | `/auth/sessions` | – | `{id, userAgent, ip, createdAt, lastUsedAt, current}[]` |
 | DELETE | `/auth/sessions/{id}` | – | 204 |
@@ -72,6 +72,10 @@ CommentNode {
 `AuthResponse { accessToken, expiresIn, user: Me }`. Password rules: 8–128 chars, ≥1 letter and ≥1 digit.
 Username: `^[A-Za-z0-9_]{3,21}$`, case-insensitive unique.
 Dev mode: verification/reset emails are written to the backend log (`MAIL-DEV`) instead of sent.
+Email delivery (D-038): `MAIL_MODE=log|smtp|brevo`. Emails go out after the transaction commits, on a background
+thread, so these endpoints never wait for the provider and a failed send never fails the request. Verification links
+last 24 hours, reset links 1 hour; both are `APP_PUBLIC_URL` + `/verify-email?token=` or `/reset-password?token=`.
+`/auth/verify-email` is also limited to 30/hour per IP.
 
 ## Users
 ```ts

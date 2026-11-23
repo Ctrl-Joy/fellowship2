@@ -27,7 +27,11 @@ export default function ResetPasswordPage() {
     );
   }
   return (
-    <AuthCard title="Set a new password" subtitle="You’ll be signed out of all devices.">
+    <AuthCard
+      title="Set a new password"
+      subtitle="You’ll be signed out of all devices."
+      footer={<>Link expired? <Link to="/forgot-password" className="text-accent hover:underline">Request a new one</Link> (links last 1 hour).</>}
+    >
       <form
         noValidate
         className="space-y-4"

@@ -48,7 +48,8 @@ Set `ANTHROPIC_API_KEY` (server-side) to get answers from Claude (`claude-opus-5
 `AI_MODEL` / `AI_EFFORT`). Without it, Community AI still works in offline mode: it returns cited summaries of the
 most relevant discussions and says clearly that they aren't generated answers.
 
-Verification and password-reset emails are printed to the backend log (`MAIL-DEV`) unless `MAIL_MODE=smtp`.
+Verification and password-reset emails are printed to the backend log (`MAIL-DEV`) unless `MAIL_MODE=brevo` (Brevo's
+API) or `MAIL_MODE=smtp` is set; see docs/DEPLOYMENT.md, "Email with Brevo".
 
 ## Test
 ```bash
