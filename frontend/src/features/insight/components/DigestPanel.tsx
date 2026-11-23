@@ -1,4 +1,4 @@
-import { AlertTriangle, ExternalLink, RefreshCw, ScrollText } from 'lucide-react';
+import { AlertTriangle, ExternalLink, Info, RefreshCw, ScrollText, Sparkles } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Display';
@@ -9,6 +9,7 @@ import { ApiError, errorMessage } from '@/services/apiError';
 import type { ArgItem, DigestFocus, DigestLength, DigestLine } from '@/types/knowledge';
 import { cn, timeAgo } from '@/utils/format';
 import { useDigest, useRefreshDigest } from '../api';
+import { coverageNote, digestEngineLabel, lineSources } from '../engine';
 import { kindMeta } from '../stance';
 import { SourceLink } from './SourceLink';
 
@@ -39,11 +40,16 @@ function Lines({ lines, onJump }: { lines: DigestLine[]; onJump: (id: number) =>
   return (
     <ul className="space-y-2.5">
       {lines.map((l, i) => (
-        <li key={`${l.commentId}-${i}`} className="border-l-2 border-brand/40 pl-3">
-          <p className="text-[15px] leading-relaxed">“{l.text}”</p>
-          <div className="mt-1 flex items-center gap-3">
-            <span className={cn('text-[11px] font-semibold uppercase tracking-wide', kindMeta[l.kind].tone)}>{kindMeta[l.kind].label}</span>
-            <SourceLink commentId={l.commentId} author={l.author} onJump={onJump} />
+        <li key={`${l.commentId}-${i}`} className={cn('border-l-2 pl-3', l.paraphrase ? 'border-border' : 'border-brand/40')}>
+          {/* Verbatim lines get quotation marks; paraphrased (AI) points don't, so wording is never misattributed. */}
+          <p className="text-[15px] leading-relaxed">{l.paraphrase ? l.text : `“${l.text}”`}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className={cn('text-[11px] font-semibold uppercase tracking-wide', (kindMeta[l.kind] ?? kindMeta.STATEMENT).tone)}>
+              {(kindMeta[l.kind] ?? kindMeta.STATEMENT).label}
+            </span>
+            {lineSources(l).map((id, j) => (
+              <SourceLink key={id} commentId={id} author={j === 0 ? l.author : null} onJump={onJump} />
+            ))}
           </div>
         </li>
       ))}
@@ -82,6 +88,8 @@ export function DigestPanel({ postId, commentCount, onJump }: { postId: number; 
   }
 
   const d = q.data;
+  const engine = digestEngineLabel(d?.engine ?? '');
+  const coverage = d ? coverageNote(d) : null;
   const consensusTone = d?.sections.consensus.status === 'CONSENSUS' ? 'border-accent/40 bg-accent/10' : d?.sections.consensus.status === 'DIVIDED' ? 'border-warning/40 bg-warning/10' : 'border-border bg-surface-2/60';
 
   return (
@@ -110,9 +118,27 @@ export function DigestPanel({ postId, commentCount, onJump }: { postId: number; 
 
       {d && (
         <div className="mt-4 space-y-6">
-          <p className="text-xs text-muted">
-            Generated {timeAgo(d.generatedAt)} from {d.commentCountAtGeneration} comments · {d.engineNote}
-          </p>
+          <div className="space-y-1.5">
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold',
+                engine.ai ? 'bg-brand/15 text-brand' : 'bg-surface-2 text-muted',
+              )}
+            >
+              {engine.ai ? <Sparkles size={11} aria-hidden="true" /> : <ScrollText size={11} aria-hidden="true" />}
+              {engine.label}
+            </span>
+            <p className="text-xs text-muted">
+              Generated {timeAgo(d.generatedAt)} from {d.commentCountAtGeneration} comments · {d.engineNote}
+              {coverage && <> · {coverage}</>}
+            </p>
+          </div>
+          {d.notice && (
+            <div role="status" className="flex items-start gap-2 rounded-xl border border-info/40 bg-info/10 px-3 py-2 text-sm">
+              <Info size={16} className="mt-0.5 shrink-0 text-info" />
+              <span>{d.notice}</span>
+            </div>
+          )}
           {d.stale && (
             <div className="flex flex-wrap items-center gap-3 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm">
               <AlertTriangle size={16} className="text-warning" />
@@ -129,7 +155,7 @@ export function DigestPanel({ postId, commentCount, onJump }: { postId: number; 
           <Section title="Summary" empty={!d.sections.summary.length}>
             <Lines lines={d.sections.summary} onJump={onJump} />
           </Section>
-          <Section title="Key takeaways" empty={!d.sections.takeaways.length}>
+          <Section title={engine.ai ? 'In their own words' : 'Key takeaways'} empty={!d.sections.takeaways.length}>
             <Lines lines={d.sections.takeaways} onJump={onJump} />
           </Section>
           <div className="grid gap-6 md:grid-cols-2">
@@ -147,7 +173,8 @@ export function DigestPanel({ postId, commentCount, onJump }: { postId: number; 
             <p className="text-xs text-muted">Shown because they're the less common view, not because they're right or wrong.</p>
             <Items items={d.sections.minority} onJump={onJump} />
           </Section>
-          <Section title="Unresolved questions" empty={!d.sections.unresolved.length}>
+          <Section title="Unresolved questions" empty={!d.sections.unresolved.length && !d.sections.openQuestions?.length}>
+            {!!d.sections.openQuestions?.length && <Lines lines={d.sections.openQuestions} onJump={onJump} />}
             <Items items={d.sections.unresolved} onJump={onJump} />
           </Section>
           <Section title="Links & resources" empty={!d.sections.links.length}>

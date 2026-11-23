@@ -26,6 +26,7 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Familiar layout: card/compact views, sort menu, pill actions, collapsible nav (Recent/Communities), recent-posts rail, community banner, avatar thread lines, OP badge | — | ✅ | browser (desktop + 375px) |
 | Context Mode: stance groups, evidence, open questions, agreement/disagreement, discussion map, reader relabelling | ✅ | ✅ | KnowledgeLayerIT, TextSignalsTest, browser |
 | Thread Digest: 3 lengths × 5 focuses, attributed quotes, fact/opinion/anecdote/speculation tags, honest consensus, cache + staleness + refresh | ✅ | ✅ | KnowledgeLayerIT, browser |
+| LLM digest + AI stance suggestions: validated citations/quotes, token budget + coverage, extractive fallback with notice, per-user limits, token usage log | ✅ | ✅ | InsightLlmIT, DigestValidatorTest, LlmDigestEngineTest, CommentSelectorTest, StanceValidationTest, engine.test.ts, one live run |
 | Community AI: chat with history, community/thread/date scope, permission-filtered retrieval, numbered citations validated server-side, source cards, follow-ups, copy, feedback; Claude via official SDK or offline fallback | ✅ | ✅ | CommunityAiIT, citations.test.ts, browser (offline mode and live Claude `claude-opus-5-5`: ~7–9 s per answer, ~0.8–1.5k input / ~0.5k output tokens, all citations valid) |
 | Moderation: reports (dedup per reporter), grouped mod queue, remove/approve/lock/pin (≤3 pins), bans with expiry and rank rules, appeals that reverse actions, append-only audit log, mod stats, affected-user page, user blocking | ✅ | ✅ | ModerationAndPulseIT, live API smoke (23 checks), browser |
 | Community Pulse: polls, predictions, opinion and debate prompts; results hidden until you vote; change-vote option; anonymous reasoning; close, resolve with accuracy, history; home and community rails | ✅ | ✅ | ModerationAndPulseIT, live API smoke, browser |
@@ -77,8 +78,10 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - Email delivery (D-038): `MAIL_MODE=log` (default, links in the backend log), `smtp`, or `brevo` (Brevo's REST API).
   The Brevo client is tested against a local stub server; whether a live send was run is recorded in the D-038 row
   above. Brevo click tracking can't be turned off per message through the API (account setting or Enterprise only).
-- Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
-  On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
+- Digest and Context Mode use the configured LLM when `ANTHROPIC_API_KEY` is set (D-031 to D-033): cited, validated digests
+  and AI-suggested stances for unlabelled comments, with the extractive engine and rule-based stances as the stated
+  fallback. Without a key (and in tests) they stay offline, and on the seeded threads most comments are then "neutral"
+  until readers label them. Verified with a fake model in tests and one manual live run; not checked in a browser.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
 - Not built yet: real payment provider for moderator funding (demo-only by design, D-022) and podcast video generation.
 - Podcast audio generation (ElevenLabs TTS, D-036/D-037) is built and runs only when `ELEVENLABS_API_KEY` is set; the suite uses a

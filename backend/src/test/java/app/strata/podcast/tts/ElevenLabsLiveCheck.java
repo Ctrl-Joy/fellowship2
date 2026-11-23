@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Live check against the real ElevenLabs API: one short sentence per host (under 200 characters in total).
  * Excluded from the normal suite (tag {@code live}, and the class name matches neither *Test nor *IT). Run it with:
- * <pre>./mvnw.cmd test -Dlive.excluded=none -Dtest=ElevenLabsLiveCheck -Dsurefire.failIfNoSpecifiedTests=false</pre>
+ * <pre>./mvnw.cmd test -Dsurefire.excludedGroups=none -Dtest=ElevenLabsLiveCheck -Dsurefire.failIfNoSpecifiedTests=false</pre>
  * The key comes from {@code ELEVENLABS_API_KEY} in the environment or in {@code backend/.env.local}
  * (or the file named by {@code -Dtts.envFile=...}). The key is never printed.
  */
