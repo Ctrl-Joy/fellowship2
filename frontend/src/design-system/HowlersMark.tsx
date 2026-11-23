@@ -82,8 +82,9 @@ export function HowlersEmblem({ size = 120 }: { size?: number }) {
         <Gradient id={`${id}-t`} y1={126} y2={146} />
       </defs>
       <Wolf gradientId={id} />
-      <text x="50" y="144" textAnchor="middle" fontFamily="Unbounded, 'Arial Black', Arial, sans-serif" fontWeight="800"
-            fontSize="15" letterSpacing="1.5" fill={`url(#${id}-t)`}>
+      {/* textLength pins the lettering to the drawing's width, so wide display fonts can never clip it. */}
+      <text x="50" y="143" textAnchor="middle" textLength="88" lengthAdjust="spacingAndGlyphs"
+            fontFamily="Unbounded, 'Arial Black', Arial, sans-serif" fontWeight="800" fontSize="14" fill={`url(#${id}-t)`}>
         HOWLERS
       </text>
     </svg>
