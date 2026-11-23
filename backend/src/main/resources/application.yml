@@ -101,6 +101,12 @@ strata:
     local-dir: ${STORAGE_LOCAL_DIR:./data/uploads}
     max-image-bytes: 10485760
     max-media-mb: ${MAX_MEDIA_MB:500}
+  files:
+    # Private files (Phase 7). Keep max-file-mb below spring.servlet.multipart.max-file-size.
+    max-file-mb: ${MAX_FILE_MB:500}
+    quota-mb: ${FILE_QUOTA_MB:1024}
+    # Salt for hashing visitor IPs in share access logs. Blank = random per start (hashes not linkable across restarts).
+    visitor-salt: ${FILE_VISITOR_SALT:}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
   seed:

@@ -47,6 +47,8 @@ public class MediaController {
     public ResponseEntity<Resource> file(HttpServletRequest req) {
         String path = req.getRequestURI().substring(req.getContextPath().length());
         String key = path.substring("/api/v1/files/".length());
+        // Private files (Phase 7) are never served here; they go through ownership checks or share links.
+        if (key.startsWith("private/")) return ResponseEntity.notFound().build();
         return storage.resource(key)
                 .map(r -> ResponseEntity.ok()
                         .contentType(MediaType.parseMediaType(StorageService.contentTypeFor(key)))

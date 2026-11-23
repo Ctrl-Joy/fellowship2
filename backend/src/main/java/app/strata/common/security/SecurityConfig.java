@@ -60,6 +60,8 @@ public class SecurityConfig {
                         // Payment provider webhooks authenticate with a signed body (FundingService.webhook), not a JWT.
                         .requestMatchers(HttpMethod.POST, "/api/v1/funding/webhooks/*").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
+                        // Public share links: the password check happens in ShareService (rate-limited, logged).
+                        .requestMatchers(HttpMethod.POST, "/api/v1/share/*/unlock").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())

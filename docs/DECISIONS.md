@@ -170,3 +170,51 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
     legal review for each country.
 
   The demo labels stay until that review signs off.
+**D-019 Private files: owner-only by default, links are the only way out, and E2EE is a separate, honest mode.**
+- **Storage and access.** Files stream to `StorageService` under a `private/` prefix with random keys. The public media
+  endpoint refuses that prefix, so a private file has no public URL, guessable or not. Reads go through an ownership
+  check (Bearer), a share link, or a signed grant. Browsers can't add a Bearer header to a plain navigation, so after
+  the check the API issues 5-minute HMAC-signed `/downloads/{grant}` URLs. Grants carry no authority of their own: the
+  link's state (revoked, expired, limit, file deleted) is re-checked on every use. Every response is an attachment with
+  nosniff and a sandboxing CSP, so HTML or SVG never renders on our origin. Range works for owners and unlimited links.
+  Download-limited links ignore Range, because otherwise partial requests could dodge the count.
+- **Validation ("scanning") is structural and named honestly.** `FileScanner` returns CLEAN, REJECTED or UNSCANNED. The
+  default checks magic bytes against the extension and rejects renamed files. It blocks executables, installers,
+  scripts and macro-enabled Office formats by extension and by content (MZ, ELF, Mach-O, shebang, dex). It also reads
+  zip central directories for executables, entry counts and expansion ratios (a bomb heuristic based on declared sizes).
+  It is not antivirus, and the UI says "Checked: passed type and structure checks (not an antivirus scan)". A ClamAV
+  implementation can plug in behind the interface. Legacy `.doc/.xls` (OLE) files may contain macros and are allowed;
+  that's a documented gap.
+- **Quota.** The per-user quota and per-file limit come from config (`strata.files.*`). The check and the insert run
+  under a per-user advisory lock, so parallel uploads can't overshoot. Deleted files stop counting immediately. Bytes are
+  removed after commit, and also when a failed upload rolls back.
+- **Share links.** Tokens are 192-bit random values stored only as SHA-256, so the owner sees the full link once. Links
+  can have an expiry, a bcrypt password (the app's `PasswordEncoder`), a maximum download count enforced by an atomic
+  conditional `UPDATE` (concurrent downloads can't exceed it), and can be revoked. Wrong passwords are throttled per
+  visitor (5 per 15 min) and per link (50 per hour), counted from the access log so the limit holds across instances,
+  on top of the Redis rate limiter. Someone could use the lockout to block a legitimate recipient for 15 minutes. We
+  accept that in exchange for stopping guessing.
+- **Access log without IPs.** Each row records the time, the event and a coarse viewer: the signed-in user, or
+  "anonymous" plus `visitor`, the first 12 hex characters of HMAC-SHA256(salt, UTC date + IP). The salt stays on the
+  server (`FILE_VISITOR_SALT`, random per start if unset). Owners can tell repeat attempts apart within a day, but they
+  can't identify anyone or follow them across days. Failed attempts are logged too, which is why the public share
+  methods aren't transactional.
+- **E2EE files.** The threat model is in `docs/SECURITY_E2EE.md` and in the app at `/security/e2ee`. Encryption uses
+  WebCrypto AES-256-GCM with a random key per file. Files are split into 1 MiB chunks, each with its own IV and tag; the
+  AAD binds the header, a per-file nonce, the chunk index and a last-chunk flag. Name and type are encrypted too. The
+  key travels either in the URL fragment or wrapped with PBKDF2-SHA256 (600k iterations, random salt; the server
+  enforces at least 600k). The server stores ciphertext marked UNSCANNED and never sees keys, names or plaintext. We
+  state plainly that a malicious server could ship modified JavaScript, that metadata is visible, and that whoever has
+  the full link can decrypt. The owner's key is shown once as a recovery key and can optionally be remembered in this
+  browser's localStorage. It is never uploaded.
+- **DM image gap (documented, not fixed here).** Post images stay public by design. DM attachments still use the same
+  unguessable-but-public `/files/media/...` URLs as post images. The fix isn't contained:
+  - DM images are uploaded through the shared `POST /media` before they're attached, and the same asset could later be
+    used in a post.
+  - `<img>` tags can't send the in-memory Bearer token.
+  - Existing messages already embed public URLs.
+
+  A proper fix needs a DM-scoped upload type under `private/`, a participant-checked endpoint (or short-lived grants as
+  above), a grant- or blob-based image component in the thread, and a migration for existing attachments. Until then
+  these URLs can't be guessed, but anyone who gets hold of one can view the image. Messages are not E2EE, and the UI
+  doesn't claim they are.

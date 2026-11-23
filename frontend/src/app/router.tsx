@@ -32,6 +32,8 @@ export const router = createBrowserRouter([
       { path: '/terms', element: page(() => import('@/routes/static/TermsPage')) },
       { path: '/privacy', element: page(() => import('@/routes/static/PrivacyPage')) },
       { path: '/onboarding', element: authed(page(() => import('@/routes/onboarding/OnboardingPage'))) },
+      { path: '/s/:token', element: page(() => import('@/routes/files/SharePage')) },
+      { path: '/security/e2ee', element: page(() => import('@/routes/static/E2eeSecurityPage')) },
     ],
   },
   {
@@ -65,6 +67,7 @@ export const router = createBrowserRouter([
       { path: '/messages', element: authed(page(() => import('@/routes/messages/MessagesPage'))) },
       { path: '/messages/:id', element: authed(page(() => import('@/routes/messages/MessagesPage'))) },
       { path: '/notifications', element: authed(page(() => import('@/routes/notifications/NotificationsPage'))) },
+      { path: '/files', element: authed(page(() => import('@/routes/files/FilesPage'))) },
       { path: '/soon/messages', element: <Navigate to="/messages" replace /> },
       { path: '/funding', element: authed(page(() => import('@/routes/funding/FundingPage'))) },
       { path: '/funding/pools/:id', element: page(() => import('@/routes/funding/PoolReportPage')) },

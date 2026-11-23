@@ -17,7 +17,7 @@ import org.springframework.stereotype.Service;
 @Service
 public class LocalStorageService implements StorageService {
     /** Keys are generated server-side; this guards against traversal if one is ever user-influenced. */
-    private static final Pattern SAFE_KEY = Pattern.compile("^[a-z]+/[A-Za-z0-9_-]{8,64}\\.(png|jpg|webp|gif|mp3|m4a|ogg|wav|mp4|webm)$");
+    private static final Pattern SAFE_KEY = Pattern.compile("^[a-z]+/[A-Za-z0-9_-]{8,64}\\.(png|jpg|webp|gif|mp3|m4a|ogg|wav|mp4|webm|bin)$");
     private final Path root;
 
     public LocalStorageService(AppProperties props) throws IOException {

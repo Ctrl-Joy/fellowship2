@@ -10,6 +10,9 @@ strata:
   funding:
     # Tests drive the recurring-charge and close jobs directly, with explicit timestamps.
     jobs-enabled: false
+  files:
+    max-file-mb: 2
+    quota-mb: 4
 management:
   health:
     redis:

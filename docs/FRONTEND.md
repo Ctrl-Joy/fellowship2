@@ -165,3 +165,19 @@ colours, `role="note"`), and every amount is rendered through `MoneyAmount`, whi
 - `/soon/funding` redirects to `/funding`, and the "Coming next" nav entry has been replaced by the real route.
 - Pure logic lives in `features/funding/money.ts` (format/parse minor units with integer maths only, bounds, presets, progress) and is
   tested in `money.test.ts`.
+## Files & share links
+| Route | What it does | Endpoints |
+|---|---|---|
+| `/files` (nav "Files", signed in) | Usage meter against the quota. A drag-and-drop or picker upload zone with per-file XHR progress and cancel; uploads run one after another. An "Encrypt in browser" switch with an explanation, an optional label visible to the server, and "Remember the key in this browser". The library has name search, infinite scroll, a type, size and date per row, a "Checked" badge (tooltip says it isn't antivirus) or "E2EE · not scanned", active link count, Download, Share, Links and access log, Rename and Delete (confirmed) | `/me/files`, `/me/files/usage`, `POST /me/files` (XHR), `PATCH/DELETE /me/files/{id}`, `POST …/download-url`, `GET …/content` |
+| Share dialog | Expiry presets (1 h to 30 d, or never), access password, download limit. For E2EE files it also asks where the key goes: in the link (`#k=`) or a passphrase (with confirmation, at least 10 characters). It first checks the key against the file's encrypted metadata, fetched with a Range request. The full link appears once with Copy. After an encrypted upload it also shows the recovery key | `POST /me/files/{id}/links`, `GET …/content` (Range) |
+| Links dialog | Each link with status (active, expired, turned off, limit reached), password and key-mode badges, downloads, last activity and "Turn off". Each link's access log is expandable and paged: signed-in viewers by name, anonymous visitors as a short daily hash | `GET /me/files/{id}/links`, `DELETE …/links/{linkId}`, `GET …/links/{linkId}/access` |
+| `/s/:token` (public layout, works signed out) | Name, size, type, expiry, downloads left, and an honest scan note. Asks for the password and, for E2EE, the passphrase, or reads `#k=` from the fragment; a link without its key gets a clear message. Plain files download through the signed URL. E2EE files are fetched as ciphertext with progress, decrypted in the browser and saved under their original name. A wrong passphrase is caught before any counted download. Expired, revoked or exhausted links show the server's reason | `GET /share/{token}`, `POST /share/{token}/unlock`, `GET /downloads/{grant}` |
+| `/security/e2ee` | The threat model in plain language (mirrors `docs/SECURITY_E2EE.md`), linked from every E2EE explanation | — |
+
+- **Crypto** (`features/files/crypto.ts`): WebCrypto AES-256-GCM, a chunked container (`STRATAE2` v1, 1 MiB chunks,
+  per-chunk IV and tag, header, index and last flag in the AAD, encrypted name and type), raw key export as base64url for
+  the fragment, PBKDF2-SHA256 at 600k iterations to wrap keys. Tested in `crypto.test.ts` under Vitest's Node environment
+  (round trip, wrong key, tampering, truncation, reordering, wrong passphrase).
+- **Key memory** (`features/files/keyStore.ts`): optional per-device localStorage map from file id to key. Every access
+  is wrapped in try/catch and never uploaded.
+- Pure helpers (`features/files/helpers.ts`: sizes, expiry presets, share URLs, labels, passphrase rules) are covered by `helpers.test.ts`.
