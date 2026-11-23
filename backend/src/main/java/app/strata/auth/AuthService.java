@@ -5,6 +5,7 @@ import app.strata.auth.dto.AuthDtos.IssuedSession;
 import app.strata.auth.dto.AuthDtos.RegisterRequest;
 import app.strata.auth.dto.AuthDtos.SessionDto;
 import app.strata.auth.dto.AuthDtos.UsernameAvailability;
+import app.strata.auth.dto.AuthDtos.VerifyEmailResult;
 import app.strata.common.config.AppProperties;
 import app.strata.common.error.ApiException;
 import app.strata.common.security.JwtService;
@@ -20,6 +21,7 @@ import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -37,6 +39,8 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final JwtService jwt;
     private final MailService mail;
+    static final Duration VERIFY_TTL = Duration.ofHours(24);
+    static final Duration RESET_TTL = Duration.ofHours(1);
     private final Duration refreshTtl;
     /** Real bcrypt hash used to equalise login timing when the account does not exist. */
     private final String dummyHash;
@@ -148,10 +152,30 @@ public class AuthService {
         refreshTokens.revokeFamily(t.getFamilyId(), Instant.now());
     }
 
-    @Transactional
-    public void verifyEmail(String rawToken) {
-        EmailToken t = consume(rawToken, EmailToken.Purpose.VERIFY_EMAIL);
-        users.findById(t.getUserId()).ifPresent(u -> u.setEmailVerified(true));
+    /**
+     * Distinguishes the states the verify page shows: confirmed now, confirmed earlier (any of the user's verify links,
+     * used or not), expired or replaced by a newer link ({@code LINK_EXPIRED}), and unknown ({@code LINK_INVALID}).
+     */
+    @Transactional(noRollbackFor = ApiException.class)
+    public VerifyEmailResult verifyEmail(String rawToken) {
+        EmailToken t = emailTokens.findByTokenHash(Tokens.sha256(rawToken))
+                .filter(x -> x.getPurpose().equals(EmailToken.Purpose.VERIFY_EMAIL.name()))
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "LINK_INVALID",
+                        "This verification link isn't valid. Request a new one from Settings."));
+        User u = users.findById(t.getUserId()).filter(x -> x.getDeletedAt() == null)
+                .orElseThrow(() -> new ApiException(HttpStatus.BAD_REQUEST, "LINK_INVALID",
+                        "This verification link isn't valid."));
+        if (u.isEmailVerified()) {
+            if (t.getUsedAt() == null) t.markUsed();
+            return new VerifyEmailResult("ALREADY_VERIFIED");
+        }
+        if (t.getUsedAt() != null || !t.getExpiresAt().isAfter(Instant.now())) {
+            throw new ApiException(HttpStatus.BAD_REQUEST, "LINK_EXPIRED",
+                    "This verification link has expired or was replaced by a newer one.");
+        }
+        t.markUsed();
+        u.setEmailVerified(true);
+        return new VerifyEmailResult("VERIFIED");
     }
 
     @Transactional
@@ -168,8 +192,8 @@ public class AuthService {
             emailTokens.invalidateOutstanding(u.getId(), EmailToken.Purpose.RESET_PASSWORD.name());
             String token = Tokens.random(32);
             emailTokens.save(new EmailToken(u.getId(), EmailToken.Purpose.RESET_PASSWORD, Tokens.sha256(token),
-                    Instant.now().plus(Duration.ofHours(1))));
-            mail.sendPasswordReset(u.getEmail(), u.getUsername(), token);
+                    Instant.now().plus(RESET_TTL)));
+            mail.sendPasswordReset(u.getEmail(), u.getUsername(), token, RESET_TTL);
         });
     }
 
@@ -201,8 +225,8 @@ public class AuthService {
         emailTokens.invalidateOutstanding(u.getId(), EmailToken.Purpose.VERIFY_EMAIL.name());
         String token = Tokens.random(32);
         emailTokens.save(new EmailToken(u.getId(), EmailToken.Purpose.VERIFY_EMAIL, Tokens.sha256(token),
-                Instant.now().plus(Duration.ofHours(24))));
-        mail.sendVerification(u.getEmail(), u.getUsername(), token);
+                Instant.now().plus(VERIFY_TTL)));
+        mail.sendVerification(u.getEmail(), u.getUsername(), token, VERIFY_TTL);
     }
 
     private IssuedSession issue(User user, UUID family, String userAgent, String ip) {

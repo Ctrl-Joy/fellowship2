@@ -270,3 +270,11 @@ jar with the seed on, `AI_PROVIDER=offline` and an empty `ANTHROPIC_API_KEY`, se
 `vite preview --port 5174` (same proxy) with `CORS_ALLOWED_ORIGINS=http://localhost:5174`, waits for readiness and runs
 the suite. It references no repository secrets (every value is a throwaway CI-only string), checks out without persisted
 credentials, and uploads the report and traces only when it fails.
+
+## Email verification states (D-038)
+`/verify-email?token=` (`routes/auth/VerifyEmailPage.tsx`) calls `POST /auth/verify-email` once and maps the answer
+with `features/auth/verifyOutcome.ts` (tested): **verified**, **already verified**, **expired or replaced**
+(`LINK_EXPIRED`), **not recognised** (`LINK_INVALID`), **too many attempts** (429), and a missing token. For expired,
+invalid or missing links a signed-in user gets "Send a new verification email" (`POST /auth/resend-verification`,
+3/hour; the 429 message is shown inline); a signed-out visitor is pointed to log in and use Settings › Account, where
+the existing resend button lives. The reset page links back to `/forgot-password` for expired links.

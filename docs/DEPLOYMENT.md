@@ -56,12 +56,16 @@ re-checks the important ones):
 | `FILE_VISITOR_SALT` | server secret for hashing share-link visitors (no IPs are stored) |
 | `FUNDING_DEMO_WEBHOOK_SECRET` | ≥ 16 chars; HMAC for demo funding webhooks (D-022) |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` | object storage credentials (the `s3` service is configured with the same pair) |
-| `MAIL_FROM`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | email verification and password reset (`MAIL_MODE=smtp`) |
+| `MAIL_MODE`, `MAIL_FROM_ADDRESS` (or the older `MAIL_FROM`) | `brevo` or `smtp`; the from address must be verified with the provider (see "Email with Brevo") |
+| `BREVO_API_KEY` | for `MAIL_MODE=brevo` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` | for `MAIL_MODE=smtp` |
 
 Optional:
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `MAIL_FROM_NAME`, `MAIL_REPLY_TO` | `Howlers`, empty | display name and reply-to address for transactional email |
+| `BREVO_REMOVE_TRACKING_PIXEL` | `false` | Brevo Enterprise only: send without the open pixel |
 | `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_EFFORT` | empty, `claude-opus-5-5`, `medium` | Community AI; without a key, answers are offline cited summaries |
 | `FUNDING_ENABLED` | `true` | moderator funding (demo provider only) |
 | `SEED_DEMO_DATA` | `false` | fictional demo content |
@@ -75,6 +79,32 @@ Optional:
 | `JAVA_OPTS` | `-XX:MaxRAMPercentage=70 …` | JVM flags |
 | `BACKUP_DIR`, `BACKUP_KEEP_DAYS`, `BACKUP_INTERVAL_SECONDS` | `./backups`, 14, 86400 | database dump schedule |
 | `STRATA_BACKEND_IMAGE`, `STRATA_WEB_IMAGE` | local build | use images built by CI instead of building on the server |
+
+### Email with Brevo (D-038)
+The app sends two emails: email verification (link valid 24 h) and password reset (1 h). Both link to `APP_PUBLIC_URL`.
+1. **Verify the sender.** In Brevo, *Senders, domains & dedicated IPs*: add the from address and confirm it, or better,
+   authenticate the whole domain. Brevo rejects mail from an unverified sender with 400; the backend logs that once per
+   message and does not retry.
+2. **SPF / DKIM / DMARC.** Domain authentication gives you DNS records: a `brevo-code` TXT record, DKIM (CNAME or TXT),
+   and an SPF include (`include:spf.brevo.com` in your existing SPF TXT record; keep a single SPF record). Add a DMARC
+   record (`_dmarc` TXT, start with `v=DMARC1; p=none; rua=mailto:...`). Wait until Brevo shows the domain as
+   authenticated; without it, verification emails tend to land in spam.
+3. **API key.** *SMTP & API > API keys*: create a key for this server only and put it in `BREVO_API_KEY` in
+   `deploy/.env` (never in the repo or the frontend). If the account restricts API access by IP, add the server's IP.
+4. **Set** `MAIL_MODE=brevo`, `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME` and optionally `MAIL_REPLY_TO`. The backend logs
+   `Mail: Brevo transactional API, from "Howlers" <...>, API key configured` at startup; it never prints the key.
+5. **Tracking.** The API can't turn off click tracking per message. The backend marks each recipient
+   `contactPixelTrackingConsent: false`, which anonymises opens and clicks when per-contact consent is enabled on the
+   account; Enterprise accounts can set `BREVO_REMOVE_TRACKING_PIXEL=true` to drop the open pixel. Check the
+   transactional tracking settings in your Brevo account (or ask Brevo support) if you want link rewriting off, since
+   it sends one-time links through Brevo's redirect.
+6. **Check it.** Register a test account and watch `logs backend` for `Mail sent via brevo: verify-email to a***@...`.
+   From a dev machine: put `BREVO_API_KEY`, `MAIL_FROM_ADDRESS` and `MAIL_TEST_TO` in `backend/.env.local` and run
+   `./mvnw.cmd test -Dtest=BrevoLiveMailTest -Dstrata.liveMail=true` (sends one email to `MAIL_TEST_TO`).
+
+**SMTP instead.** `MAIL_MODE=smtp` with `SMTP_HOST=smtp-relay.brevo.com`, `SMTP_PORT=587`, `SMTP_USER` = the SMTP
+login shown in Brevo and `SMTP_PASSWORD` = an SMTP key (not the API key) works too, as does any other relay. STARTTLS is
+used when offered. Retries, after-commit sending and the templates are the same in both modes.
 
 ### Using AWS S3 (or another S3 service) instead of the bundled SeaweedFS
 Set `S3_ENDPOINT` to empty (AWS) or the provider's endpoint, `S3_PATH_STYLE=false` for AWS, `S3_REGION`, and credentials

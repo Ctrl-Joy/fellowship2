@@ -9,16 +9,19 @@ import app.strata.auth.dto.AuthDtos.ResetPasswordRequest;
 import app.strata.auth.dto.AuthDtos.SessionDto;
 import app.strata.auth.dto.AuthDtos.TokenRequest;
 import app.strata.auth.dto.AuthDtos.UsernameAvailability;
+import app.strata.auth.dto.AuthDtos.VerifyEmailResult;
 import app.strata.common.config.AppProperties;
 import app.strata.common.error.ApiException;
 import app.strata.common.ratelimit.RateLimiter;
 import app.strata.common.security.AuthUser;
+import app.strata.common.text.Tokens;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
@@ -94,9 +97,9 @@ public class AuthController {
     }
 
     @PostMapping("/verify-email")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void verifyEmail(@Valid @RequestBody TokenRequest req) {
-        auth.verifyEmail(req.token());
+    public VerifyEmailResult verifyEmail(@Valid @RequestBody TokenRequest req, HttpServletRequest http) {
+        limiter.check("verify:" + clientIp(http), 30, Duration.ofHours(1));
+        return auth.verifyEmail(req.token());
     }
 
     @PostMapping("/resend-verification")
@@ -110,6 +113,8 @@ public class AuthController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void forgot(@Valid @RequestBody ForgotPasswordRequest req, HttpServletRequest http) {
         limiter.check("forgot:" + clientIp(http), 5, Duration.ofHours(1));
+        // Per address too, so one mailbox can't be flooded from many IPs. Applies whether or not the account exists.
+        limiter.check("forgot:addr:" + Tokens.sha256(req.email().trim().toLowerCase(Locale.ROOT)), 3, Duration.ofHours(1));
         auth.forgotPassword(req.email());
     }
 

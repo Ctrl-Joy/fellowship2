@@ -28,6 +28,9 @@ public final class AuthDtos {
 
     public record TokenRequest(@NotBlank @Size(max = 200) String token) {}
 
+    /** status: VERIFIED (this link confirmed the address) or ALREADY_VERIFIED (it was confirmed earlier). */
+    public record VerifyEmailResult(String status) {}
+
     public record ForgotPasswordRequest(@NotBlank @Email String email) {}
 
     public record ResetPasswordRequest(@NotBlank @Size(max = 200) String token,

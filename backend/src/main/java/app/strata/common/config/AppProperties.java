@@ -18,8 +18,14 @@ public record AppProperties(Jwt jwt, Cookie cookie, Cors cors, App app, Mail mai
     /** publicUrl = where the frontend lives; used to build links in emails. */
     public record App(String publicUrl, String name) {}
 
-    /** mode: "log" (dev: prints mail to the log) or "smtp". */
-    public record Mail(String mode, String from) {}
+    /**
+     * mode: "log" (dev: prints mail to the log), "smtp" (any SMTP relay, including Brevo's) or "brevo" (Brevo's
+     * transactional REST API, D-038). The from address must be a sender verified with the provider.
+     */
+    public record Mail(String mode, String fromAddress, String fromName, String replyTo, Brevo brevo) {}
+
+    /** Brevo REST settings; {@code apiKey} comes from the environment only and is never logged. */
+    public record Brevo(String apiKey, String baseUrl, boolean removeTrackingPixel, Duration timeout) {}
 
     /**
      * driver: "local" (filesystem) or "s3" (any S3-compatible service: AWS S3, MinIO). See D-007 and D-023.

@@ -67,6 +67,10 @@ services:
       CORS_ALLOWED_ORIGINS: ${APP_PUBLIC_URL:-http://localhost:8088}
       APP_PUBLIC_URL: ${APP_PUBLIC_URL:-http://localhost:8088}
       MAIL_MODE: ${MAIL_MODE:-log}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-no-reply@strata.local}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Howlers}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}

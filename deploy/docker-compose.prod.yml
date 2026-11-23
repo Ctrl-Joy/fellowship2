@@ -69,7 +69,11 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
       MANAGEMENT_PORT: "8081"
       MAIL_MODE: ${MAIL_MODE:-smtp}
-      MAIL_FROM: ${MAIL_FROM:?set MAIL_FROM, e.g. no-reply@your-domain}
+      # MAIL_FROM is the older name and still accepted.
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-${MAIL_FROM:?set MAIL_FROM_ADDRESS, a sender verified with your mail provider}}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Howlers}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-}
