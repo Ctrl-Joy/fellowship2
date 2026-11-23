@@ -349,3 +349,22 @@ landing stays in the axe audit (`08-accessibility`).
   - the control-character regex in `safeFileName`.
 - **Live sockets.** A suspended, deactivated or deleted account's socket is closed by the server (1008) and reconnects
   are refused. The existing client keeps retrying with backoff, and its next REST call gets 401/403, which signs it out.
+
+## Passkeys, two-factor authentication and sign-in alerts (D-041, D-042)
+- `features/accountSecurity/`: `api.ts` (all `/auth/security`, `/auth/2fa/**`, `/auth/passkeys/**`, passkey sign-in and
+  the login second step), `hooks.ts` (queries under `['account-security']`, `createPasskey`, `signInWithPasskey`),
+  `webauthn.ts` (base64url, options/credential JSON conversion, `passkeySupport`, error messages) and `logic.ts`
+  (code classification, method labels, recovery-code file text). Types in `types/accountSecurity.ts`.
+- The WebAuthn API is called directly; no library. `passkeySupport()` needs `isSecureContext` (HTTPS or
+  `http://localhost`) and `PublicKeyCredential`; otherwise the buttons are disabled with the reason shown.
+- Login: `POST /auth/login` may return `MfaChallenge` instead of a session (`isMfaChallenge`); `LoginForm` then
+  renders `SecondStepForm` (authenticator code, or a recovery code via "Lost your device?"). An expired token sends
+  the user back to the password step with the server's message. "Sign in with a passkey" sits under the form on
+  `/login` and needs no username; a passkey sign-in has no code step.
+- Settings > Account & security: Passkeys card (add with optional name, rename, remove with confirmation, "Synced" and
+  "Blocked" badges), Two-factor card (enable dialog: password, QR from the server's SVG shown as an `<img>` data URL,
+  manual key, code, then recovery codes with copy/download; the codes step only closes with its button), Sign-in
+  alerts switch, and the sessions list with method badges and "Sign out everywhere else". The sessions card is
+  wrapped in `#sessions`, the target of the link in new-sign-in emails.
+- The code field in the second step autofocuses: it appears in response to the user's submit and is the only control
+  that matters there.

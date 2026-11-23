@@ -106,6 +106,9 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY:-howlers}
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
       FILE_VISITOR_SALT: ${FILE_VISITOR_SALT:-}
+      ACCOUNT_SECRETS_KEY: ${ACCOUNT_SECRETS_KEY:-}
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-}
+      WEBAUTHN_ORIGINS: ${WEBAUTHN_ORIGINS:-}
       # none | clamav (start the clamav profile too). Not required locally: uploads fall back to structural checks.
       ANTIVIRUS: ${ANTIVIRUS:-none}
       ANTIVIRUS_REQUIRED: ${ANTIVIRUS_REQUIRED:-false}

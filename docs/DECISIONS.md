@@ -704,3 +704,69 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   so the "last chunk" AAD flag still catches truncation. A failure aborts the writable, which discards the partial file.
   The save dialog needs a user gesture, so it comes after a second click ("Choose where to save"), once the key and
   metadata are verified. Other browsers use the in-memory path, and above 500 MB they show a warning first.
+
+**D-041 Passkeys with Yubico's server library; usernameless sign-in that counts as two factors; new-device emails.**
+- **Library.** `com.yubico:webauthn-server-core` (pinned 2.10.1) runs both ceremonies. We don't parse CBOR or verify
+  signatures ourselves. The browser side calls the WebAuthn API directly (no extra package): `features/accountSecurity/
+  webauthn.ts` converts the base64url JSON options to ArrayBuffers and the credential back to `toJSON()` shape.
+- **Relying party.** The rp id defaults to the host of `APP_PUBLIC_URL` and the allowed origins to its origin, so
+  `http://localhost:5173` works in development with no settings and production works with `HOWLERS_DOMAIN`.
+  `WEBAUTHN_RP_ID` / `WEBAUTHN_ORIGINS` override them (e.g. an rp id of the parent domain, or the Docker dev origin
+  `http://localhost:8088`). Changing the rp id later orphans every passkey, which the deployment guide says.
+- **Discoverable credentials and user verification.** Registration asks for a resident key and requires user
+  verification, and sign-in requires user verification too. So a passkey sign-in proves possession of the device and a
+  PIN or biometric on it. That is two factors, so **a passkey sign-in skips the TOTP step**. Security keys without a PIN
+  can't be registered; that's a deliberate trade for the 2FA guarantee. Only the credential id, COSE public key,
+  signature counter, backup flags, transports and a random 32-byte user handle (not the user id) are stored. No
+  biometric data ever reaches the server.
+- **Challenges.** Stored server-side (`webauthn_challenges`), 5-minute lifetime, consumed by the first finish attempt
+  even when it fails, bound to the browser by the `howlers_wac` HttpOnly SameSite=Strict cookie (only its hash is
+  stored), and for registration also bound to the signed-in user. The cookie is reused while it lives, so two prompts
+  in one browser don't cancel each other. Together with the library's origin, rp id hash and signature checks this
+  stops replay and cross-site use.
+- **Counter regression.** A counter that doesn't increase (other than an authenticator that always reports 0) refuses
+  the sign-in and flags the passkey (`flagged_at`). Flagged passkeys stay refused and are marked "Blocked" in settings
+  until the user removes them. Refusing a possibly cloned key beats letting it in; the cost is that a buggy
+  authenticator needs re-adding.
+- **Same session.** A verified assertion goes through the same `AuthService.signIn` as a password login: status checks
+  (suspended refused, deactivated reactivated), a new refresh-token family, the access token, and device tracking.
+  Sessions record `auth_method`, which rotation carries forward and the sessions list shows.
+- **New-device emails.** Fingerprint = keyed hash of (`howlers_did` random device cookie, browser family, OS family).
+  Families come from a small User-Agent parser ("Firefox", "Windows"), never versions, so updates don't count as new
+  devices. A new fingerprint sends "New sign-in to your Howlers account" through the existing mail dispatcher (after
+  commit, off-thread) unless the account had no known device yet. That covers the registration sign-in and the first
+  sign-in of accounts created before this change, which would otherwise all get an email after deploy. Users can turn
+  it off (default on). With the device we store only a 12-hex-character keyed hash of the IP's /24 (IPv4) or /48
+  (IPv6) network, like the files access log; the email shows no IP or location. Browsers that drop cookies count as new
+  devices each time; that's the honest reading of "a device we haven't seen".
+- **Fix on the way.** `JwtAuthFilter` skipped every `/api/v1/auth/**` request, so the signed-in auth endpoints
+  (`GET /auth/sessions`, `POST /auth/resend-verification`, session revoke) answered 401 even with a valid token. Under
+  `/auth/` a stale or invalid token is now ignored rather than rejected (login, refresh and logout keep working with
+  an expired token attached), and a valid one authenticates.
+
+**D-042 TOTP two-factor authentication with encrypted secrets, a second-step token, and recovery codes.**
+- **Algorithm.** RFC 6238 with HMAC-SHA1, 6 digits and 30-second steps (what every authenticator app supports), 160-bit
+  secrets. Codes are accepted one step either side of now. The highest accepted step is stored, and that step and
+  earlier ones are refused afterwards, so a code can't be replayed inside its window (nor an older one used after it).
+  The implementation is small and checked against all RFC 6238 test vectors (SHA-1, SHA-256, SHA-512).
+- **Enrolment.** Password, then a pending secret (15 minutes) shown as an `otpauth://` QR code rendered server-side as
+  SVG with ZXing (pinned 3.5.3; no QR service sees the secret) plus the base32 key for manual entry. A correct code turns
+  2FA on and returns 10 recovery codes once.
+- **Storage.** The secret is AES-256-GCM encrypted with `ACCOUNT_SECRETS_KEY` (base64 of 32 bytes), a fresh nonce per
+  value, and `totp:<user id>` as associated data, so a ciphertext moved to another row doesn't decrypt. Prod refuses to
+  start without the key (both the cipher bean and `ProductionSafetyCheck`); development derives a stable key from the
+  JWT secret and logs a warning. Recovery codes (`xxxxx-xxxxx`, about 50 bits, no look-alike characters) are stored
+  as SHA-256 of (user id, code). Their entropy makes a slow hash unnecessary, and attempts are rate-limited and locked
+  out.
+- **Login.** A correct password on a 2FA account returns `mfaRequired` with a random second-step token (only its hash
+  is stored; 5 minutes; not an access token, no cookie). `/auth/login/2fa` takes the token plus an authenticator or
+  recovery code and then issues the normal session. `AuthService.login` (used by internal callers) refuses 2FA accounts
+  instead of bypassing the step.
+- **Lockout.** Every wrong code (login, disable, regenerate, confirm) counts. Five in a row lock the account's second
+  step for 5 minutes (429 `MFA_LOCKED`, even for the right code), and a token dies after five wrong codes. On top of
+  that sit the Redis rate limits per IP and per token. The counters live in the database (not Redis), so the lockout
+  holds when Redis is down and in tests where rate limits are off.
+- **Changing it.** Regenerating recovery codes needs an authenticator code. Turning 2FA off needs the password and an
+  authenticator or recovery code. A password reset by email doesn't turn 2FA off: the next login still asks for a code.
+  There is no self-service bypass and no admin screen for it yet: an account that loses both the authenticator and its
+  recovery codes is recovered by an operator clearing its `account_security` TOTP columns (DEPLOYMENT.md, section 12).

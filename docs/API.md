@@ -66,7 +66,8 @@ CommentNode {
 | POST | `/auth/resend-verification` | – (auth) | 204; 400 if already verified; 3/hour per user |
 | POST | `/auth/forgot-password` | `{email}` | 204 (always); 5/hour per IP and 3/hour per address |
 | POST | `/auth/reset-password` | `{token, newPassword}` | 204, revokes all sessions |
-| GET | `/auth/sessions` | – | `{id, userAgent, ip, createdAt, lastUsedAt, current}[]` |
+| GET | `/auth/sessions` | – | `{id, userAgent, ip, createdAt, lastUsedAt, current, authMethod}[]` (D-041) |
+| DELETE | `/auth/sessions/others` | – | `{revoked}`: sign out everywhere else (D-041) |
 | DELETE | `/auth/sessions/{id}` | – | 204 |
 
 `AuthResponse { accessToken, expiresIn, user: Me }`. Password rules: 8–128 chars, ≥1 letter and ≥1 digit.
@@ -791,3 +792,45 @@ now moves it to private storage too, so the response and events carry signed URL
   accounts, even with an unexpired access token. The session's role is read from the account.
 - When an account is suspended, deactivated, deleted or has its role changed, its open WebSockets on the node are
   closed at once with close code 1008 ("Account access revoked"). Clients should treat this like a revoked session.
+
+## Account security: passkeys, two-factor authentication, sign-in alerts (D-041, D-042)
+
+### Sign-in
+| Method | Path | Body | Result |
+|---|---|---|---|
+| POST | `/auth/login` | `{login, password}` | `AuthResponse` + refresh cookie, **or**, when the account has 2FA on, `MfaRequired {mfaRequired: true, mfaToken, expiresIn, methods: ["totp","recovery"]}` with no cookie and no session |
+| POST | `/auth/login/2fa` | `{mfaToken, code}` | `AuthResponse` + refresh cookie. `code` is a 6-digit authenticator code or a recovery code (`abcde-fghjk`; case, spaces and dashes ignored). 401 `INVALID_CODE`; 401 `MFA_TOKEN_EXPIRED` (expired after 5 min, used, unknown, or 5 wrong codes on it); 429 `MFA_LOCKED` (5 wrong codes in a row on the account lock the second step for 5 min). 30/10 min per IP, 10/10 min per token |
+| POST | `/auth/passkey-login/options` | – | `{requestId, publicKey}`: `PublicKeyCredentialRequestOptions` JSON (binary fields base64url), no `allowCredentials` (usernameless), `userVerification: "required"`. Sets the `howlers_wac` cookie. Origin-checked; 30/5 min per IP |
+| POST | `/auth/passkey-login/verify` | `{requestId, credential}` (`PublicKeyCredential.toJSON()` shape) | `AuthResponse` + refresh cookie, the same session as a password login. No 2FA step. 400 `CEREMONY_EXPIRED` (unknown, used, expired, or started in another browser); 401 `PASSKEY_UNKNOWN`, `PASSKEY_INVALID` (bad signature, wrong origin or rp id, no user verification), `PASSKEY_FLAGGED`; 403 suspended |
+
+Every successful sign-in (password, password + code, passkey, registration) sets `howlers_did`, a random device id
+(HttpOnly, SameSite=Strict, path `/api/v1/auth`, 400 days). Refresh does not count as a sign-in.
+
+### Signed-in management (all require a Bearer token)
+| Method | Path | Body | Result |
+|---|---|---|---|
+| GET | `/auth/security` | – | `{totp: {enabled, enabledAt, recoveryCodesRemaining}, passkeys, newSignInAlerts, passkeyRpId}` |
+| PATCH | `/auth/security` | `{newSignInAlerts}` | the summary |
+| POST | `/auth/2fa/totp/setup` | `{password}` | `{secret (base32), otpauthUri, qrSvg}`; 400 wrong password, 409 already on. The pending secret lasts 15 min |
+| POST | `/auth/2fa/totp/confirm` | `{code}` | `{recoveryCodes: string[10]}` (shown once); 401 `INVALID_CODE`, 400 `SETUP_EXPIRED` |
+| POST | `/auth/2fa/recovery-codes` | `{code}` (authenticator code only) | `{recoveryCodes}`; the old set stops working |
+| POST | `/auth/2fa/totp/disable` | `{password, code}` (authenticator or recovery code) | 204 |
+| GET | `/auth/passkeys` | – | `{id, name, createdAt, lastUsedAt, synced, flagged, transports}[]` |
+| POST | `/auth/passkeys/options` | – | `{requestId, publicKey}`: `PublicKeyCredentialCreationOptions` JSON, `residentKey: "required"`, `userVerification: "required"`, existing passkeys in `excludeCredentials`. Sets `howlers_wac` |
+| POST | `/auth/passkeys` | `{requestId, credential, name?}` | 201 passkey; 400 `CEREMONY_EXPIRED` / `PASSKEY_INVALID`; 409 already registered. Blank name = "Passkey on Chrome on macOS". Max 20 |
+| PATCH | `/auth/passkeys/{id}` | `{name}` (1-60) | 204 |
+| DELETE | `/auth/passkeys/{id}` | – | 204 (404 for someone else's) |
+| DELETE | `/auth/sessions/others` | – (needs this browser's refresh cookie) | `{revoked: n}`: signs out every other session; 400 without a cookie of this account |
+
+`GET /auth/sessions` rows also carry `authMethod`: `PASSWORD`, `PASSWORD_TOTP`, `PASSWORD_RECOVERY`, `PASSKEY`, or
+null for sessions created before V18. It is kept through refresh rotation.
+
+Account-security mutations are limited to 30 per 10 min per user. Ceremony challenges live 5 minutes and are consumed
+by the first finish attempt, whether it succeeds or not.
+
+### New sign-in email
+On a successful sign-in from a device the account hasn't used before (keyed hash of `howlers_did` + browser family +
+OS family), the user gets "New sign-in to your Howlers account" with the time (UTC), "Browser on OS", the sign-in method
+and a link to `APP_PUBLIC_URL/settings?tab=account#sessions`. Not sent when the account has no known device yet (the
+registration sign-in, or the first sign-in of an account created before this feature), and not sent when the user
+turned `newSignInAlerts` off or the server sets `NEW_SIGNIN_ALERTS=false`. No IP address or location appears in it.

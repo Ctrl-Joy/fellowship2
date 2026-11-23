@@ -55,6 +55,7 @@ re-checks the important ones):
 | `REDIS_PASSWORD` | Redis `requirepass` |
 | `JWT_SECRET` | base64 of ≥ 32 random bytes; signs access tokens and download grants. Rotating it signs everyone out |
 | `FILE_VISITOR_SALT` | server secret for hashing share-link visitors (no IPs are stored) |
+| `ACCOUNT_SECRETS_KEY` | base64 of 32 random bytes (`openssl rand -base64 32`); encrypts two-factor secrets (D-042). Keep it with your backups |
 | `FUNDING_DEMO_WEBHOOK_SECRET` | ≥ 16 chars; HMAC for demo funding webhooks (D-022) |
 | `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_BUCKET` | object storage credentials (the `s3` service is configured with the same pair) |
 | `MAIL_MODE`, `MAIL_FROM_ADDRESS` (or the older `MAIL_FROM`) | `brevo` or `smtp`; the from address must be verified with the provider (see "Email with Brevo") |
@@ -77,6 +78,8 @@ Optional:
 | `STRIPE_WEBHOOK_SECRET` | empty | signing secret of the webhook endpoint (`whsec_…`); required in production with Stripe |
 | `FUNDING_LIVE_MODE`, `FUNDING_COMPLIANCE_ACK` | `false`, empty | both needed before a live key is accepted; the acknowledgement records who signed off the compliance review (D-034) |
 | `SEED_DEMO_DATA` | `false` | fictional demo content |
+| `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGINS` | host and origin of `APP_PUBLIC_URL` | passkey relying party id and allowed origins (D-041); see section 12 before changing |
+| `NEW_SIGNIN_ALERTS` | `true` | "New sign-in" emails for unfamiliar devices (users can also opt out) |
 | `DATABASE_POOL_SIZE` | 15 | Hikari pool size |
 | `FEED_CACHE_ENABLED`, `FEED_CACHE_TTL` | `true`, `PT30S` | first-page feed id cache (D-025) |
 | `RATE_LIMIT_ENABLED` | `true` | Redis rate limiter |
@@ -302,3 +305,35 @@ If a database was upgraded while a lower-numbered migration was still unmerged (
 migration not applied to database"), start the backend once with `FLYWAY_OUT_OF_ORDER=true` in `.env`
 (`docker compose up -d backend`), then remove the setting. Only do this for migrations that are independent of the
 later ones (new tables or columns), which is how Howlers migrations are written.
+
+## 12. Passkeys, two-factor authentication and sign-in alerts (D-041, D-042)
+
+**`ACCOUNT_SECRETS_KEY`** (required in production): base64 of 32 random bytes, `openssl rand -base64 32`. It encrypts
+two-factor (TOTP) secrets at rest. The prod profile refuses to start without it, or with a value that isn't 32 bytes.
+Store it with your other secrets and keep it with your backups: a database restored without the same key can't read
+anyone's authenticator enrolment, and those users would need 2FA reset (below). Outside prod a blank key is derived
+from `JWT_SECRET` and the backend logs a warning.
+
+**Passkeys: relying party id and origins.**
+- `WEBAUTHN_RP_ID`: blank = the host of `APP_PUBLIC_URL` (`howlers.example.com` in production, `localhost` in
+  development). Passkeys are bound to it by the browser and authenticator, so **choose it once**: changing it later
+  makes every registered passkey unusable (users can still sign in with their password and add new ones). It may be a
+  parent domain of the site (`example.com` for `howlers.example.com`), never another site.
+- `WEBAUTHN_ORIGINS`: blank = the origin of `APP_PUBLIC_URL`. Comma-separated exact origins (`scheme://host[:port]`)
+  when the app is served from more than one, e.g. `http://localhost:5173,http://localhost:8088` for a dev machine
+  that uses both Vite and the Docker stack.
+- Browsers only run passkey ceremonies in a secure context: HTTPS, or `http://localhost` in development. A LAN address
+  over plain HTTP (`http://192.168.1.20:5173`) won't offer passkeys; the UI says so.
+- The backend logs `Passkeys: relying party id …, origins […]` at startup; check it after a deploy.
+
+**New-sign-in emails** go through the normal mail transport (`MAIL_MODE`). `NEW_SIGNIN_ALERTS=false` turns them off
+server-wide; users can turn them off for themselves in Settings > Account & security.
+
+**Resetting 2FA for a locked-out user** (lost authenticator and recovery codes; verify their identity first). There is
+no admin screen for this yet:
+```sql
+UPDATE account_security SET totp_secret_enc = NULL, totp_enabled_at = NULL, totp_pending_enc = NULL,
+  totp_pending_at = NULL, totp_last_step = NULL, mfa_failed_attempts = 0, mfa_locked_until = NULL
+  WHERE user_id = (SELECT id FROM users WHERE username = 'their_name');
+DELETE FROM totp_recovery_codes WHERE user_id = (SELECT id FROM users WHERE username = 'their_name');
+```
