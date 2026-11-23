@@ -1,5 +1,5 @@
 import { Award, ChevronDown, ShieldCheck, Trophy } from 'lucide-react';
-import { useMemo } from 'react';
+import { useId, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Avatar, Card, CardHeader, Skeleton } from '@/components/ui/Display';
 import { Select } from '@/components/ui/Field';
@@ -16,34 +16,47 @@ import { timeAgo } from '@/utils/format';
 
 type Tab = 'moderators' | 'topics';
 
+/**
+ * One ranking row. The links stay plain links and a separate disclosure button opens the breakdown
+ * (links inside a <summary> would be interactive controls nested in another control).
+ */
 function ModeratorRow({ s, formula }: { s: ModeratorScore; formula: ScoreFormula }) {
+  const [open, setOpen] = useState(false);
+  const panelId = useId();
   return (
     <li>
-      <details className="group">
-        <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3 hover:bg-surface-2/60 [&::-webkit-details-marker]:hidden">
-          <span className="w-7 shrink-0 text-center text-sm font-bold tabular-nums text-muted">#{s.rank}</span>
-          <Avatar src={s.moderator.avatarUrl} name={s.moderator.username} size="md" />
-          <div className="min-w-0 flex-1">
-            <div className="flex flex-wrap items-center gap-x-2 text-sm">
-              <Link to={`/u/${s.moderator.username}`} className="font-semibold hover:underline" onClick={(e) => e.stopPropagation()}>
-                u/{s.moderator.username}
-              </Link>
-              <Link to={`/c/${s.community.slug}`} className="text-xs text-muted hover:underline" onClick={(e) => e.stopPropagation()}>
-                c/{s.community.slug}
-              </Link>
-            </div>
-            <div className="mt-1"><ModBadges badges={s.badges} /></div>
+      <div className="flex items-center gap-3 px-4 py-3">
+        <span className="w-7 shrink-0 text-center text-sm font-bold tabular-nums text-muted">#{s.rank}</span>
+        <Avatar src={s.moderator.avatarUrl} name={s.moderator.username} size="md" />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-x-2 text-sm">
+            <Link to={`/u/${s.moderator.username}`} className="font-semibold hover:underline">
+              u/{s.moderator.username}
+            </Link>
+            <Link to={`/c/${s.community.slug}`} className="text-xs text-muted hover:underline">
+              c/{s.community.slug}
+            </Link>
           </div>
-          <div className="text-right">
-            <div className="text-lg font-bold tabular-nums">{s.score.toFixed(1)}</div>
-            <div className="text-[11px] text-faint">of 100</div>
-          </div>
-          <ChevronDown size={16} className="shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
-        </summary>
-        <div className="border-t border-border bg-surface-2/30 px-4 py-3">
-          <ScoreBreakdown score={s} formula={formula} />
+          <div className="mt-1"><ModBadges badges={s.badges} /></div>
         </div>
-      </details>
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={panelId}
+          onClick={() => setOpen((o) => !o)}
+          className="flex shrink-0 items-center gap-2 rounded-lg px-2 py-1 text-right hover:bg-surface-2/60"
+        >
+          <span>
+            <span className="sr-only">Score breakdown for u/{s.moderator.username}: </span>
+            <span className="block text-lg font-bold tabular-nums">{s.score.toFixed(1)}</span>{' '}
+            <span className="block text-[11px] text-muted">of 100</span>
+          </span>
+          <ChevronDown size={16} className={`shrink-0 text-muted transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
+        </button>
+      </div>
+      <div id={panelId} hidden={!open} className="border-t border-border bg-surface-2/30 px-4 py-3">
+        {open && <ScoreBreakdown score={s} formula={formula} />}
+      </div>
     </li>
   );
 }

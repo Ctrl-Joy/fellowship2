@@ -54,6 +54,16 @@ export const ACTION_LABELS: Record<ModActionType, string> = {
   RELEASE_HELD: 'Released held content',
 };
 
+/** Headline for the affected user's page (/mod-actions/:id), in plain words. */
+export function affectedUserHeadline(action: ModActionType, slug: string): string {
+  switch (action) {
+    case 'BAN': return `You were banned from c/${slug}`;
+    case 'REMOVE_POST': return 'Your post was removed by moderators';
+    case 'REMOVE_COMMENT': return 'Your comment was removed by moderators';
+    default: return `${ACTION_LABELS[action]} by moderators`;
+  }
+}
+
 export const BAN_DURATIONS: { value: string; label: string; days: number | null }[] = [
   { value: '1', label: '1 day', days: 1 },
   { value: '7', label: '7 days', days: 7 },

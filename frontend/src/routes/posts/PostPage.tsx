@@ -106,7 +106,7 @@ export default function PostPage() {
             <Avatar src={p.community.iconUrl} name={p.community.slug} size="md" />
             <div className="min-w-0 text-xs leading-tight">
               <div className="flex flex-wrap items-center gap-x-1.5">
-                <Link to={`/c/${p.community.slug}`} className="font-semibold text-text hover:underline">c/{p.community.slug}</Link>
+                <Link to={`/c/${p.community.slug}`} className="inline-flex min-h-6 items-center font-semibold text-text hover:underline">c/{p.community.slug}</Link>
                 <span className="text-muted" aria-hidden="true">•</span>
                 <time className="text-muted" dateTime={p.createdAt} title={new Date(p.createdAt).toLocaleString()}>{timeAgo(p.createdAt)}</time>
                 {p.editedAt && <span className="text-faint">(edited {timeAgo(p.editedAt)})</span>}
@@ -114,7 +114,7 @@ export default function PostPage() {
                 {p.locked && <Badge tone="warning"><Lock size={11} /> Locked</Badge>}
               </div>
               <div className="mt-0.5 text-muted">
-                {p.author ? <Link to={`/u/${p.author.username}`} className="hover:text-text hover:underline">u/{p.author.username}</Link> : <span className="italic">[deleted]</span>}
+                {p.author ? <Link to={`/u/${p.author.username}`} className="inline-flex min-h-6 items-center hover:text-text hover:underline">u/{p.author.username}</Link> : <span className="italic">[deleted]</span>}
               </div>
             </div>
             <div className="ml-auto">
@@ -167,7 +167,7 @@ export default function PostPage() {
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <VoteControl score={p.score} myVote={p.myVote} label={p.title} disabled={p.locked || p.removed} onVote={(v) => vote.mutate(v, { onError: (e) => toast.error(errorMessage(e)) })} />
-              <ActionPill onClick={() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' })}>
+              <ActionPill label={`${compactNumber(p.commentCount)} comments`} onClick={() => document.getElementById('comments')?.scrollIntoView({ behavior: 'smooth' })}>
                 <MessageSquare size={15} /> {compactNumber(p.commentCount)}
               </ActionPill>
               {isAuthed && (

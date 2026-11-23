@@ -251,7 +251,7 @@ export function Thread({ id }: { id: number }) {
         <ConnectionHint />
       </header>
 
-      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-3 py-3" aria-live="polite" aria-relevant="additions">
+      <div ref={scroller} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto px-3 py-3" role="log" aria-label={`Conversation with ${otherName}`} aria-live="polite" aria-relevant="additions">
         {msgs.isPending ? (
           <div className="space-y-3" aria-busy="true">
             {Array.from({ length: 5 }, (_, i) => (

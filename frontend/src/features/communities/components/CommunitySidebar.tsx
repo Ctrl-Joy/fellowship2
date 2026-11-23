@@ -15,12 +15,17 @@ export function AboutCard({ c }: { c: CommunityDetail }) {
           <div><div className="text-base font-semibold">{c.flairs.length}</div><div className="text-xs text-muted">Post flairs</div></div>
         </div>
         <dl className="space-y-1.5 text-xs text-muted">
-          <div className="flex items-center gap-2"><CalendarDays size={14} /><dt className="sr-only">Created</dt><dd>Created {formatDate(c.createdAt)}</dd></div>
+          <div>
+            <dt className="sr-only">Created</dt>
+            <dd className="flex items-center gap-2"><CalendarDays size={14} aria-hidden="true" />Created {formatDate(c.createdAt)}</dd>
+          </div>
           {c.visibility !== 'PUBLIC' && (
-            <div className="flex items-center gap-2">
-              {c.visibility === 'PRIVATE' ? <Lock size={14} /> : <ShieldCheck size={14} />}
+            <div>
               <dt className="sr-only">Visibility</dt>
-              <dd>{c.visibility === 'PRIVATE' ? 'Private — members only' : 'Restricted — approved contributors post'}</dd>
+              <dd className="flex items-center gap-2">
+                {c.visibility === 'PRIVATE' ? <Lock size={14} aria-hidden="true" /> : <ShieldCheck size={14} aria-hidden="true" />}
+                {c.visibility === 'PRIVATE' ? 'Private — members only' : 'Restricted — approved contributors post'}
+              </dd>
             </div>
           )}
         </dl>

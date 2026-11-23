@@ -46,7 +46,6 @@ export function HeroIllustration() {
           <div
             key={l.label}
             className={`flex items-center justify-between rounded-md border border-border ${l.tone} px-3 py-2 ${l.offset}`}
-            style={{ opacity: 1 - i * 0.18 }}
           >
             <span className="text-xs font-medium text-muted">{l.label}</span>
             <span className="flex gap-1">

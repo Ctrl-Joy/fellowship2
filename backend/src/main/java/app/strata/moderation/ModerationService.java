@@ -431,7 +431,8 @@ public class ModerationService {
         Community c = communities.findById(communityId).orElseThrow(() -> ApiException.notFound("Community"));
         Optional<Long> appealId = jdbc.sql("SELECT id FROM appeals WHERE action_id = ?").param(actionId).query(Long.class).optional();
         boolean appealable = Stream.of("REMOVE_POST", "REMOVE_COMMENT", "BAN").anyMatch(a.action()::equals) && !a.reversed();
-        return new MyModAction(a, CommunityMapper.ref(c), appealId.map(this::appeal).orElse(null), appealable && appealId.isEmpty());
+        return new MyModAction(withoutModerator(a), CommunityMapper.ref(c), appealId.map(this::appeal).map(this::withoutModerator).orElse(null),
+                appealable && appealId.isEmpty());
     }
 
     @Transactional
@@ -440,7 +441,21 @@ public class ModerationService {
         if (!mine.canAppeal()) throw ApiException.badRequest(mine.appeal() != null ? "You already appealed this" : "This action can't be appealed");
         long id = jdbc.sql("INSERT INTO appeals (action_id, user_id, message) VALUES (?, ?, ?) RETURNING id")
                 .params(actionId, user.id(), message.strip()).query(Long.class).single();
-        return appeal(id);
+        return withoutModerator(appeal(id));
+    }
+
+    /**
+     * What the affected user sees: actions are taken on behalf of the moderation team (D-014), so the individual
+     * moderator is never named to them. Moderators still see who did what in the log and the appeals queue.
+     */
+    private ModAction withoutModerator(ModAction a) {
+        return new ModAction(a.id(), a.action(), null, a.targetUser(), a.postId(), a.commentId(), a.targetTitle(), a.reason(),
+                a.expiresAt(), a.reversed(), a.createdAt());
+    }
+
+    private Appeal withoutModerator(Appeal ap) {
+        return new Appeal(ap.id(), withoutModerator(ap.action()), ap.user(), ap.message(), ap.status(), ap.response(), ap.createdAt(),
+                ap.resolvedAt());
     }
 
     @Transactional

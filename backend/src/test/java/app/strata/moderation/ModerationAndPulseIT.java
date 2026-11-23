@@ -85,7 +85,13 @@ class ModerationAndPulseIT extends IntegrationTest {
                 .link().replace("/mod-actions/", ""));
         assertThatThrownBy(() -> mod.myAction(actionId, w.reporter())).isInstanceOf(ApiException.class); // only the affected user
         assertThat(mod.myAction(actionId, w.member()).canAppeal()).isTrue();
+        // Actions are taken on behalf of the team (D-014): the affected user never learns which moderator acted.
+        assertThat(mod.myAction(actionId, w.member()).action().moderator()).isNull();
         var appeal = mod.submitAppeal(actionId, w.member(), "It was a genuine offer from me, not spam.");
+        assertThat(appeal.action().moderator()).isNull();
+        assertThat(mod.myAction(actionId, w.member()).appeal().action().moderator()).isNull();
+        // Moderators still see who acted.
+        assertThat(mod.log(w.slug(), w.owner(), null, 20).items()).anySatisfy(a -> assertThat(a.moderator()).isNotNull());
         assertThatThrownBy(() -> mod.submitAppeal(actionId, w.member(), "Second attempt at appealing this")).isInstanceOf(ApiException.class);
         assertThatThrownBy(() -> mod.resolveAppeal(appeal.id(), w.member(), true, null)).isInstanceOf(ApiException.class);
         mod.resolveAppeal(appeal.id(), w.moderator(), true, "Fair enough");

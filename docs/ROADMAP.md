@@ -73,3 +73,5 @@ checked CSP; `docs/DEPLOYMENT.md` with `deploy/docker-compose.prod.yml` + Caddy 
 machine); richer demo seed (moderation history, public collections, a demo funding pool) with an in-app demo notice.
 Still open: accessibility audit, Playwright suite, presigned media URLs (only if API bandwidth becomes a problem),
 migrating legacy public DM image URLs.
+- ✅ Playwright end-to-end suite for the 23 flows, CI job, axe accessibility gate and keyboard checks (D-027).
+- ☐ Manual screen-reader pass, triage of moderate/minor axe findings, load testing, and running the Docker/MinIO stack for real.

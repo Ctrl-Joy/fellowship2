@@ -151,7 +151,7 @@ export default function LibraryPage() {
         </div>
       </aside>
 
-      <main className="min-w-0 flex-1">
+      <div className="min-w-0 flex-1">
         <div className="mb-3 md:hidden">
           <select value={selected ?? ''} onChange={(e) => set('c', e.target.value || null)} aria-label="Collection" className="h-10 w-full rounded-full border border-border bg-surface-2 px-4 text-sm">
             <option value="">All saved items</option>
@@ -211,7 +211,7 @@ export default function LibraryPage() {
             />
           ))}
         </div>
-      </main>
+      </div>
 
       <Dialog open={form !== null} onOpenChange={(o) => !o && setForm(null)} title={form && form !== 'new' ? 'Edit collection' : 'New collection'} description="Collections are private by default.">
         {form !== null && <CollectionForm initial={form === 'new' ? undefined : form} onDone={() => setForm(null)} />}

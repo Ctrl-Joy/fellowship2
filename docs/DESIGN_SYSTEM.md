@@ -3,6 +3,13 @@
 Working brand: **Strata** — "knowledge in layers". The name, tagline, logo mark and colors live in
 `frontend/src/design-system/brand.ts` and `frontend/src/design-system/tokens.css`. Change them there and nowhere else.
 
+## v3 update (accessibility audit, D-027)
+`tokens.css` is the source of truth; the v1 table further down is historical. Changed for WCAG AA contrast:
+`--text-faint` `138 148 153` (dark) / `99 108 113` (light); light `--accent` `0 110 76`, `--warning` `133 92 0`,
+`--info` `24 94 200`, `--danger` `176 45 38`; dark `--brand-fg` `11 14 16` (dark text on the indigo button, 5.7:1).
+Custom colours (community flairs, stance chips) tint a chip and its dot or icon; their label always uses `--text`.
+Avatar initials are decorative generated content. See `docs/ACCESSIBILITY.md`.
+
 ## v2 update (layout pass)
 - Dark theme is near-black `#0B0E10` with content directly on the background (no boxed feed); hover tints rows.
 - **Brand indigo** (`--brand`, `#7A7DFF` dark / `#474AE8` light) is used for primary buttons and links. **Jade** (`--accent`) is kept
