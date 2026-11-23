@@ -412,3 +412,44 @@ counts, so a client can't see anything it couldn't already fetch. Block filterin
 comment comes back with `blocked: true`.
 
 Presence and the simple broker are per-instance (single-node deployment). See DECISIONS for the multi-node path.
+
+## Files & share links (Phase 7)
+Private file library. Everything under `/me/files` requires auth and only ever returns the caller's own files (other
+people's ids answer 404). Every file response is `Content-Disposition: attachment` with `X-Content-Type-Options: nosniff`,
+`Content-Security-Policy: default-src 'none'; sandbox` and `Cache-Control: private, no-store`. Bytes live under a private
+storage prefix that the public `/files/**` media path refuses to serve.
+
+```ts
+FileItem { id, name, contentType /* from magic bytes; E2EE = application/octet-stream */, sizeBytes, e2ee,
+           scanStatus: "CLEAN"|"UNSCANNED" /* CLEAN = passed structural checks, not an antivirus verdict */,
+           scanDetail|null, sha256, activeLinks, createdAt, updatedAt }
+FileUsage { usedBytes, quotaBytes, maxFileBytes, fileCount }
+ShareLink { id, fileId, tokenHint /* last 4 chars */, status: "ACTIVE"|"EXPIRED"|"REVOKED"|"EXHAUSTED",
+            createdAt, expiresAt|null, hasPassword, maxDownloads|null, downloadCount,
+            keyMode: "FRAGMENT"|"PASSPHRASE"|null, revokedAt|null, lastAccessAt|null }
+WrappedKey { wrappedKey /* b64url: IV(12)+AES-GCM(key)+tag */, salt /* b64url, 16-64 bytes */, iterations /* >= 600000 */ }
+AccessEntry { id, at, event: "VIEWED"|"DOWNLOADED"|"WRONG_PASSWORD"|"LOCKED"|"EXPIRED"|"REVOKED"|"LIMIT_REACHED"|"FILE_DELETED",
+              viewer: UserSummary|null /* null = anonymous */, visitor: string|null /* 12-hex daily salted hash, never an IP */ }
+ShareMeta { fileName|null, contentType|null /* both null for E2EE */, sizeBytes, e2ee, keyMode|null, expiresAt|null,
+            requiresPassword, downloadsRemaining|null, scanStatus }
+```
+
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/me/files?q&cursor&limit` | `CursorPage<FileItem>`, newest first; `q` = case-insensitive name search |
+| GET | `/me/files/usage` | `FileUsage` (quota `strata.files.quota-mb`, default 1024; max file `max-file-mb`, default 500) |
+| POST | `/me/files` (multipart `file`, `e2ee?`, `label?`) | 201 `FileItem`. Streamed to storage. 400 `fieldErrors.file` for: over size/quota, blocked executable/script/macro type, content that doesn't match the extension, unsupported type, archive with executables or bomb-like expansion. With `e2ee=true` the body must be a Strata container (`STRATAE2` v1); the client's file name is not stored (`label` or "Encrypted file") |
+| GET | `/me/files/{id}` | `FileItem` |
+| PATCH | `/me/files/{id}` `{name}` | Rename (plain files keep their extension; E2EE renames the label) |
+| DELETE | `/me/files/{id}` | 204. Soft-delete, revoke links, remove stored bytes after commit |
+| GET | `/me/files/{id}/content` | Owner download (Bearer). Supports `Range` (206) |
+| POST | `/me/files/{id}/download-url` | `{url, expiresAt}`: signed `/downloads/{grant}` valid 5 min, for plain browser downloads |
+| GET | `/me/files/{id}/links` | `ShareLink[]` |
+| POST | `/me/files/{id}/links` `{expiresAt?, password? (4-128), maxDownloads? (1-10000), keyMode?, wrappedKey?}` | 201 `{link: ShareLink, token}`. The token is returned **once** (only its SHA-256 is stored); share page `/s/{token}`. `keyMode` is required for E2EE files (`PASSPHRASE` requires `wrappedKey`) and rejected for plain files. `expiresAt` must be at least 1 min ahead and at most 1 year |
+| DELETE | `/me/files/{id}/links/{linkId}` | 204, revoke (idempotent) |
+| GET | `/me/files/{id}/links/{linkId}/access?cursor&limit` | `CursorPage<AccessEntry>`, newest first |
+| GET | `/share/{token}` | Public `ShareMeta` (logs one VIEWED per visitor per 10 min). 404 unknown; **410 `GONE`** with a message when expired, revoked, exhausted or the file was deleted (logged) |
+| POST | `/share/{token}/unlock` `{password?}` | Public. `{downloadUrl, expiresAt, wrappedKey: WrappedKey|null}`. Wrong password → 400 `fieldErrors.password` (logged). 5 wrong passwords per visitor per 15 min (or 50 per link per hour) → 429 (LOCKED logged). A signed-in caller is recorded as the viewer |
+| GET | `/downloads/{grant}` | Public, signed grant (HMAC, 5 min). Re-checks the link at use time. Unlimited links support `Range`; a request without Range or from byte 0 counts as a download. Download-limited links ignore `Range` and send the whole file, each request counting. 404 bad/expired grant, 410 link no longer usable |
+
+Error code `GONE` (410) is new with this section.

@@ -44,7 +44,7 @@ enforcement) and a STOMP-over-WebSocket channel that also pushes notification ba
 "N new posts" pill on feeds, and live comments and scores on post pages.
 Single-node broker and presence; see D-017 for the multi-node path. Group chats are not planned yet.
 
-## Phase 7: Files & privacy ☐
+## Phase 7: Files & privacy ✅ (private files, share links with access log, structural scanning hook, browser E2EE; ClamAV engine, S3 driver and private DM images deferred, see D-019)
 Private file assets, share links (expiry, password, revocation, access log), validation and scanning hook.
 Then E2EE as a separate capability: WebCrypto AES-GCM client-side, key in the URL fragment or wrapped with
 PBKDF2/Argon2-derived keys, documented threat model and limits (no server preview or scanning).

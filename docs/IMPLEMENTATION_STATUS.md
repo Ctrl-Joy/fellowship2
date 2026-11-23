@@ -32,6 +32,9 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Direct messages: get-or-create 1:1 conversations, text + up to 4 own images, history paging, unread counts, read receipts ("Seen"), typing, presence, soft delete, search, `dmPolicy` (everyone / people I follow / nobody, reply always allowed), blocks in both directions | ✅ | ✅ | DirectMessagesIT (4), RealtimeIT, browser: two users chatting live (message, unread badge, reply, "Seen" and incoming reply without reload) |
 | Real-time channel: STOMP over WebSocket at `/ws`, token checked on CONNECT, permission-checked SUBSCRIBE, events sent after commit; live Pulse and mod-queue refresh | ✅ | ✅ auto-reconnect with backoff | RealtimeIT (live delivery, typing, bad token rejected, foreign mod queue refused) |
 | Live feeds and threads: "N new posts" pill on home and community feeds (never auto-inserts), new comments inserted live on post pages, post and comment scores batched every ~2 s; private communities only on members' topics | ✅ | ✅ | RealtimeIT (new post/comment/score delivery, private isolation), live/logic.test.ts, tree.test.ts, browser: pill appeared and loaded a post made by another user; open post page showed a new comment (highlighted) and score 0→2 without reload |
+| Private files: upload (streamed, magic-byte typed, executables/scripts/macro formats blocked, zip bomb and embedded-executable heuristics), per-user quota with usage meter, name search, rename, soft delete with storage cleanup, owner downloads with Range, attachment-only serving with nosniff and sandbox CSP | ✅ | ✅ | FilesIT (4), DefaultFileScannerTest (4) |
+| Share links: expiry, bcrypt password with per-visitor lockout, download limit (atomic), revocation, signed 5-minute download grants, access log with signed-in viewer or daily salted visitor hash (no IPs), public `/s/:token` page working signed out | ✅ | ✅ | FilesIT |
+| End-to-end encrypted files: in-browser AES-256-GCM chunked container with encrypted name/type, key in URL fragment or PBKDF2-SHA256 (600k) wrapped passphrase, server stores ciphertext only (UNSCANNED), recovery key, optional per-device key memory, threat model page | ✅ | ✅ | crypto.test.ts (11), FilesIT |
 | Smart Collections: private by default, notes, tags, search, type filter, move, reorder (drag + arrows), share link / revoke, shared view | ✅ | ✅ | KnowledgeLayerIT, tags.test.ts, browser |
 
 ## Tests (latest run)
@@ -50,8 +53,9 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
-- Not built yet: admin dashboard, mute, spam heuristics and topic reputation (rest of Phase 3), and Phases 7–9 (files, funding, leaderboard). Podcast audio/video generation (TTS) isn't configured, and the S3 storage driver is still pending.
+- Not built yet: admin dashboard, mute, spam heuristics and topic reputation (rest of Phase 3), and Phases 8–9 (funding, leaderboard). Podcast audio/video generation (TTS) isn't configured, and the S3 storage driver is still pending.
 - Real-time broker and presence are in-memory, per instance (D-017): fine for one backend node, not for several.
-- DM images use the same unguessable-but-public media URLs as post images (see D-016); messages are not end-to-end encrypted.
+- DM images use the same unguessable-but-public media URLs as post images (see D-016, D-019 for the fix plan); messages are not end-to-end encrypted.
+- Files: scanning is structural (type, denylist, archive heuristics), not antivirus; legacy OLE Office files may carry macros. E2EE decryption holds the whole file in memory. Private-file pages were not exercised in a browser in this phase (tests and build only).
 - Mod tools on individual posts and comments appear on the post page only. Feed rows don't carry moderator rights, so feeds don't show them; the mod queue covers them. The UI lists them under "Coming next" and routes them to one
   informational page, with no non-functional controls.

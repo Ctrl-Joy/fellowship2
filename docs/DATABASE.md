@@ -40,6 +40,7 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 |---|---|
 | V1 | core schema (identity, communities, posts, comments, votes, media, polls, notifications) |
 | V2 | reference topics |
+| V8 | private files (`user_files`), share links (`file_share_links`: token hashes, optional wrapped E2EE keys), access log (`file_share_access`: hashed visitors, no IPs) |
 
 Future phases add tables (reports, moderation_actions, collections, pulses, digests, ai_*, podcasts, files,
 funding_*) as new migrations — never by editing applied ones.

@@ -2,6 +2,7 @@ import {
   Bookmark,
   Compass,
   Flame,
+  FolderLock,
   Globe,
   Headphones,
   Home,
@@ -30,6 +31,7 @@ export const primaryNav: NavItem[] = [
   { to: '/library', label: 'Library', icon: LibraryBig, auth: true },
   { to: '/ai', label: 'Community AI', icon: Sparkles, auth: true },
   { to: '/podcasts', label: 'Podcasts', icon: Headphones },
+  { to: '/files', label: 'Files', icon: FolderLock, auth: true },
 ];
 
 /** Features scheduled for later phases. They route to a single honest "coming soon" page. */
