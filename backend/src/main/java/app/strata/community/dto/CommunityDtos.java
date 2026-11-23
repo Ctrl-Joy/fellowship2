@@ -34,7 +34,8 @@ public final class CommunityDtos {
     public record CommunityDetail(long id, String slug, String name, String description, String iconUrl,
                                   String bannerUrl, TopicDto topic, String visibility, int memberCount,
                                   List<String> tags, boolean isMember, Instant createdAt, List<RuleDto> rules,
-                                  List<FlairDto> flairs, List<ModeratorDto> moderators, ViewerDto viewer) {}
+                                  List<FlairDto> flairs, List<ModeratorDto> moderators, ViewerDto viewer,
+                                  String status, String statusReason) {}
 
     public record MemberDto(UserSummary user, String role, Instant joinedAt) {}
 

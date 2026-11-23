@@ -33,7 +33,8 @@ public final class ModerationDtos {
     public record Appeal(long id, ModAction action, UserSummary user, String message, String status, String response,
                          Instant createdAt, Instant resolvedAt) {}
 
-    public record ModStats(long openReports, long pendingAppeals, long activeBans, long actionsLast30Days, long removedLast30Days) {}
+    public record ModStats(long openReports, long pendingAppeals, long activeBans, long actionsLast30Days, long removedLast30Days,
+                           long heldForReview) {}
 
     public record MyModAction(ModAction action, CommunityRef community, Appeal appeal, boolean canAppeal) {}
 

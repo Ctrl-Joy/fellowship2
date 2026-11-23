@@ -49,6 +49,8 @@ public class SearchService {
         String query = clean(q);
         Map<String, Object> params = new HashMap<>();
         StringBuilder scope = new StringBuilder("p.search_vector @@ websearch_to_tsquery('english', :q)");
+        // Quarantined communities are left out of site-wide search, but stay searchable from inside (D-021).
+        if (community == null || community.isBlank()) scope.append(" AND c.status = 'ACTIVE'");
         params.put("q", query);
         if (community != null && !community.isBlank()) {
             Community c = communities.require(community);
@@ -72,7 +74,8 @@ public class SearchService {
         int offset = Cursors.decodeOffset(cursor);
         List<Long> ids = jdbc.sql("""
                         SELECT id FROM communities
-                        WHERE search_vector @@ websearch_to_tsquery('english', :q) OR slug ILIKE :prefix OR name ILIKE :contains
+                        WHERE status = 'ACTIVE'
+                          AND (search_vector @@ websearch_to_tsquery('english', :q) OR slug ILIKE :prefix OR name ILIKE :contains)
                         ORDER BY (slug ILIKE :prefix) DESC, ts_rank_cd(search_vector, websearch_to_tsquery('english', :q)) DESC,
                                  member_count DESC, id
                         OFFSET :off LIMIT :lim""")
@@ -105,7 +108,7 @@ public class SearchService {
         String query = clean(q);
         List<CommunityRef> cs = jdbc.sql("""
                         SELECT id, slug, name, icon_url FROM communities
-                        WHERE slug ILIKE :prefix OR name ILIKE :contains ORDER BY member_count DESC LIMIT 5""")
+                        WHERE status = 'ACTIVE' AND (slug ILIKE :prefix OR name ILIKE :contains) ORDER BY member_count DESC LIMIT 5""")
                 .param("prefix", like(query) + "%").param("contains", "%" + like(query) + "%")
                 .query((rs, i) -> new CommunityRef(rs.getLong(1), rs.getString(2), rs.getString(3), rs.getString(4))).list();
         List<UserSummary> us = users(query, null, 4).items();

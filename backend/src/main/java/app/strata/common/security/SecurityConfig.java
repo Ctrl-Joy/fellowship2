@@ -38,7 +38,8 @@ public class SecurityConfig {
     };
 
     @Bean
-    SecurityFilterChain api(HttpSecurity http, JwtService jwt, ObjectMapper mapper, AppProperties props) throws Exception {
+    SecurityFilterChain api(HttpSecurity http, JwtService jwt, ObjectMapper mapper, AppProperties props,
+                            AccountStatusCache accounts) throws Exception {
         http
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(c -> c.configurationSource(cors(props)))
@@ -54,19 +55,20 @@ public class SecurityConfig {
                         .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                         // WebSocket handshake; the STOMP CONNECT frame carries and checks the access token.
                         .requestMatchers("/ws", "/ws/**").permitAll()
+                        // Before the public-GET rule below, or admin GETs would be open to everyone (D-021).
+                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.GET, AUTHENTICATED_GETS).authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/resend-verification").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/sessions/**").authenticated()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
-                        .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(e -> e
                         .authenticationEntryPoint((req, res, ex) ->
                                 write(res, mapper, HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Authentication required"))
                         .accessDeniedHandler((req, res, ex) ->
                                 write(res, mapper, HttpStatus.FORBIDDEN, "FORBIDDEN", "You do not have permission to do that")))
-                .addFilterBefore(new JwtAuthFilter(jwt, mapper), UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(new JwtAuthFilter(jwt, mapper, accounts), UsernamePasswordAuthenticationFilter.class);
         return http.build();
     }
 

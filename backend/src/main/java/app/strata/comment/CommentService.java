@@ -16,6 +16,9 @@ import app.strata.notification.NotificationService;
 import app.strata.post.Post;
 import app.strata.post.PostService;
 import app.strata.post.PostService.PostContext;
+import app.strata.spam.SpamFlags;
+import app.strata.spam.SpamGuard;
+import app.strata.spam.SpamSignals;
 import app.strata.user.UserDirectory;
 import app.strata.user.UserRepository;
 import app.strata.user.dto.UserDtos.UserSummary;
@@ -30,6 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
@@ -45,7 +49,9 @@ public class CommentService {
     public static final int MAX_DEPTH = 10;
     private static final String COLS = """
             c.id, c.post_id, c.parent_id, c.depth, c.body, c.author_id, c.score, c.best_rank, c.controversy,
-            c.reply_count, c.removed, c.deleted_at IS NOT NULL AS deleted, c.created_at, c.edited_at""";
+            c.reply_count, c.removed, c.deleted_at IS NOT NULL AS deleted, c.created_at, c.edited_at, c.pending""";
+    /** Held comments reach only their author and the post's moderators. */
+    private static final String HELD_FILTER = " AND (c.pending = FALSE OR c.author_id = :viewer OR :mod) ";
 
     private final JdbcClient jdbc;
     private final PostService posts;
@@ -56,10 +62,15 @@ public class CommentService {
     private final RateLimiter limiter;
     private final app.strata.realtime.RealtimePublisher realtime;
     private final app.strata.realtime.LiveCounters counters;
+    private final SpamGuard spam;
+    private final SpamFlags spamFlags;
 
     public CommentService(JdbcClient jdbc, PostService posts, CommunityAccess access, UserDirectory userDirectory,
                           UserRepository users, NotificationService notifications, RateLimiter limiter,
-                          app.strata.realtime.RealtimePublisher realtime, app.strata.realtime.LiveCounters counters) {
+                          app.strata.realtime.RealtimePublisher realtime, app.strata.realtime.LiveCounters counters,
+                          SpamGuard spam, SpamFlags spamFlags) {
+        this.spam = spam;
+        this.spamFlags = spamFlags;
         this.realtime = realtime;
         this.counters = counters;
         this.jdbc = jdbc;
@@ -98,7 +109,7 @@ public class CommentService {
 
     private record Row(long id, long postId, Long parentId, int depth, String body, Long authorId, int score,
                        double best, double controversy, int replyCount, boolean removed, boolean deleted,
-                       Instant createdAt, Instant editedAt) {}
+                       Instant createdAt, Instant editedAt, boolean pending) {}
 
     // ------------------------------------------------------------------ reads
 
@@ -108,9 +119,10 @@ public class CommentService {
         boolean mod = access.canModerate(ctx.role(), user);
         Sort sort = Sort.parse(sortParam);
         int offset = Cursors.decodeOffset(cursor);
-        List<Row> rows = jdbc.sql("SELECT " + COLS + " FROM comments c WHERE c.post_id = :p AND c.parent_id IS NULL ORDER BY "
-                        + sort.order + " OFFSET :off LIMIT :lim")
+        List<Row> rows = jdbc.sql("SELECT " + COLS + " FROM comments c WHERE c.post_id = :p AND c.parent_id IS NULL" + HELD_FILTER
+                        + "ORDER BY " + sort.order + " OFFSET :off LIMIT :lim")
                 .param("p", postId).param("off", offset).param("lim", limit + 1)
+                .param("viewer", user == null ? -1L : user.id()).param("mod", mod)
                 .query(this::row).list();
         boolean more = rows.size() > limit;
         List<Row> page = more ? rows.subList(0, limit) : rows;
@@ -126,9 +138,10 @@ public class CommentService {
         boolean mod = access.canModerate(ctx.role(), user);
         Sort sort = Sort.parse(sortParam);
         int offset = Cursors.decodeOffset(cursor);
-        List<Row> rows = jdbc.sql("SELECT " + COLS + " FROM comments c WHERE c.parent_id = :p ORDER BY "
-                        + sort.order + " OFFSET :off LIMIT :lim")
+        List<Row> rows = jdbc.sql("SELECT " + COLS + " FROM comments c WHERE c.parent_id = :p" + HELD_FILTER
+                        + "ORDER BY " + sort.order + " OFFSET :off LIMIT :lim")
                 .param("p", commentId).param("off", offset).param("lim", limit + 1)
+                .param("viewer", user == null ? -1L : user.id()).param("mod", mod)
                 .query(this::row).list();
         boolean more = rows.size() > limit;
         List<Row> page = more ? rows.subList(0, limit) : rows;
@@ -143,8 +156,10 @@ public class CommentService {
         for (int per : fanOut) {
             if (frontier.isEmpty()) break;
             List<Row> level = jdbc.sql("SELECT * FROM (SELECT " + COLS + ", row_number() OVER (PARTITION BY c.parent_id ORDER BY "
-                            + sort.order + ") AS rn FROM comments c WHERE c.parent_id IN (:ids)) x WHERE x.rn <= :per ORDER BY x.rn")
+                            + sort.order + ") AS rn FROM comments c WHERE c.parent_id IN (:ids)" + HELD_FILTER
+                            + ") x WHERE x.rn <= :per ORDER BY x.rn")
                     .param("ids", frontier).param("per", per)
+                    .param("viewer", user == null ? -1L : user.id()).param("mod", mod)
                     .query(this::row).list();
             for (Row r : level) children.computeIfAbsent(r.parentId(), k -> new ArrayList<>()).add(r);
             all.addAll(level);
@@ -159,7 +174,15 @@ public class CommentService {
                     .forEach(e -> myVotes.put(e.getKey(), e.getValue()));
         }
         Set<Long> blocked = blockedBy(user);
-        return roots.stream().map(r -> toNode(r, children, authors, myVotes, blocked, mod)).toList();
+        Set<Long> muted = mutedBy(user);
+        return roots.stream().map(r -> toNode(r, children, authors, myVotes, blocked, muted, mod)).toList();
+    }
+
+    /** Users the viewer has muted; their comments arrive collapsed (still readable on request). Mutes are private. */
+    private Set<Long> mutedBy(AuthUser user) {
+        if (user == null) return Set.of();
+        return new HashSet<>(jdbc.sql("SELECT muted_id FROM user_mutes WHERE muter_id = ?").param(user.id())
+                .query(Long.class).list());
     }
 
     /** Users the viewer has blocked; their comments keep their place in the tree but not their content. */
@@ -170,19 +193,20 @@ public class CommentService {
     }
 
     private CommentNode toNode(Row r, Map<Long, List<Row>> children, Map<Long, UserSummary> authors, Map<Long, Integer> votes,
-                               Set<Long> blocked, boolean mod) {
+                               Set<Long> blocked, Set<Long> muted, boolean mod) {
         List<CommentNode> kids = children.getOrDefault(r.id(), List.of()).stream()
-                .map(k -> toNode(k, children, authors, votes, blocked, mod)).toList();
+                .map(k -> toNode(k, children, authors, votes, blocked, muted, mod)).toList();
         boolean isBlocked = r.authorId() != null && blocked.contains(r.authorId()) && !r.deleted();
-        boolean revealRemoved = mod && r.removed() && !r.deleted();
+        boolean held = r.pending() && !r.deleted(); // only the author and moderators ever receive held rows
+        boolean revealRemoved = (mod || held) && r.removed() && !r.deleted();
         boolean hidden = r.deleted() || (r.removed() && !revealRemoved) || isBlocked;
         String body = r.deleted() ? "[deleted]"
                 : isBlocked ? "[blocked user]"
                 : r.removed() && !revealRemoved ? "[removed by moderators]" : r.body();
         return new CommentNode(r.id(), r.postId(), r.parentId(), r.depth(), body,
                 hidden ? null : authors.get(r.authorId()), r.score(), votes.getOrDefault(r.id(), 0), r.deleted(),
-                r.removed(), r.createdAt(), r.editedAt(), r.replyCount(), kids, Math.max(0, r.replyCount() - kids.size()),
-                isBlocked);
+                r.removed() && !held, r.createdAt(), r.editedAt(), r.replyCount(), kids, Math.max(0, r.replyCount() - kids.size()),
+                isBlocked, held, r.authorId() != null && muted.contains(r.authorId()) && !r.deleted());
     }
 
     @Transactional(readOnly = true)
@@ -213,7 +237,7 @@ public class CommentService {
                     .forEach(e -> votes.put(e.getKey(), e.getValue()));
         }
         List<UserComment> items = page.stream().map(u -> new UserComment(
-                toNode(u.row(), Map.of(), authors, votes, Set.of(), false),
+                toNode(u.row(), Map.of(), authors, votes, Set.of(), Set.of(), false),
                 new PostRef(u.row().postId(), u.title(), new CommunityRef(u.communityId(), u.slug(), u.name(), u.icon()))))
                 .toList();
         return new CursorPage<>(items, more ? Cursors.encode(0, page.getLast().row().id()) : null);
@@ -248,10 +272,27 @@ public class CommentService {
             parentAuthor = parent.authorId();
         }
 
-        long id = jdbc.sql("INSERT INTO comments (post_id, parent_id, author_id, depth, body) VALUES (?, ?, ?, ?, ?) RETURNING id")
-                .params(postId, req.parentId(), user.id(), depth, body).query(Long.class).single();
-        if (req.parentId() != null) {
-            jdbc.sql("UPDATE comments SET reply_count = reply_count + 1 WHERE id = ?").param(req.parentId()).update();
+        int linkCount = SpamSignals.linksInText(body);
+        SpamGuard.Verdict verdict = spam.checkComment(user, access.canModerate(ctx.role(), user), ctx.community().getId(), body, linkCount);
+        long id = jdbc.sql("""
+                        INSERT INTO comments (post_id, parent_id, author_id, depth, body, link_count, pending, removed)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
+                .params(postId, req.parentId(), user.id(), depth, body, Math.min(linkCount, Short.MAX_VALUE), verdict.held(), verdict.held())
+                .query(Long.class).single();
+        if (verdict.held()) {
+            // Held: invisible to everyone but the author and moderators; counters and notifications wait for release.
+            spamFlags.recordHeld(ctx.community().getId(), user.id(), "COMMENT", postId, id, String.join(",", verdict.rules()),
+                    verdict.details(), body.length() <= 300 ? body : body.substring(0, 299) + "…");
+            realtime.modQueueChanged(ctx.community().getId());
+            return single(id, user);
+        }
+        publish(postId, id, req.parentId(), parentAuthor, post, user.id(), user.username(), body);
+        return single(id, user);
+    }
+
+    private void publish(long postId, long id, Long parentId, Long parentAuthor, Post post, long authorId, String authorName, String body) {
+        if (parentId != null) {
+            jdbc.sql("UPDATE comments SET reply_count = reply_count + 1 WHERE id = ?").param(parentId).update();
         }
         record Counts(int up, int down, int comments, Instant created) {}
         Counts c = jdbc.sql("UPDATE posts SET comment_count = comment_count + 1 WHERE id = ? RETURNING upvotes, downvotes, comment_count, created_at")
@@ -260,17 +301,29 @@ public class CommentService {
         jdbc.sql("UPDATE posts SET hot_rank = ? WHERE id = ?").params(ScoreMath.hot(c.up(), c.down(), c.comments(), c.created()), postId).update();
 
         if (parentAuthor != null) {
-            notifications.commentReply(parentAuthor, user.id(), user.username(), postId, id, req.parentId());
+            notifications.commentReply(parentAuthor, authorId, authorName, postId, id, parentId);
         } else if (post.getAuthorId() != null) {
-            notifications.postReply(post.getAuthorId(), user.id(), user.username(), postId, id, post.getTitle());
+            notifications.postReply(post.getAuthorId(), authorId, authorName, postId, id, post.getTitle());
         }
         for (String name : Mentions.extract(body, 5)) {
             users.findByUsernameIgnoreCase(name).filter(u -> u.isActive())
-                    .ifPresent(u -> notifications.mention(u.getId(), user.id(), user.username(), postId, id));
+                    .ifPresent(u -> notifications.mention(u.getId(), authorId, authorName, postId, id));
         }
-        realtime.commentCreated(postId, id, req.parentId(), user.id());
+        realtime.commentCreated(postId, id, parentId, authorId);
         counters.postChanged(postId);
-        return single(id, user);
+    }
+
+    /** A held comment was approved: counters, notifications and the live insert happen now, as on a normal write. */
+    @Transactional
+    public void released(long commentId) {
+        Row r = load(commentId);
+        Post post = posts.requirePost(r.postId());
+        Long parentAuthor = r.parentId() == null ? null
+                : jdbc.sql("SELECT author_id FROM comments WHERE id = ?").param(r.parentId()).query(Long.class).optional().orElse(null);
+        String authorName = r.authorId() == null ? null
+                : users.findById(r.authorId()).map(app.strata.user.User::getUsername).orElse(null);
+        publish(r.postId(), commentId, r.parentId(), parentAuthor, post, r.authorId() == null ? 0L : r.authorId(),
+                authorName == null ? "[deleted]" : authorName, r.body());
     }
 
     /** One comment without preloaded replies, under the same visibility rules as the thread (used for live inserts). */
@@ -280,7 +333,9 @@ public class CommentService {
         if (r.deleted()) throw ApiException.notFound("Comment");
         PostContext ctx = posts.context(r.postId(), user);
         if (ctx.post().getDeletedAt() != null) throw ApiException.notFound("Comment");
-        return buildTree(List.of(r), Sort.BEST, new int[0], user, access.canModerate(ctx.role(), user)).getFirst();
+        boolean mod = access.canModerate(ctx.role(), user);
+        if (r.pending() && !mod && !(user != null && Objects.equals(r.authorId(), user.id()))) throw ApiException.notFound("Comment");
+        return buildTree(List.of(r), Sort.BEST, new int[0], user, mod).getFirst();
     }
 
     @Transactional
@@ -320,6 +375,7 @@ public class CommentService {
         return new Row(rs.getLong("id"), rs.getLong("post_id"), (Long) rs.getObject("parent_id"), rs.getInt("depth"),
                 rs.getString("body"), (Long) rs.getObject("author_id"), rs.getInt("score"), rs.getDouble("best_rank"),
                 rs.getDouble("controversy"), rs.getInt("reply_count"), rs.getBoolean("removed"), rs.getBoolean("deleted"),
-                rs.getObject("created_at", OffsetDateTime.class).toInstant(), edited == null ? null : edited.toInstant());
+                rs.getObject("created_at", OffsetDateTime.class).toInstant(), edited == null ? null : edited.toInstant(),
+                rs.getBoolean("pending"));
     }
 }

@@ -44,12 +44,13 @@ public class CommunityAccess {
     }
 
     public boolean canView(Community c, Optional<CommunityRole> role, AuthUser user) {
+        if (c.isBanned()) return user != null && user.isAdmin(); // closed by platform admins (D-021)
         if (c.visibility() != Community.Visibility.PRIVATE) return true;
         return role.isPresent() || (user != null && user.isAdmin());
     }
 
     public boolean canPost(Community c, Optional<CommunityRole> role, AuthUser user) {
-        if (user == null || banOf(c.getId(), user).isPresent()) return false;
+        if (user == null || c.isBanned() || banOf(c.getId(), user).isPresent()) return false;
         return switch (c.visibility()) {
             case PUBLIC -> true;
             case RESTRICTED -> role.map(r -> r.atLeast(CommunityRole.CONTRIBUTOR)).orElse(false);
@@ -58,7 +59,7 @@ public class CommunityAccess {
     }
 
     public boolean canComment(Community c, Optional<CommunityRole> role, AuthUser user) {
-        if (user == null || banOf(c.getId(), user).isPresent()) return false;
+        if (user == null || c.isBanned() || banOf(c.getId(), user).isPresent()) return false;
         return c.visibility() != Community.Visibility.PRIVATE || role.isPresent();
     }
 
@@ -67,8 +68,12 @@ public class CommunityAccess {
     }
 
     public void requireView(Community c, AuthUser user) {
-        if (!canView(c, roleOf(c, user), user)) {
-            throw ApiException.forbidden("This community is private");
+        requireView(c, user, roleOf(c, user));
+    }
+
+    public void requireView(Community c, AuthUser user, Optional<CommunityRole> role) {
+        if (!canView(c, role, user)) {
+            throw ApiException.forbidden(c.isBanned() ? "This community has been banned" : "This community is private");
         }
     }
 

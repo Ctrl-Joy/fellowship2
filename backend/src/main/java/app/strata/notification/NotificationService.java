@@ -83,6 +83,17 @@ public class NotificationService {
                 "/mod-actions/" + actionId);
     }
 
+    /** Sent to a community's moderators when platform admins quarantine, ban or restore it (actor withheld, like removals). */
+    public void communityStatus(long recipientId, String slug, String status, String reason) {
+        String what = switch (status) {
+            case "QUARANTINED" -> "was quarantined by the site admins";
+            case "BANNED" -> "was banned by the site admins";
+            default -> "was restored by the site admins";
+        };
+        push(recipientId, "COMMUNITY_STATUS", null, null,
+                "c/" + slug + " " + what + (reason == null || reason.isBlank() ? "" : ": " + clip(reason)), "/c/" + slug);
+    }
+
     public void pulseResult(long recipientId, String slug, long pulseId, String title, boolean correct) {
         push(recipientId, "PULSE_RESULT", null, "pulse:" + pulseId,
                 "The prediction “" + clip(title) + "” in c/" + slug + " was resolved" + (correct ? ". You called it!" : ""),
@@ -91,8 +102,11 @@ public class NotificationService {
 
     private void push(long recipientId, String type, Long actorId, String groupKey, String message, String link) {
         if (actorId != null && actorId == recipientId) return;
-        if (actorId != null && jdbc.sql("SELECT EXISTS (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?)")
-                .params(recipientId, actorId).query(Boolean.class).single()) {
+        // Blocked and muted people can't notify you (mutes: D-021).
+        if (actorId != null && jdbc.sql("""
+                        SELECT EXISTS (SELECT 1 FROM user_blocks WHERE blocker_id = ? AND blocked_id = ?)
+                            OR EXISTS (SELECT 1 FROM user_mutes WHERE muter_id = ? AND muted_id = ?)""")
+                .params(recipientId, actorId, recipientId, actorId).query(Boolean.class).single()) {
             return;
         }
         if (groupKey == null) {

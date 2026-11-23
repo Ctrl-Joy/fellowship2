@@ -34,7 +34,18 @@ public class FeedService {
     private static final String JOINED = "p.community_id IN (SELECT community_id FROM community_members WHERE user_id = :viewer)";
     private static final String FOLLOWED = "p.author_id IN (SELECT followee_id FROM user_follows WHERE follower_id = :viewer)";
     private static final String TOPICS = "c.topic_id IN (SELECT topic_id FROM user_topics WHERE user_id = :viewer)";
-    private static final String PUBLIC_ONLY = "c.visibility <> 'PRIVATE'";
+    /** Popular/All-style tabs: public communities that platform admins haven't quarantined (D-021). */
+    private static final String PUBLIC_ONLY = "c.visibility <> 'PRIVATE' AND c.status = 'ACTIVE'";
+    /** The viewer's private mutes: muted people leave every feed, muted communities leave the home tabs. */
+    private static final String NOT_MUTED_AUTHOR =
+            "NOT EXISTS (SELECT 1 FROM user_mutes um WHERE um.muter_id = :viewer AND um.muted_id = p.author_id)";
+    private static final String NOT_MUTED_COMMUNITY =
+            "NOT EXISTS (SELECT 1 FROM community_mutes cmu WHERE cmu.user_id = :viewer AND cmu.community_id = p.community_id)";
+    private static final String NOT_MUTED = NOT_MUTED_AUTHOR + " AND " + NOT_MUTED_COMMUNITY;
+
+    private static String home(String scope) {
+        return "(" + scope + ") AND " + NOT_MUTED;
+    }
 
     @Transactional(readOnly = true)
     public CursorPage<PostSummary> home(String tab, String t, String cursor, int limit, AuthUser user) {
@@ -42,12 +53,12 @@ public class FeedService {
         String normalized = tab == null ? "foryou" : tab.toLowerCase();
         if (viewer == null && (normalized.equals("foryou") || normalized.equals("following"))) normalized = "popular";
         return switch (normalized) {
-            case "following" -> queries.page(new Spec(JOINED + " OR " + FOLLOWED, Map.of(), Sort.NEW, null, null, cursor, limit, viewer, false));
-            case "latest" -> queries.page(new Spec(PUBLIC_ONLY, Map.of(), Sort.NEW, null, null, cursor, limit, viewer, false));
-            case "rising" -> queries.page(new Spec(PUBLIC_ONLY, Map.of(), Sort.RISING, null, null, cursor, limit, viewer, false));
-            case "top" -> queries.page(new Spec(PUBLIC_ONLY, Map.of(), Sort.TOP, window(t), null, cursor, limit, viewer, false));
+            case "following" -> queries.page(new Spec(home(JOINED + " OR " + FOLLOWED), Map.of(), Sort.NEW, null, null, cursor, limit, viewer, false));
+            case "latest" -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.NEW, null, null, cursor, limit, viewer, false));
+            case "rising" -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.RISING, null, null, cursor, limit, viewer, false));
+            case "top" -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.TOP, window(t), null, cursor, limit, viewer, false));
             case "foryou" -> forYou(cursor, limit, viewer);
-            default -> queries.page(new Spec(PUBLIC_ONLY, Map.of(), Sort.HOT, null, null, cursor, limit, viewer, false));
+            default -> queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.HOT, null, null, cursor, limit, viewer, false));
         };
     }
 
@@ -56,10 +67,10 @@ public class FeedService {
      * by hot. A brand-new account with no signals gets the popular feed rather than an empty page.
      */
     private CursorPage<PostSummary> forYou(String cursor, int limit, Long viewer) {
-        CursorPage<PostSummary> page = queries.page(new Spec(JOINED + " OR " + FOLLOWED + " OR (" + TOPICS + " AND " + PUBLIC_ONLY + ")",
+        CursorPage<PostSummary> page = queries.page(new Spec(home(JOINED + " OR " + FOLLOWED + " OR (" + TOPICS + " AND " + PUBLIC_ONLY + ")"),
                 Map.of(), Sort.HOT, null, null, cursor, limit, viewer, false));
         if (cursor == null && page.items().isEmpty()) {
-            return queries.page(new Spec(PUBLIC_ONLY, Map.of(), Sort.HOT, null, null, null, limit, viewer, false));
+            return queries.page(new Spec(home(PUBLIC_ONLY), Map.of(), Sort.HOT, null, null, null, limit, viewer, false));
         }
         return page;
     }
@@ -76,7 +87,7 @@ public class FeedService {
             default -> Sort.HOT;
         };
         boolean pinFirst = s == Sort.HOT;
-        CursorPage<PostSummary> page = queries.page(new Spec("p.community_id = :cid", Map.of("cid", c.getId()), s,
+        CursorPage<PostSummary> page = queries.page(new Spec("p.community_id = :cid AND " + NOT_MUTED_AUTHOR, Map.of("cid", c.getId()), s,
                 window(t), null, cursor, limit, viewer, pinFirst));
         if (pinFirst && cursor == null) {
             List<PostSummary> pinned = queries.pinned(c.getId(), viewer);
@@ -97,7 +108,7 @@ public class FeedService {
 
     @Transactional(readOnly = true)
     public List<PostSummary> trending(int limit, AuthUser user) {
-        return queries.page(new Spec(PUBLIC_ONLY + " AND p.created_at > now() - interval '3 days'", Map.of(), Sort.TOP, null,
+        return queries.page(new Spec(home(PUBLIC_ONLY) + " AND p.created_at > now() - interval '3 days'", Map.of(), Sort.TOP, null,
                 null, null, Math.min(Math.max(limit, 1), 10), user == null ? null : user.id(), false)).items();
     }
 

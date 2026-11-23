@@ -109,7 +109,8 @@ public class CommunityService {
         List<FlairDto> flairs = c.getFlairs().stream().map(CommunityMapper::flair).toList();
         return new CommunityDetail(c.getId(), c.getSlug(), c.getName(), c.getDescription(), c.getIconUrl(),
                 c.getBannerUrl(), Topic.TopicDto.of(c.getTopic()), c.visibility().name(), c.getMemberCount(),
-                c.getTags(), role.isPresent(), c.getCreatedAt(), rules, flairs, moderators, viewer);
+                c.getTags(), role.isPresent(), c.getCreatedAt(), rules, flairs, moderators, viewer, c.getStatus(),
+                c.getStatusReason());
     }
 
     @Transactional

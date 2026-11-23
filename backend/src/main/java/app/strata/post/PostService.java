@@ -19,6 +19,9 @@ import app.strata.post.dto.PostDtos.PostDetail;
 import app.strata.post.dto.PostDtos.PostSummary;
 import app.strata.post.dto.PostDtos.PostViewer;
 import app.strata.post.dto.PostDtos.UpdatePostRequest;
+import app.strata.spam.SpamFlags;
+import app.strata.spam.SpamGuard;
+import app.strata.spam.SpamSignals;
 import app.strata.storage.MediaAsset;
 import app.strata.storage.MediaAssetRepository;
 import app.strata.user.UserRepository;
@@ -30,6 +33,7 @@ import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -49,12 +53,16 @@ public class PostService {
     private final NotificationService notifications;
     private final UserRepository users;
     private final app.strata.realtime.RealtimePublisher realtime;
+    private final SpamGuard spam;
+    private final SpamFlags spamFlags;
 
     public PostService(PostRepository posts, PostQueryService queries, CommunityRepository communities,
                        CommunityAccess access, MediaAssetRepository mediaAssets, HtmlSanitizer sanitizer,
                        JdbcClient jdbc, RateLimiter limiter, NotificationService notifications, UserRepository users,
-                       app.strata.realtime.RealtimePublisher realtime) {
+                       app.strata.realtime.RealtimePublisher realtime, SpamGuard spam, SpamFlags spamFlags) {
         this.realtime = realtime;
+        this.spam = spam;
+        this.spamFlags = spamFlags;
         this.posts = posts;
         this.queries = queries;
         this.communities = communities;
@@ -70,11 +78,20 @@ public class PostService {
     /** Loads a post and the community it lives in, enforcing view permission. */
     public record PostContext(Post post, Community community, Optional<CommunityRole> role) {}
 
+    /** Loads a post with no permission check, for internal callers that already checked (e.g. releasing held content). */
+    public Post requirePost(long postId) {
+        return posts.findById(postId).orElseThrow(() -> ApiException.notFound("Post"));
+    }
+
     public PostContext context(long postId, AuthUser user) {
         Post p = posts.findById(postId).orElseThrow(() -> ApiException.notFound("Post"));
         Community c = communities.findById(p.getCommunityId()).orElseThrow(() -> ApiException.notFound("Post"));
         Optional<CommunityRole> role = access.roleOf(c, user);
-        if (!access.canView(c, role, user)) throw ApiException.forbidden("This post is in a private community");
+        access.requireView(c, user, role);
+        // Held content: only its author and the community's moderators know it exists.
+        if (p.isPending() && !(user != null && Objects.equals(p.getAuthorId(), user.id())) && !access.canModerate(role, user)) {
+            throw ApiException.notFound("Post");
+        }
         return new PostContext(p, c, role);
     }
 
@@ -121,18 +138,56 @@ public class PostService {
         Long flairId = validateFlair(c, req.flairId());
         List<String> tags = req.tags() == null ? List.of() : req.tags().stream().map(String::toLowerCase).distinct().toList();
 
+        String contentHash = SpamSignals.contentHash(title, text);
+        String linkHash = SpamSignals.linkHash(url);
+        int linkCount = SpamSignals.linksInPost(html, url);
+        SpamGuard.Verdict verdict = spam.checkPost(user, access.canModerate(role, user),
+                new SpamGuard.PostInput(c.getId(), title, text, contentHash, linkHash, linkCount));
+
         Post post = posts.saveAndFlush(new Post(c.getId(), user.id(), type, title, html, text, url, flairId, tags,
                 ScoreMath.hot(0, 0, 0, Instant.now())));
+        jdbc.sql("UPDATE posts SET content_hash = ?, link_hash = ?, link_count = ?, pending = ?, removed = ? WHERE id = ?")
+                .params(contentHash, linkHash, Math.min(linkCount, Short.MAX_VALUE), verdict.held(), verdict.held(), post.getId())
+                .update();
 
         for (int i = 0; i < media.size(); i++) {
             jdbc.sql("INSERT INTO post_media (post_id, media_id, position) VALUES (?, ?, ?)")
                     .params(post.getId(), media.get(i).getId(), i).update();
         }
         if (type == Post.Type.POLL) createPoll(post.getId(), req);
-        jdbc.sql("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").param(c.getId()).update();
-        notifyMentions(user, text, post.getId());
-        realtime.postCreated(post.getId(), c.getId(), c.getSlug(), c.visibility() == Community.Visibility.PRIVATE, user.id());
+        if (verdict.held()) {
+            // Held: no counters, mentions or live announcement until a moderator releases it (see released()).
+            spamFlags.recordHeld(c.getId(), user.id(), "POST", post.getId(), null, String.join(",", verdict.rules()),
+                    verdict.details(), clip(title, 300));
+            realtime.modQueueChanged(c.getId());
+            return post.getId();
+        }
+        publish(post.getId(), c, user.id(), user.username(), text);
         return post.getId();
+    }
+
+    private void publish(long postId, Community c, long authorId, String authorName, String text) {
+        jdbc.sql("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").param(c.getId()).update();
+        notifyMentions(authorId, authorName, text, postId);
+        realtime.postCreated(postId, c.getId(), c.getSlug(), c.visibility() == Community.Visibility.PRIVATE, authorId);
+    }
+
+    /** A held post was approved: it now counts and notifies exactly as if it had been published normally. */
+    @Transactional
+    public void released(long postId) {
+        Post p = posts.findById(postId).orElseThrow(() -> ApiException.notFound("Post"));
+        Community c = communities.findById(p.getCommunityId()).orElseThrow(() -> ApiException.notFound("Community"));
+        String authorName = p.getAuthorId() == null ? null
+                : users.findById(p.getAuthorId()).map(app.strata.user.User::getUsername).orElse(null);
+        if (p.getAuthorId() == null || authorName == null) {
+            jdbc.sql("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").param(c.getId()).update();
+            return;
+        }
+        publish(postId, c, p.getAuthorId(), authorName, p.getBodyText());
+    }
+
+    private static String clip(String s, int max) {
+        return s.length() <= max ? s : s.substring(0, max - 1) + "…";
     }
 
     private void createPoll(long postId, CreatePostRequest req) {
@@ -290,10 +345,10 @@ public class PostService {
         }
     }
 
-    private void notifyMentions(AuthUser actor, String text, long postId) {
+    private void notifyMentions(long actorId, String actorName, String text, long postId) {
         for (String name : Mentions.extract(text, 5)) {
             users.findByUsernameIgnoreCase(name).filter(u -> u.isActive())
-                    .ifPresent(u -> notifications.mention(u.getId(), actor.id(), actor.username(), postId, null));
+                    .ifPresent(u -> notifications.mention(u.getId(), actorId, actorName, postId, null));
         }
     }
 }
