@@ -102,7 +102,7 @@ jobs:
           FUNDING_DEMO_WEBHOOK_SECRET: ci-only-demo-webhook-secret
           STORAGE_LOCAL_DIR: ${{ runner.temp }}/uploads
         run: |
-          nohup java -jar target/strata-backend-*.jar > "$RUNNER_TEMP/backend.log" 2>&1 &
+          nohup java -jar target/strata-backend.jar > "$RUNNER_TEMP/backend.log" 2>&1 &
           for i in $(seq 1 90); do
             if curl -fsS http://localhost:8080/actuator/health/readiness > /dev/null; then echo "backend ready"; exit 0; fi
             sleep 2
@@ -146,3 +146,4 @@ jobs:
         env:
           DATABASE_PASSWORD: ci-only
           JWT_SECRET: Y2ktb25seS1zZWNyZXQtbm90LWZvci1wcm9kdWN0aW9uLXVzZS0xMjM0NQ==
+          MINIO_ROOT_PASSWORD: ci-only-minio-password
