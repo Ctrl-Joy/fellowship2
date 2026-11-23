@@ -76,6 +76,8 @@ services:
       s3: { condition: service_healthy }
     environment:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-default}
+      # One-off escape hatch when a database missed a migration that merged later (normally false).
+      SPRING_FLYWAY_OUT_OF_ORDER: ${FLYWAY_OUT_OF_ORDER:-false}
       DATABASE_URL: jdbc:postgresql://postgres:5432/${DATABASE_NAME:-howlers}
       DATABASE_USER: ${DATABASE_USER:-howlers}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD}

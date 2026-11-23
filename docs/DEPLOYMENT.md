@@ -296,3 +296,9 @@ after you switch to Stripe; create new pools for Stripe. The demo seed doesn't c
   something is pending (`MIGRATE_LEGACY_DM_MEDIA=true` by default). It is idempotent and safe on several nodes, and
   every run is recorded in `maintenance_runs`. Admins can rerun it with `POST /api/v1/admin/maintenance/legacy-dm-media`.
   Take a storage backup first if your bucket has no versioning: the public copies are deleted once the move commits.
+
+### Missed migration on an existing database
+If a database was upgraded while a lower-numbered migration was still unmerged (Flyway then reports "Detected resolved
+migration not applied to database"), start the backend once with `FLYWAY_OUT_OF_ORDER=true` in `.env`
+(`docker compose up -d backend`), then remove the setting. Only do this for migrations that are independent of the
+later ones (new tables or columns), which is how Howlers migrations are written.
