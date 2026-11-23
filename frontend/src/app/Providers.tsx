@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { TooltipProvider } from '@/components/ui/Tooltip';
 import { Toaster } from '@/components/ui/Toast';
 import { RealtimeProvider } from '@/features/realtime/RealtimeProvider';
+import { PwaRoot } from '@/features/pwa/PwaRoot';
 import { ApiError } from '@/services/apiError';
 import { refreshSession } from '@/services/apiClient';
 import { useAuthStore } from '@/store/authStore';
@@ -48,6 +49,7 @@ export function Providers({ children }: { children: ReactNode }) {
             <RealtimeProvider>{children}</RealtimeProvider>
           </SessionBoot>
           <Toaster />
+          <PwaRoot />
         </TooltipProvider>
       </MotionConfig>
     </QueryClientProvider>

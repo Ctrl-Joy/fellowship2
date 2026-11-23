@@ -26,6 +26,10 @@ howlers:
       provider: none
       elevenlabs:
         api-key: ""
+  push:
+    # Never use a developer's real VAPID keys in tests; WebPushIT sets a throwaway pair and a local fake push service.
+    vapid-public-key: ""
+    vapid-private-key: ""
 management:
   health:
     redis:

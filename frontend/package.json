@@ -10,7 +10,8 @@
     "lint": "tsc -b --noEmit && eslint .",
     "test": "vitest run",
     "e2e": "playwright test",
-    "e2e:report": "playwright show-report"
+    "e2e:report": "playwright show-report",
+    "brand:images": "node scripts/brand-images.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "5.1.1",

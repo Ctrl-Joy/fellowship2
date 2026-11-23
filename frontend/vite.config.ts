@@ -2,8 +2,13 @@
 import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
+import { serviceWorkerPlugin } from './pwa/serviceWorkerPlugin';
 
 const backend = process.env.VITE_BACKEND_URL ?? 'http://localhost:8080';
+
+/** robots.txt and sitemaps come from the backend (D-039), as nginx does in Docker. */
+const CRAWLER_DOCS = String.raw`^/(robots\.txt|sitemap\.xml|sitemaps/.*)$`;
+const crawlerDocs = { target: backend, changeOrigin: true, rewrite: (p: string) => `/api/v1/seo${p}` };
 
 /**
  * Dev/E2E only: when this dev server runs on a port the backend's CORS_ALLOWED_ORIGINS doesn't list (e.g. a second
@@ -35,13 +40,14 @@ function rewriteOwnOrigin(proxy: ProxyLike) {
 }
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), serviceWorkerPlugin()],
   resolve: { alias: { '@': fileURLToPath(new URL('./src', import.meta.url)) } },
   server: {
     port: 5173,
     proxy: {
       '/api': { target: backend, changeOrigin: true, configure: (p) => rewriteOwnOrigin(p as unknown as ProxyLike) },
       '/swagger-ui': { target: backend, changeOrigin: true },
+      [CRAWLER_DOCS]: crawlerDocs,
       '/ws': {
         target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: true,
         configure: (p) => rewriteOwnOrigin(p as unknown as ProxyLike),
@@ -50,6 +56,7 @@ export default defineConfig({
   },
   preview: {
     proxy: {
+      [CRAWLER_DOCS]: crawlerDocs,
       '/api': { target: backend, changeOrigin: true, configure: (p) => rewriteOwnOrigin(p as unknown as ProxyLike) },
       '/ws': {
         target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: true,

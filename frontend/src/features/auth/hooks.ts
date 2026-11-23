@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
+import { releasePushOnSignOut } from '@/features/push/pushClient';
 import { qk } from '@/services/queryKeys';
 import { useAuthStore } from '@/store/authStore';
 import type { AuthResponse } from '@/types/api';
@@ -33,7 +34,11 @@ export function useRegister() {
 export function useLogout() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: authApi.logout,
+    mutationFn: async () => {
+      // This browser stops receiving the account's pushes before the session ends (D-040).
+      await releasePushOnSignOut(useAuthStore.getState().user?.id);
+      return authApi.logout();
+    },
     onSettled: () => {
       useAuthStore.getState().clear();
       qc.clear();

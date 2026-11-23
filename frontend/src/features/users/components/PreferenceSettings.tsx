@@ -9,6 +9,7 @@ import type { Me, UserSettings } from '@/types/api';
 import { cn } from '@/utils/format';
 import { useUpdateSettings } from '../hooks';
 import { ModeratorRankingSetting } from '@/features/reputation/components/ModeratorRankingSetting';
+import { PushSettings } from '@/features/push/components/PushSettings';
 
 const THEMES: { value: ThemePref; label: string; icon: typeof Sun }[] = [
   { value: 'dark', label: 'Dark', icon: Moon },
@@ -79,6 +80,7 @@ export function PreferenceSettings({ me }: { me: Me }) {
           <Switch label="Email notifications" description="Receive a digest of replies and mentions by email." checked={s.emailNotifications} disabled={update.isPending} onCheckedChange={(v) => save({ emailNotifications: v })} />
         </div>
       </Card>
+      <PushSettings userId={me.id} />
     </div>
   );
 }

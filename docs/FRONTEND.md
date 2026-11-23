@@ -349,3 +349,19 @@ landing stays in the axe audit (`08-accessibility`).
   - the control-character regex in `safeFileName`.
 - **Live sockets.** A suspended, deactivated or deleted account's socket is closed by the server (1008) and reconnects
   are refused. The existing client keeps retrying with backoff, and its next REST call gets 401/403, which signs it out.
+
+## Installable app, link previews and push (D-039, D-040)
+- **Manifest and icons** in `public/` (`manifest.webmanifest`, `icons/*`, `og/howlers.png`). The PNGs come from the wolf
+  in `public/favicon.svg`: change the mark, then `npm run brand:images` (headless Chromium via Playwright) and commit.
+- **Service worker**: source `pwa/sw.js`, emitted as `/sw.js` by `pwa/serviceWorkerPlugin.ts` with the build version and
+  precache list. `features/pwa/serviceWorker.ts` registers it in production builds only (`VITE_ENABLE_SW_IN_DEV=true`
+  registers a no-cache dev variant), checks for updates hourly, and `UpdatePrompt` (mounted by `PwaRoot` in
+  `Providers`) offers "Reload" when a new version waits. Tests: `features/pwa/sw.test.ts` runs the worker against a
+  fake worker scope.
+- **SEO**: `features/seo/canonical.ts` keeps `<link rel="canonical">` in step with the router (from `main.tsx`).
+  Crawlers that don't run JS get the backend's preview document through nginx; `index.html` carries default OG tags.
+- **Push**: `features/push/` (`api.ts`, `pushClient.ts` for subscribe/unsubscribe/resync, `pushLogic.ts` for pure
+  helpers with tests, `components/PushSettings.tsx`). The card sits under Settings › Preferences and says honestly why
+  push is unavailable: server without VAPID keys, unsupported or insecure browser, no service worker (dev), or iOS
+  outside an installed Home Screen app. The device id is remembered per user in `localStorage`; signing out
+  unsubscribes this browser first (bounded to 2.5 s).
