@@ -1,7 +1,12 @@
 import { Clock, Flame, Sparkles, TrendingUp, Trophy, Users } from 'lucide-react';
+import { useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { buttonClasses } from '@/components/ui/Button';
 import { useAuth } from '@/features/auth/hooks';
+import { useMyCommunities } from '@/features/communities/hooks';
+import type { FeedScope } from '@/features/live/logic';
+import { NewPostsPill } from '@/features/live/NewPostsPill';
+import { useNewPosts } from '@/features/live/useNewPosts';
 import { FeedControls, SortMenu } from '@/features/posts/components/FeedControls';
 import { PostList } from '@/features/posts/components/PostList';
 import { useFeed } from '@/features/posts/hooks';
@@ -9,6 +14,7 @@ import { PageColumns } from '@/layouts/PageColumns';
 import { RightRail } from '@/layouts/RightRail';
 import type { FeedTab, TimeRange } from '@/types/api';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
+import { qk } from '@/services/queryKeys';
 
 const TABS: { value: FeedTab; label: string; icon: JSX.Element; auth?: boolean }[] = [
   { value: 'foryou', label: 'Best', icon: <Sparkles size={15} />, auth: true },
@@ -35,6 +41,17 @@ const EMPTY: Record<FeedTab, { title: string; description: string }> = {
   top: { title: 'No top posts in this range', description: 'Try a longer time range.' },
 };
 
+/**
+ * Which live posts count toward the "new posts" pill. "Best" (for you) is approximated by joined communities (it also
+ * mixes in followed people and topics, which the event can't tell us); "Following" is people-based, so it gets no pill.
+ * Until the joined list loads, "Best" counts everything.
+ */
+function liveScope(tab: FeedTab, joined: number[] | undefined): FeedScope {
+  if (tab === 'following') return { kind: 'none' };
+  if (tab === 'foryou' && joined) return { kind: 'communities', ids: new Set(joined) };
+  return { kind: 'all' };
+}
+
 export default function HomePage() {
   const { isAuthed } = useAuth();
   const [params, setParams] = useSearchParams();
@@ -43,6 +60,13 @@ export default function HomePage() {
   const tab: FeedTab = tabs.some((t) => t.value === requested) ? requested! : isAuthed ? 'foryou' : 'popular';
   const t = (params.get('t') as TimeRange) || 'week';
   const feed = useFeed(tab, t);
+  const mine = useMyCommunities();
+  const scope = useMemo<FeedScope>(() => liveScope(tab, mine.data?.map((c) => c.id)), [tab, mine.data]);
+  const live = useNewPosts({
+    destination: isAuthed && scope.kind !== 'none' ? '/topic/posts' : null,
+    scope,
+    queryKey: qk.feed(tab, t),
+  });
   useDocumentTitle(tab === 'popular' ? 'Popular' : 'Home');
 
   const set = (patch: Record<string, string>) => {
@@ -58,6 +82,7 @@ export default function HomePage() {
         <SortMenu title="Sort by" value={tab} options={tabs} onChange={(v) => set({ tab: v })} />
         {tab === 'top' && <SortMenu title="Top posts from" value={t} options={RANGES} onChange={(v) => set({ t: v })} />}
       </FeedControls>
+      <NewPostsPill count={live.count} onShow={live.showNew} />
       <PostList
         query={feed}
         empty={{

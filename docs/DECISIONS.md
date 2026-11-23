@@ -116,3 +116,14 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
 - **Scaling path.** The broker and presence counts are per instance. Running several backend nodes means switching
   `enableSimpleBroker` to `enableStompBrokerRelay` (RabbitMQ STOMP plugin) and moving presence counts to Redis. Both are
   local changes in `WebSocketConfig` and `PresenceTracker`.
+
+**D-018 Live feeds announce, they don't insert; live counts are batched.**
+- **Feeds.** A new post is announced on `/topic/community.{id}`, and also on `/topic/posts` unless the community is private.
+  The client shows an "N new posts" pill and loads them only when clicked, so the list never jumps under the reader. Blocked
+  authors and hidden posts are filtered when the feed is refetched, so the pill's count is an upper bound.
+- **Threads.** `/topic/post.{id}` announces new comments by id. The client fetches each with `GET /comments/{id}` under
+  the normal visibility and block rules, so events never carry content.
+- **Scores.** Votes mark a post or comment as dirty. `LiveCounters` sends committed totals at most every ~2 s per post. A hot
+  thread costs one small query and one frame per interval, not one per vote.
+- **Subscriptions.** Community and post topics are checked with the same `CommunityAccess` rules as REST, so members-only
+  content never reaches non-members over the socket.

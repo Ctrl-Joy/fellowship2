@@ -36,6 +36,26 @@ public class RealtimePublisher {
         afterCommit(() -> template.convertAndSend("/topic/pulse." + pulseId, Map.of("pulseId", pulseId, "totalVoters", totalVoters)));
     }
 
+    /** New post: always on the community topic; also on the site-wide topic when the community isn't private. */
+    public void postCreated(long postId, long communityId, String communitySlug, boolean privateCommunity, long authorId) {
+        Map<String, Object> body = Map.of("type", "POST_CREATED", "postId", postId, "communityId", communityId,
+                "communitySlug", communitySlug, "authorId", authorId, "createdAt", java.time.Instant.now().toString());
+        afterCommit(() -> {
+            template.convertAndSend("/topic/community." + communityId, body);
+            if (!privateCommunity) template.convertAndSend("/topic/posts", body);
+        });
+    }
+
+    public void commentCreated(long postId, long commentId, Long parentId, long authorId) {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("type", "COMMENT_CREATED");
+        body.put("postId", postId);
+        body.put("commentId", commentId);
+        body.put("parentId", parentId);
+        body.put("authorId", authorId);
+        afterCommit(() -> template.convertAndSend("/topic/post." + postId, body));
+    }
+
     public void modQueueChanged(long communityId) {
         afterCommit(() -> template.convertAndSend("/topic/modqueue." + communityId, Map.of("communityId", communityId)));
     }

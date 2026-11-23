@@ -48,10 +48,13 @@ public class PostService {
     private final RateLimiter limiter;
     private final NotificationService notifications;
     private final UserRepository users;
+    private final app.strata.realtime.RealtimePublisher realtime;
 
     public PostService(PostRepository posts, PostQueryService queries, CommunityRepository communities,
                        CommunityAccess access, MediaAssetRepository mediaAssets, HtmlSanitizer sanitizer,
-                       JdbcClient jdbc, RateLimiter limiter, NotificationService notifications, UserRepository users) {
+                       JdbcClient jdbc, RateLimiter limiter, NotificationService notifications, UserRepository users,
+                       app.strata.realtime.RealtimePublisher realtime) {
+        this.realtime = realtime;
         this.posts = posts;
         this.queries = queries;
         this.communities = communities;
@@ -128,6 +131,7 @@ public class PostService {
         if (type == Post.Type.POLL) createPoll(post.getId(), req);
         jdbc.sql("UPDATE communities SET post_count = post_count + 1 WHERE id = ?").param(c.getId()).update();
         notifyMentions(user, text, post.getId());
+        realtime.postCreated(post.getId(), c.getId(), c.getSlug(), c.visibility() == Community.Visibility.PRIVATE, user.id());
         return post.getId();
     }
 

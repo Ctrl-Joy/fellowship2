@@ -34,7 +34,7 @@ and support for the moderators who keep communities healthy.
 | Topic reputation | 3–4 | planned |
 | Smart Collections, Context Mode, Thread Digest | 4 | ✅ |
 | Community Pulse | 4 | ✅ |
-| Direct messages (1:1) and real-time events | 2–4 | ✅ |
+| Direct messages (1:1) and real-time events (messages, badges, live feeds and threads) | 2–4 | ✅ |
 | Community AI (RAG with citations) | 5 | ✅ |
 | Podcasts (upload-first; AI script drafting; audio generation only with a configured TTS provider) | 6 | ✅ |
 | Secure file sharing → E2EE | 7 | planned |

@@ -54,6 +54,11 @@ public class CommentController {
         return comments.create(postId, user, req);
     }
 
+    @GetMapping("/comments/{id}")
+    public CommentNode one(@PathVariable long id, @AuthenticationPrincipal AuthUser user) {
+        return comments.one(id, user);
+    }
+
     @PatchMapping("/comments/{id}")
     public CommentNode update(@PathVariable long id, @AuthenticationPrincipal AuthUser user,
                               @Valid @RequestBody UpdateCommentRequest req) {

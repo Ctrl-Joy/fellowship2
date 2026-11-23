@@ -6,6 +6,7 @@ import app.strata.common.security.JwtService;
 import app.strata.community.Community;
 import app.strata.community.CommunityAccess;
 import app.strata.community.CommunityRepository;
+import app.strata.post.PostService;
 import app.strata.pulse.PulseService;
 import java.security.Principal;
 import java.util.Optional;
@@ -27,7 +28,8 @@ import org.springframework.stereotype.Component;
  * <ul>
  *   <li>CONNECT must carry a valid access token ({@code Authorization: Bearer ...}). Browsers can't set headers on
  *       the WebSocket handshake itself, so auth happens at the STOMP layer.</li>
- *   <li>SUBSCRIBE is allowed only to your own user queue, to pulses you can view and to mod queues you moderate.
+ *   <li>SUBSCRIBE is allowed only to your own user queue, the public new-posts topic, communities, posts and pulses
+ *       you can view, and mod queues you moderate.
  *       Anything else is refused with an ERROR frame.</li>
  *   <li>SEND is allowed only to application destinations ({@code /app/**}); clients can't publish to topics directly.</li>
  * </ul>
@@ -36,14 +38,19 @@ import org.springframework.stereotype.Component;
 public class StompSecurityInterceptor implements ChannelInterceptor {
     private static final Pattern PULSE = Pattern.compile("^/topic/pulse\\.(\\d+)$");
     private static final Pattern MODQUEUE = Pattern.compile("^/topic/modqueue\\.(\\d+)$");
+    private static final Pattern COMMUNITY = Pattern.compile("^/topic/community\\.(\\d+)$");
+    private static final Pattern POST = Pattern.compile("^/topic/post\\.(\\d+)$");
 
     private final JwtService jwt;
     private final PulseService pulses;
     private final CommunityRepository communities;
     private final CommunityAccess access;
+    private final PostService posts;
 
-    public StompSecurityInterceptor(JwtService jwt, @Lazy PulseService pulses, CommunityRepository communities, CommunityAccess access) {
+    public StompSecurityInterceptor(JwtService jwt, @Lazy PulseService pulses, CommunityRepository communities, CommunityAccess access,
+                                    @Lazy PostService posts) {
         this.jwt = jwt;
+        this.posts = posts;
         this.pulses = pulses;
         this.communities = communities;
         this.access = access;
@@ -76,7 +83,21 @@ public class StompSecurityInterceptor implements ChannelInterceptor {
     }
 
     private boolean allowed(String dest, AuthUser user) {
-        if (dest.equals("/user/queue/events")) return true;
+        if (dest.equals("/user/queue/events") || dest.equals("/topic/posts")) return true;
+        Matcher cm = COMMUNITY.matcher(dest);
+        if (cm.matches()) {
+            Optional<Community> c = communities.findById(Long.parseLong(cm.group(1)));
+            return c.isPresent() && access.canView(c.get(), access.roleOf(c.get(), user), user);
+        }
+        Matcher pm = POST.matcher(dest);
+        if (pm.matches()) {
+            try {
+                posts.context(Long.parseLong(pm.group(1)), user);
+                return true;
+            } catch (ApiException e) {
+                return false;
+            }
+        }
         Matcher m = PULSE.matcher(dest);
         if (m.matches()) {
             try {

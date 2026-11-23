@@ -123,3 +123,25 @@ playing across navigation. Video plays inline on the episode page only.
   button on profiles when `canMessage`; Settings → Preferences → "Who can message you" (`dmPolicy`).
 - Pure logic lives in `features/messages/helpers.ts` (grouping, appendMessage/applyDelete/applyRead, page helpers,
   `seenMessageId`, throttle) and `features/realtime/typingStore.ts`, all covered by `helpers.test.ts`.
+
+## Live feeds and threads
+Signed-in only (anonymous users have no socket). Code in `features/live/`; event types in `types/live.ts`.
+- **"N new posts" pill** (`useNewPosts` + `NewPostsPill`): the home feed listens on `/topic/posts`, a community feed on
+  `/topic/community.{id}` (subscribed only when the community detail says `viewer.canView`, since a rejected SUBSCRIBE closes
+  the socket). Frames are counted, never inserted: own posts are ignored and ids are deduped. New / Hot / Rising / Top count
+  everything; Best (for you) counts posts in joined communities (`useMyCommunities`; everything until that list loads);
+  Following is people-based, so it shows no pill. The pill is a zero-height sticky row under the top bar, so the list never
+  shifts; clicking it scrolls to the top, trims the infinite query to its first page and refetches it
+  (`refetchFromFirstPage` in `posts/cache.ts`), then clears the count. The count resets when the tab, sort or range changes. A
+  polite `role="status"` region announces the count.
+- **Live post page** (`usePostLive`, subscribed to `/topic/post.{id}` once the post detail loaded):
+  - `POST_STATS` patches `score` and `commentCount` everywhere the post is cached (detail, feeds, profile, search) and never
+    touches `myVote`; it is skipped while my own vote on the post is in flight (mutation key `mk.postVote`).
+  - `COMMENT_SCORES` patches scores in every cached sort order of the thread, skipping comments I'm voting on (`mk.commentVote`).
+  - `COMMENT_CREATED` from someone else (mine are inserted by the create mutation) fetches `GET /comments/{id}` unless the
+    comment is already cached. Top-level comments go first on page one; replies are appended to a cached parent (its
+    `replyCount` grows, so "N more replies" for unloaded children stays right). Replies to a parent that isn't loaded are
+    skipped (POST_STATS still updates the total); a 404 is ignored. Arrivals are highlighted for 4 s from a small zustand
+    store (`newComments.ts`) with a brand tint and left rule that fades out.
+- `patchPostEverywhere` and `patchForests` now keep untouched lists and pages by reference, so a 2 s stats batch only
+  re-renders what changed. Pure logic is tested in `features/live/logic.test.ts` and `features/comments/tree.test.ts`.

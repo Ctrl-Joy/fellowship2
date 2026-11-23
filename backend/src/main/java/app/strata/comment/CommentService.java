@@ -54,9 +54,14 @@ public class CommentService {
     private final UserRepository users;
     private final NotificationService notifications;
     private final RateLimiter limiter;
+    private final app.strata.realtime.RealtimePublisher realtime;
+    private final app.strata.realtime.LiveCounters counters;
 
     public CommentService(JdbcClient jdbc, PostService posts, CommunityAccess access, UserDirectory userDirectory,
-                          UserRepository users, NotificationService notifications, RateLimiter limiter) {
+                          UserRepository users, NotificationService notifications, RateLimiter limiter,
+                          app.strata.realtime.RealtimePublisher realtime, app.strata.realtime.LiveCounters counters) {
+        this.realtime = realtime;
+        this.counters = counters;
         this.jdbc = jdbc;
         this.posts = posts;
         this.access = access;
@@ -263,7 +268,19 @@ public class CommentService {
             users.findByUsernameIgnoreCase(name).filter(u -> u.isActive())
                     .ifPresent(u -> notifications.mention(u.getId(), user.id(), user.username(), postId, id));
         }
+        realtime.commentCreated(postId, id, req.parentId(), user.id());
+        counters.postChanged(postId);
         return single(id, user);
+    }
+
+    /** One comment without preloaded replies, under the same visibility rules as the thread (used for live inserts). */
+    @Transactional(readOnly = true)
+    public CommentNode one(long commentId, AuthUser user) {
+        Row r = load(commentId);
+        if (r.deleted()) throw ApiException.notFound("Comment");
+        PostContext ctx = posts.context(r.postId(), user);
+        if (ctx.post().getDeletedAt() != null) throw ApiException.notFound("Comment");
+        return buildTree(List.of(r), Sort.BEST, new int[0], user, access.canModerate(ctx.role(), user)).getFirst();
     }
 
     @Transactional

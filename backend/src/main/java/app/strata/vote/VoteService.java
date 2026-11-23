@@ -39,9 +39,11 @@ public class VoteService {
     private final CommunityAccess access;
     private final RateLimiter limiter;
     private final NotificationService notifications;
+    private final app.strata.realtime.LiveCounters counters;
 
     public VoteService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, RateLimiter limiter,
-                       NotificationService notifications) {
+                       NotificationService notifications, app.strata.realtime.LiveCounters counters) {
+        this.counters = counters;
         this.jdbc = jdbc;
         this.communities = communities;
         this.access = access;
@@ -82,6 +84,7 @@ public class VoteService {
             int milestone = ScoreMath.crossedMilestone(c.score() - (du - dd), c.score());
             if (milestone > 0) notifications.postMilestone(t.authorId(), postId, t.title(), milestone);
         }
+        counters.postChanged(postId);
         return new VoteResult(c.score(), c.up(), c.down(), value);
     }
 
@@ -115,6 +118,8 @@ public class VoteService {
         if (t.authorId() != null && t.authorId() != user.id() && old != value) {
             jdbc.sql("UPDATE users SET comment_karma = comment_karma + ? WHERE id = ?").params(value - old, t.authorId()).update();
         }
+        long postId = jdbc.sql("SELECT post_id FROM comments WHERE id = ?").param(commentId).query(Long.class).single();
+        counters.commentChanged(postId, commentId);
         return new VoteResult(c.score(), c.up(), c.down(), value);
     }
 

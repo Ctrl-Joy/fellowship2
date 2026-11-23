@@ -58,3 +58,34 @@ export function markDeleted(nodes: CommentNode[], id: number): CommentNode[] {
 export function countLoaded(nodes: CommentNode[]): number {
   return nodes.reduce((acc, n) => acc + 1 + countLoaded(n.replies), 0);
 }
+
+/** True when any node in any of these forests (e.g. every page of a cached thread) has this id. */
+export function forestHas(forests: CommentNode[][], id: number): boolean {
+  return forests.some((nodes) => findNode(nodes, id) != null);
+}
+
+/**
+ * Inserts a comment announced live (COMMENT_CREATED) into one page of a cached forest.
+ * A top-level comment goes first on the first page only; a reply is appended after its parent's loaded replies and the
+ * parent's replyCount grows (so the "N more replies" count for still-unloaded children is unchanged). Returns the same
+ * reference when the comment is already present or its parent isn't on this page.
+ */
+export function insertLiveComment(nodes: CommentNode[], c: CommentNode, isFirstPage: boolean): CommentNode[] {
+  if (findNode(nodes, c.id)) return nodes;
+  if (c.parentId == null) return isFirstPage ? [c, ...nodes] : nodes;
+  return mapTree(nodes, c.parentId, (p) => ({ ...p, replies: [...p.replies, c], replyCount: p.replyCount + 1 }));
+}
+
+/** Sets scores from a COMMENT_SCORES frame (`{commentId: score}`) on the comments loaded here. Unchanged forests keep their reference. */
+export function patchCommentScores(nodes: CommentNode[], scores: Readonly<Record<string, number>>): CommentNode[] {
+  let changed = false;
+  const out = nodes.map((n) => {
+    const s = scores[String(n.id)];
+    const replies = n.replies.length ? patchCommentScores(n.replies, scores) : n.replies;
+    const scoreChanged = typeof s === 'number' && s !== n.score;
+    if (!scoreChanged && replies === n.replies) return n;
+    changed = true;
+    return { ...n, score: scoreChanged ? s : n.score, replies };
+  });
+  return changed ? out : nodes;
+}

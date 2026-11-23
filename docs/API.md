@@ -155,6 +155,7 @@ Title 1–300 chars. Body HTML ≤ 40 000 chars after sanitization. Tags ≤ 5, 
 | GET | `/posts/{id}/comments?sort=best\|top\|new\|controversial\|old&cursor&limit=20` | cursor of top-level `CommentNode`, each with up to 2 further levels × 5 replies preloaded |
 | GET | `/comments/{id}/replies?sort&cursor&limit=10` | cursor of direct children (each preloaded 1 level × 3) |
 | POST | `/posts/{id}/comments` | `{body (markdown, 1–10 000), parentId?}` → `CommentNode`; max depth 10 |
+| GET | `/comments/{id}` | single `CommentNode` without preloaded replies (used for live inserts) |
 | PATCH | `/comments/{id}` | author `{body}` |
 | DELETE | `/comments/{id}` | author; soft delete keeps tree shape |
 | POST | `/comments/{id}/vote` | `{value}` → `{score, myVote}` |
@@ -390,5 +391,24 @@ REST stays the source of truth. Events tell the client what changed, and the cli
 |---|---|---|
 | `/topic/pulse.{pulseId}` | anyone who can view the pulse | `{pulseId, totalVoters}` (refetch the pulse; tallies aren't pushed so hidden results stay hidden) |
 | `/topic/modqueue.{communityId}` | that community's moderators | `{communityId}` (refetch queue/stats) |
+
+**Live feeds and threads** (signed-in clients only, since the socket needs a token):
+| destination | who may subscribe | frame body |
+|---|---|---|
+| `/topic/posts` | anyone signed in | `NewPost` for posts in PUBLIC and RESTRICTED communities |
+| `/topic/community.{communityId}` | anyone who can view that community (members only for PRIVATE) | `NewPost` for that community |
+| `/topic/post.{postId}` | anyone who can view the post | `PostEvent` (below) |
+
+```ts
+NewPost { type: "POST_CREATED", postId, communityId, communitySlug, authorId, createdAt }
+PostEvent =
+  | { type: "COMMENT_CREATED", postId, commentId, parentId: number|null, authorId }
+  | { type: "POST_STATS", postId, score, commentCount }            // batched, at most every ~2 s per post
+  | { type: "COMMENT_SCORES", postId, scores: { [commentId]: number } } // batched, at most every ~2 s per post
+```
+Use `GET /comments/{id}` → `CommentNode` (no preloaded replies; same visibility rules as the thread, 404 if deleted or not
+visible) to fetch a comment announced by COMMENT_CREATED. Events never include post or comment content, only ids and
+counts, so a client can't see anything it couldn't already fetch. Block filtering happens on fetch: a blocked author's
+comment comes back with `blocked: true`.
 
 Presence and the simple broker are per-instance (single-node deployment). See DECISIONS for the multi-node path.

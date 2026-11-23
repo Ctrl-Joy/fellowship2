@@ -33,3 +33,9 @@ export const qk = {
   notifications: ['notifications'] as const,
   unreadCount: ['notifications', 'unread'] as const,
 };
+
+/** Mutation keys, so live updates can tell whether the viewer has a vote in flight (`qc.isMutating({ mutationKey })`). */
+export const mk = {
+  postVote: (postId: number) => ['vote', 'post', postId] as const,
+  commentVote: (commentId: number) => ['vote', 'comment', commentId] as const,
+};

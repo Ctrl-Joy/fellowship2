@@ -40,7 +40,8 @@ when providers are configured, otherwise marked unavailable.
 
 ## Messages & real-time ✅ (cross-cutting)
 One-to-one direct messages (text + images, read receipts, typing, presence, soft delete, search, `dmPolicy`, block
-enforcement) and a STOMP-over-WebSocket channel that also pushes notification badges, Pulse updates and mod-queue changes.
+enforcement) and a STOMP-over-WebSocket channel that also pushes notification badges, Pulse updates, mod-queue changes, a
+"N new posts" pill on feeds, and live comments and scores on post pages.
 Single-node broker and presence; see D-017 for the multi-node path. Group chats are not planned yet.
 
 ## Phase 7: Files & privacy ☐

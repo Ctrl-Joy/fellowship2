@@ -15,8 +15,17 @@ function isPost(x: unknown): x is PostSummary {
   return !!x && typeof x === 'object' && 'title' in x && 'community' in x && 'myVote' in x;
 }
 
+/** Returns `items` itself when the post isn't in it or the patch returned it unchanged, so untouched lists don't re-render. */
 function patchList(items: unknown[], id: number, patch: PostPatch): unknown[] {
-  return items.flatMap((p) => (isPost(p) && p.id === id ? (patch(p) ?? []) : [p]));
+  if (!items.some((p) => isPost(p) && p.id === id)) return items;
+  let changed = false;
+  const out = items.flatMap((p) => {
+    if (!isPost(p) || p.id !== id) return [p];
+    const next = patch(p);
+    if (next !== p) changed = true;
+    return next ? [next] : [];
+  });
+  return changed ? out : items;
 }
 
 /**
@@ -27,19 +36,24 @@ export function patchPostEverywhere(qc: QueryClient, id: number, patch: PostPatc
   for (const root of LIST_ROOTS) {
     for (const [key, data] of qc.getQueriesData<unknown>({ queryKey: root })) {
       if (isInfinite(data)) {
-        qc.setQueryData(key, {
-          ...data,
-          pages: data.pages.map((pg) => ({ ...pg, items: patchList(pg.items, id, patch) })),
+        let changed = false;
+        const pages = data.pages.map((pg) => {
+          const items = patchList(pg.items, id, patch);
+          if (items === pg.items) return pg;
+          changed = true;
+          return { ...pg, items };
         });
+        if (changed) qc.setQueryData(key, { ...data, pages });
       } else if (Array.isArray(data)) {
-        qc.setQueryData(key, patchList(data, id, patch));
+        const next = patchList(data, id, patch);
+        if (next !== data) qc.setQueryData(key, next);
       }
     }
   }
   const detail = qc.getQueryData<PostDetail>(qk.post(id));
   if (detail) {
     const next = patch(detail);
-    if (next) qc.setQueryData<PostDetail>(qk.post(id), { ...detail, ...next });
+    if (next && next !== detail) qc.setQueryData<PostDetail>(qk.post(id), { ...detail, ...next });
   }
 }
 
@@ -49,4 +63,16 @@ export function snapshotPosts(qc: QueryClient) {
 
 export function restoreSnapshot(qc: QueryClient, snap: ReturnType<typeof snapshotPosts>) {
   for (const [key, data] of snap) qc.setQueryData(key, data);
+}
+
+/**
+ * Drops every page but the first of a cached infinite query and refetches it, so the newest items appear at the top
+ * without flashing a loading skeleton. Used by the "N new posts" pill.
+ */
+export async function refetchFromFirstPage(qc: QueryClient, key: QueryKey) {
+  await qc.cancelQueries({ queryKey: key, exact: true });
+  qc.setQueryData<InfiniteData<unknown, unknown>>(key, (d) =>
+    d && d.pages.length > 1 ? { pages: d.pages.slice(0, 1), pageParams: d.pageParams.slice(0, 1) } : d,
+  );
+  await qc.refetchQueries({ queryKey: key, exact: true });
 }

@@ -10,6 +10,7 @@ import { CommentSection } from '@/features/comments/components/CommentSection';
 import { DiscussionTabs } from '@/features/insight/components/DiscussionTabs';
 import { AboutCard, RulesCard } from '@/features/communities/components/CommunitySidebar';
 import { useCommunity } from '@/features/communities/hooks';
+import { usePostLive } from '@/features/live/usePostLive';
 import { EditPostDialog } from '@/features/posts/components/EditPostDialog';
 import { ActionPill } from '@/features/posts/components/ActionPill';
 import { PollView } from '@/features/posts/components/PollView';
@@ -44,6 +45,8 @@ export default function PostPage() {
   const community = useCommunity(q.data?.community.slug ?? slug ?? '');
   const vote = usePostVote(id);
   const save = useSavePost(id);
+  // Subscribe only after the post loaded (so we know we may view it); anonymous users have no socket.
+  usePostLive(id, isAuthed && q.isSuccess);
   const [editing, setEditing] = useState(params.get('edit') === '1');
   useDocumentTitle(q.data?.title);
   const visitPost = useUiPrefs((st) => st.visitPost);

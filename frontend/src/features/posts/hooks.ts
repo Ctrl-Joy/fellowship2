@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { qk } from '@/services/queryKeys';
+import { mk, qk } from '@/services/queryKeys';
 import type { CommunitySort, FeedTab, PostDetail, TimeRange, VoteValue } from '@/types/api';
 import { postsApi } from './api';
 import { patchPostEverywhere, restoreSnapshot, snapshotPosts } from './cache';
@@ -46,6 +46,7 @@ export function usePost(id: number) {
 export function usePostVote(id: number) {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: mk.postVote(id),
     mutationFn: (value: VoteValue) => postsApi.vote(id, value),
     onMutate: async (value) => {
       await qc.cancelQueries({ queryKey: qk.post(id) });

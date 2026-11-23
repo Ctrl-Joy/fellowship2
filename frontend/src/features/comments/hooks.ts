@@ -1,5 +1,5 @@
 import { useInfiniteQuery, useMutation, useQueryClient, type InfiniteData, type QueryClient } from '@tanstack/react-query';
-import { qk } from '@/services/queryKeys';
+import { mk, qk } from '@/services/queryKeys';
 import type { CommentNode, CommentSort, CursorPage, PostDetail, VoteValue } from '@/types/api';
 import { applyVote } from '@/features/posts/vote';
 import { commentsApi } from './api';
@@ -16,15 +16,24 @@ export function useComments(postId: number, sort: CommentSort) {
   });
 }
 
-/** Applies a forest transform to every cached sort order of this post's comments. */
-function patchForests(qc: QueryClient, postId: number, fn: (nodes: CommentNode[], pageIndex: number) => CommentNode[]) {
+/** Applies a forest transform to every cached sort order of this post's comments. Pages the transform leaves untouched keep their reference. */
+export function patchForests(qc: QueryClient, postId: number, fn: (nodes: CommentNode[], pageIndex: number) => CommentNode[]) {
   for (const [key, data] of qc.getQueriesData<Forest>({ queryKey: ['comments', postId] })) {
     if (!data) continue;
-    qc.setQueryData<Forest>(key, {
-      ...data,
-      pages: data.pages.map((pg, i) => ({ ...pg, items: fn(pg.items, i) })),
+    let changed = false;
+    const pages = data.pages.map((pg, i) => {
+      const items = fn(pg.items, i);
+      if (items === pg.items) return pg;
+      changed = true;
+      return { ...pg, items };
     });
+    if (changed) qc.setQueryData<Forest>(key, { ...data, pages });
   }
+}
+
+/** Every cached page of every sort order of this post's comments, for lookups across the whole thread. */
+export function cachedForests(qc: QueryClient, postId: number): CommentNode[][] {
+  return qc.getQueriesData<Forest>({ queryKey: ['comments', postId] }).flatMap(([, d]) => d?.pages.map((p) => p.items) ?? []);
 }
 
 export function useCreateComment(postId: number) {
@@ -58,6 +67,7 @@ export function useDeleteComment(postId: number) {
 export function useCommentVote(postId: number, commentId: number) {
   const qc = useQueryClient();
   return useMutation({
+    mutationKey: mk.commentVote(commentId),
     mutationFn: (value: VoteValue) => commentsApi.vote(commentId, value),
     onMutate: (value) => {
       const snap = qc.getQueriesData<Forest>({ queryKey: ['comments', postId] });

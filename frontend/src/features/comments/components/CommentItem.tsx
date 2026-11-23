@@ -14,7 +14,8 @@ import { useAuth } from '@/features/auth/hooks';
 import { VoteControl } from '@/features/posts/components/VoteControl';
 import { errorMessage } from '@/services/apiError';
 import type { CommentNode } from '@/types/api';
-import { absoluteUrl, timeAgo } from '@/utils/format';
+import { useIsNewComment } from '@/features/live/newComments';
+import { absoluteUrl, cn, timeAgo } from '@/utils/format';
 import { useCommentVote, useCreateComment, useDeleteComment, useUpdateComment } from '../hooks';
 import { CommentComposer } from './CommentComposer';
 import { useThread } from './threadContext';
@@ -35,6 +36,7 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
   const create = useCreateComment(t.postId);
   const update = useUpdateComment(t.postId);
   const del = useDeleteComment(t.postId);
+  const isNew = useIsNewComment(node.id);
   const isOwner = !!user && node.author?.id === user.id && !node.deleted;
   const gone = node.deleted || node.removed;
   const atVisualLimit = level >= t.maxLevel;
@@ -45,7 +47,14 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
   const actionCls = 'inline-flex h-8 items-center gap-1.5 rounded-full px-2.5 text-xs font-semibold text-muted hover:bg-surface-2 hover:text-text';
 
   return (
-    <div id={`c-${node.id}`} className="relative scroll-mt-24">
+    <div
+      id={`c-${node.id}`}
+      data-new={isNew || undefined}
+      className={cn(
+        'relative scroll-mt-24 rounded-md transition-[background-color,box-shadow] duration-1000',
+        isNew && 'bg-brand/10 shadow-[inset_2px_0_0_rgb(var(--brand))]',
+      )}
+    >
       <div className="flex gap-2">
         {/* avatar + thread line column */}
         <div className="flex w-7 shrink-0 flex-col items-center pt-2">

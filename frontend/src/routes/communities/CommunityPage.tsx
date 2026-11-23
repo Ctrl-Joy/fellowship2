@@ -18,6 +18,9 @@ import { FeedControls, SortMenu } from '@/features/posts/components/FeedControls
 import { PostList } from '@/features/posts/components/PostList';
 import { CommunityPodcasts } from '@/features/podcasts/components/CommunityPodcasts';
 import { useUiPrefs } from '@/store/uiPrefs';
+import { NewPostsPill } from '@/features/live/NewPostsPill';
+import { useNewPosts } from '@/features/live/useNewPosts';
+import { qk } from '@/services/queryKeys';
 import { useCommunityPosts } from '@/features/posts/hooks';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { PageColumns } from '@/layouts/PageColumns';
@@ -105,11 +108,20 @@ const SORTS: { value: CommunitySort; label: string; icon: JSX.Element }[] = [
   { value: 'top', label: 'Top', icon: <Trophy size={15} /> },
 ];
 
+const ALL = { kind: 'all' } as const;
+
 function Posts({ c }: { c: CommunityDetail }) {
   const [params, setParams] = useSearchParams();
   const sort = (params.get('sort') as CommunitySort) || 'hot';
   const t = (params.get('t') as TimeRange) || 'week';
   const posts = useCommunityPosts(c.slug, sort, t, c.viewer.canView);
+  const { isAuthed } = useAuth();
+  // Only subscribe once the detail says we may view it: a rejected SUBSCRIBE closes the whole socket.
+  const live = useNewPosts({
+    destination: isAuthed && c.viewer.canView ? `/topic/community.${c.id}` : null,
+    scope: ALL,
+    queryKey: qk.communityPosts(c.slug, sort, t),
+  });
   const set = (k: string, v: string) => {
     const n = new URLSearchParams(params);
     n.set(k, v);
@@ -134,6 +146,7 @@ function Posts({ c }: { c: CommunityDetail }) {
           />
         )}
       </FeedControls>
+      <NewPostsPill count={live.count} onShow={live.showNew} />
       <PostList
         query={posts}
         showCommunity={false}
