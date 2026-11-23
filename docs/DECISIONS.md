@@ -704,3 +704,71 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   so the "last chunk" AAD flag still catches truncation. A failure aborts the writable, which discards the partial file.
   The save dialog needs a user gesture, so it comes after a second click ("Choose where to save"), once the key and
   metadata are verified. Other browsers use the in-memory path, and above 500 MB they show a warning first.
+
+**D-043 Pack rooms are conversations with a kind, not a separate system.**
+- **One model.** `dm_conversations.kind` is `DIRECT` (pair key, exactly two people, unchanged) or `ROOM` (no pair key, a
+  name, an optional icon emoji, 3 to 50 members at creation). `dm_participants.role` (OWNER, ADMIN, MEMBER; one OWNER per
+  room by a partial unique index) and `dm_messages.kind` (USER, SYSTEM) are additive columns with defaults, so every
+  existing row and every one-to-one query keeps its meaning, and the one-to-one queries now filter `kind = 'DIRECT'`.
+  Messages, receipts, typing, unread counts, soft delete, presence and the D-024 signed image URLs are the same code for
+  both kinds; only membership management (`RoomService`) is new.
+- **Invites follow the first-message rule.** Adding someone runs `DmAccess.cannotMessageReason` from the person adding
+  (blocks in either direction, then the invitee's `dmPolicy`, with the usual "they already wrote to you" exception), so
+  a room can't be used to reach someone who refused direct messages. Existing blocks between other members don't stop
+  an invite: rooms are shared spaces, and blocking is handled per viewer.
+- **Blocking inside a room.** The blocker keeps their place but gets the blocked person's messages as `fromBlocked` with
+  no body and no media (the client shows "Message from someone you blocked"), they don't count as unread, typing isn't
+  forwarded either way, and the blocker can't react to them. The server withholds the content rather than letting the
+  client hide it. Presence is no longer pushed between people with a block either way, which also tightens one-to-one
+  conversations.
+- **Leaving is total.** Removal or leaving deletes the participant row. Every read (messages, summary, detail, typing,
+  reactions) and every signed image grant re-checks membership, so a removed member loses new messages and old image URLs
+  at once. History isn't kept for former members: there is no "read-only past" state to get wrong.
+- **Roles.** The creator owns the room. Owners and admins add, remove and rename; admins can't remove the owner or other
+  admins; only the owner promotes, hands over ownership (staying as an admin) or deletes the room. If the owner leaves,
+  the longest-standing admin (else member) inherits it, and the last person out deletes the room. Each change is a SYSTEM
+  line in the timeline ("mira_k added dev_ostrander"), rendered as plain text and never unread.
+- **Receipts.** Each member keeps `last_read_message_id`; the room detail returns them, and the client shows one
+  aggregated "Seen by N" (or "Seen by everyone") under your newest message. New members start at the newest message so
+  history isn't "unread".
+
+**D-044 Reactions are a small curated set stored by key, checked against visibility on every read.**
+- **Set.** Ten kinds (👍 ❤️ 😂 😮 😢 🔥 🐺 🎉 👏 🤔) stored as keys (`like`, `howl`…), not emoji, so nobody can store
+  arbitrary text through this path and the set can be restyled without a migration. One row per (target, person, kind),
+  primary key enforced, toggled with `ON CONFLICT DO NOTHING` / `DELETE`.
+- **Polymorphic without leaks.** `reactions(target_type, target_id, …)` covers posts, comments and messages. There is no
+  foreign key, so every read and write resolves the target under the normal rules first: community visibility and bans,
+  held content (only author and moderators, and nobody can react to it), removed or deleted content, conversation
+  membership, system messages and blocked senders. Ids the reader can't see are left out of a batch, never explained.
+- **Names.** Counts include everyone; the "reacted by" sample is the first three by time, skipping people the reader
+  blocked, plus "N others".
+- **Blocks and notifications.** Reacting needs no block in either direction with the author. Reactions to posts and
+  comments notify the author through `NotificationService`, grouped per target, so blocked and muted people never notify
+  you. Message reactions don't notify (the conversation already updates live).
+- **Live.** Post and comment reactions announce `{type: "REACTIONS", targetType, targetId}` on `/topic/post.{id}`;
+  message reactions go to each member's queue. Ids only; clients refetch through the same checks. The client batches
+  per-item loads made in the same tick into one `GET /reactions?ids=` (≤100), so a thread costs one request.
+- **Limits.** 60 reaction writes per minute per person; batch reads up to 100 ids.
+
+**D-045 Per-community automod: safe patterns, the strongest outcome wins, never a ban.**
+- **Rules.** Keywords (whole words, case-insensitive, `*` for any letters), one moderator regex, a link limit, blocked
+  domains (subdomains included), a minimum account age, a minimum karma. Each rule holds, removes or flags, applies to
+  posts, comments or both, and carries the reason the author will see. Up to 50 per community.
+- **No ReDoS.** Keyword lists and regexes compile with RE2/J (`com.google.re2j` 1.8), which matches in linear time and
+  has no backreferences or lookarounds, so `(a+)+$` is as cheap as any other pattern. As a second guard, text is capped at
+  20,000 characters and the match reads its input through a sequence that aborts once a 50 ms budget is spent; a timed-out
+  rule is logged and treated as "no match", never as a hit. Invalid patterns are refused when saved, and a stored rule
+  that no longer compiles is skipped.
+- **Where it runs.** Inside the post and comment write, right after the global spam checks (D-021). A spam rejection
+  still wins (nothing is stored). Otherwise the strongest outcome applies: REMOVE (stored removed, never published,
+  logged as an ordinary appealable `REMOVE_POST`/`REMOVE_COMMENT` with no moderator and the reason
+  `Automod: <rule>: <reason>`, author notified), then HOLD (the D-021 hold flow: pending and hidden, a spam flag with rule
+  `AUTOMOD` in the Held tab, `AUTOMOD_HOLD` in the log, the author told why), then FLAG (published, `AUTOMOD_FLAG` in the
+  log and listed under recent hits). A spam hold counts as HOLD. Every matching rule is recorded in `automod_hits`.
+- **Exemptions and limits.** Moderators of the community and platform admins are exempt. Automod never bans or mutes.
+  Rule changes are logged as `AUTOMOD_RULE` by the moderator who made them.
+- **Preview.** "Test against recent content" runs an unsaved draft against the latest 200 posts and 300 comments
+  (including removed ones, so moderators can tune against what they already took down), shows up to 50 matches and
+  marks authors who would be exempt. It changes nothing.
+- **Known gap.** Edits to existing posts and comments are not re-checked yet: a held item released on edit would double
+  count, and a correct "edit-time hold" needs its own state. The mod-tools tab says so.

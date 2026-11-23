@@ -349,3 +349,29 @@ landing stays in the axe audit (`08-accessibility`).
   - the control-character regex in `safeFileName`.
 - **Live sockets.** A suspended, deactivated or deleted account's socket is closed by the server (1008) and reconnects
   are refused. The existing client keeps retrying with backoff, and its next REST call gets 401/403, which signs it out.
+
+## Pack rooms, reactions and automod (D-043 to D-045)
+- **Pack rooms** live in `features/messages` next to one-to-one messages. `rooms.ts` holds the pure helpers (receipt
+  aggregation "Seen by N", permission mirrors, username parsing, draft validation, typing labels; `rooms.test.ts`).
+  `CreateRoomDialog` (name, `IconChoice` radio group, `PeoplePicker` with search suggestions, paste of several names,
+  removable chips) creates a room and opens it. `RoomPanel` (a dialog from the thread header's "Members" button) lists
+  members with role badges and online dots, and shows add/remove/role/ownership actions, rename and icon, leave and
+  delete only to people allowed to use them (the server decides). The conversation list shows a room tile with its emoji
+  and a "Pack · N" badge. In the thread, system lines are centred text in their own group (`groupMessages` never merges
+  them into a run), other people's runs carry the sender's name, messages from someone you blocked render as a collapsed
+  "Message from someone you blocked", and the aggregated receipt sits under your newest message. Realtime handles
+  `ROOM_UPDATED` (refetch), `ROOM_REMOVED` (drop the room's caches) and member READ receipts (patch the room detail).
+- **Reactions** live in `features/reactions`. `logic.ts` mirrors the server catalog and holds the optimistic toggle,
+  "reacted by" labels, chip accessible names and the picker's roving-focus key map; `batcher.ts` coalesces per-item
+  loads made in the same tick into one `GET /reactions?ids=` per target type (`logic.test.ts` covers both).
+  `ReactionBar` renders chips (buttons with `aria-pressed` and a full label such as "Fire: 3 reactions, including yours.
+  You, ana and 1 other"; read-only for signed-out readers) and, unless `withPicker={false}`, an `AddReactionButton`:
+  a toolbar of ten labelled buttons ("React with Fire") with arrow/Home/End navigation, Escape to close and focus back on
+  the trigger. Posts show the bar under the body, comments in their action row, messages under the bubble with the add
+  button revealed on hover or focus. `usePostLive` and the realtime provider refetch a target on `REACTIONS`.
+- **Automod** is a Mod tools tab (`features/automod`). `helpers.ts` (labels, draft validation, one-line rule summaries,
+  request shaping; `helpers.test.ts`) feeds `AutomodTab`: a rule editor with type-specific fields, action and scope
+  selects, the author-facing reason, an on/off switch and "Test against recent content" (shows matches, marks exempt
+  authors, changes nothing), the rule list with turn on/off, edit and delete, and recent hits. The tab states that
+  moderators are exempt, automod never bans, and edits aren't re-checked yet. The mod log labels automod rows "by
+  automod", and the Held tab and held banners mention automod holds.

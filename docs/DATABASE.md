@@ -67,3 +67,15 @@ funding_*) as new migrations — never by editing applied ones.
 - Legacy DM images are marked private the same way new ones are: their `media_assets.storage_key` moves from `media/` to
   `private/<same name>` (variants follow the key).
 - Image originals in storage carry no EXIF/XMP/IPTC/text metadata (stripped before storing). Private files are byte-exact.
+
+## Pack rooms, reactions and automod (V17, D-043 to D-045)
+- `dm_conversations` gains `kind` (`DIRECT` default | `ROOM`), `name`, `icon_emoji`, `created_by`; `pair_key` is now
+  nullable, with a check that DIRECT rows have a pair key and ROOM rows have none and a name.
+- `dm_participants.role` (`OWNER` | `ADMIN` | `MEMBER`, default MEMBER) with a partial unique index allowing one OWNER
+  per conversation. `dm_messages` gains `kind` (`USER` default | `SYSTEM`), `system_event`, `system_target_id`.
+- `reactions (target_type POST|COMMENT|MESSAGE, target_id, user_id, reaction, created_at)`, primary key on all four
+  identity columns, indexed by target and by user. No foreign key to the target: reads re-check visibility.
+- `automod_rules` (per community: `kind`, `pattern`, `threshold`, `applies_to`, `action`, author-facing `reason`,
+  `enabled`, `created_by`) and `automod_hits` (rule id and name, the rule's action and the final outcome, target,
+  author, detail, excerpt). Automod also writes to `moderation_actions` (`AUTOMOD_HOLD`, `AUTOMOD_FLAG`, `AUTOMOD_RULE`,
+  and ordinary `REMOVE_*` rows with no moderator) and, for holds, to `spam_flags` with rule `AUTOMOD`.
