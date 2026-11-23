@@ -24,6 +24,8 @@ const msg = (id: number, senderId: number, minutes: number, extra: Partial<DmMes
   media: [],
   createdAt: at(minutes),
   deleted: false,
+  kind: 'USER',
+  fromBlocked: false,
   ...extra,
 });
 const summary = (extra: Partial<ConversationSummary> = {}): ConversationSummary => ({
@@ -36,6 +38,8 @@ const summary = (extra: Partial<ConversationSummary> = {}): ConversationSummary 
   canMessage: true,
   cannotMessageReason: null,
   updatedAt: at(0),
+  kind: 'DIRECT',
+  room: null,
   ...extra,
 });
 

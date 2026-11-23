@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useRef, type ReactNode } from 'react';
-import { cacheDelete, cacheMessage, cachePresence, cacheRead, dmKeys } from '@/features/messages/api';
+import { cacheDelete, cacheMessage, cachePresence, cacheRead, dmKeys, forgetRoom } from '@/features/messages/api';
+import { refreshReactions } from '@/features/reactions/api';
 import { qk } from '@/services/queryKeys';
 import { publish, startRealtime, stopRealtime, subscribeTopic, useRealtimeStore, type RealtimeStatus } from '@/services/realtime';
 import { useAuthStore } from '@/store/authStore';
@@ -61,6 +62,17 @@ function handleEvent(qc: ReturnType<typeof useQueryClient>, ev: RealtimeEvent | 
       break;
     case 'UNREAD_MESSAGES':
       qc.setQueryData(dmKeys.unread, { count: ev.payload.count });
+      break;
+    case 'ROOM_UPDATED':
+      void qc.invalidateQueries({ queryKey: dmKeys.room(ev.payload.conversationId) });
+      void qc.invalidateQueries({ queryKey: dmKeys.conversation(ev.payload.conversationId) });
+      void qc.invalidateQueries({ queryKey: dmKeys.lists });
+      break;
+    case 'ROOM_REMOVED':
+      forgetRoom(qc, ev.payload.conversationId);
+      break;
+    case 'REACTIONS':
+      refreshReactions(qc, 'MESSAGE', ev.payload.targetId);
       break;
   }
 }

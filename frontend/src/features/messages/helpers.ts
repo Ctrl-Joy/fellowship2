@@ -79,6 +79,8 @@ export const GROUP_WINDOW_MS = 5 * 60_000;
 export interface MessageGroup {
   senderId: number;
   messages: DmMessage[];
+  /** A pack-room system line ("mira_k added dev_o"): always alone in its group. */
+  system?: boolean;
 }
 export interface DaySection {
   key: string;
@@ -115,8 +117,13 @@ export function groupMessages(messages: DmMessage[], now: number = Date.now()): 
       prev = null;
     }
     const group = day.groups[day.groups.length - 1];
+    if (m.kind === 'SYSTEM') {
+      day.groups.push({ senderId: m.senderId, messages: [m], system: true });
+      prev = null;
+      continue;
+    }
     const sameRun =
-      group && prev && prev.senderId === m.senderId && d.getTime() - new Date(prev.createdAt).getTime() <= GROUP_WINDOW_MS;
+      group && !group.system && prev && prev.senderId === m.senderId && d.getTime() - new Date(prev.createdAt).getTime() <= GROUP_WINDOW_MS;
     if (sameRun) group.messages.push(m);
     else day.groups.push({ senderId: m.senderId, messages: [m] });
     prev = m;

@@ -2,8 +2,9 @@ import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tansta
 import { http } from '@/services/apiClient';
 import { useRealtimeStore } from '@/services/realtime';
 import { useAuthStore } from '@/store/authStore';
-import type { ConversationSummary, DmMedia, DmMessage, MessagePage } from '@/types/messages';
+import type { ConversationSummary, DmMedia, DmMessage, MessagePage, RoomDetail } from '@/types/messages';
 import { applyRead, pagesAppend, pagesDelete, type MessagePages } from './helpers';
+import { applyRoomRead } from './rooms';
 
 export const PAGE_SIZE = 30;
 
@@ -22,14 +23,66 @@ export const dmApi = {
   uploadMedia: (file: File) => http.upload<DmMedia>('/me/dm-media', file),
 };
 
+/** Pack rooms (D-043). Messages, receipts and typing use the conversation endpoints above. */
+export const roomApi = {
+  create: (body: { name: string; iconEmoji?: string | null; usernames: string[] }) => http.post<ConversationSummary>('/me/rooms', body),
+  get: (id: number) => http.get<RoomDetail>(`/me/rooms/${id}`),
+  update: (id: number, body: { name?: string; iconEmoji?: string }) => http.patch<RoomDetail>(`/me/rooms/${id}`, body),
+  addMembers: (id: number, usernames: string[]) => http.post<RoomDetail>(`/me/rooms/${id}/members`, { usernames }),
+  removeMember: (id: number, userId: number) => http.del<RoomDetail>(`/me/rooms/${id}/members/${userId}`),
+  setRole: (id: number, userId: number, role: 'ADMIN' | 'MEMBER') => http.put<RoomDetail>(`/me/rooms/${id}/members/${userId}/role`, { role }),
+  transfer: (id: number, userId: number) => http.post<RoomDetail>(`/me/rooms/${id}/transfer`, { userId }),
+  leave: (id: number) => http.post<void>(`/me/rooms/${id}/leave`),
+  remove: (id: number) => http.del<void>(`/me/rooms/${id}`),
+};
+
 export const dmKeys = {
   all: ['dm'] as const,
   lists: ['dm', 'list'] as const,
   list: (q: string) => ['dm', 'list', q] as const,
   conversation: (id: number) => ['dm', 'conversation', id] as const,
   messages: (id: number) => ['dm', 'messages', id] as const,
+  room: (id: number) => ['dm', 'room', id] as const,
   unread: ['dm', 'unread'] as const,
 };
+
+export function useRoom(id: number, enabled: boolean) {
+  return useQuery({ queryKey: dmKeys.room(id), queryFn: () => roomApi.get(id), enabled: enabled && Number.isFinite(id), retry: false });
+}
+
+/** Room mutations return the fresh detail; the conversation summary and inbox refresh around it. */
+export function useRoomMutation<V>(id: number, fn: (v: V) => Promise<RoomDetail | void>) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: fn,
+    onSuccess: (d) => {
+      if (d) qc.setQueryData(dmKeys.room(id), d);
+      void qc.invalidateQueries({ queryKey: dmKeys.conversation(id) });
+      void qc.invalidateQueries({ queryKey: dmKeys.lists });
+      void qc.invalidateQueries({ queryKey: dmKeys.messages(id) });
+    },
+  });
+}
+
+/** Leaving or deleting: drop everything cached about the room. */
+export function forgetRoom(qc: QC, id: number) {
+  qc.removeQueries({ queryKey: dmKeys.room(id) });
+  qc.removeQueries({ queryKey: dmKeys.messages(id) });
+  qc.removeQueries({ queryKey: dmKeys.conversation(id) });
+  void qc.invalidateQueries({ queryKey: dmKeys.lists });
+  void qc.invalidateQueries({ queryKey: dmKeys.unread });
+}
+
+export function useCreateRoom() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: roomApi.create,
+    onSuccess: (s) => {
+      qc.setQueryData(dmKeys.conversation(s.id), s);
+      void qc.invalidateQueries({ queryKey: dmKeys.lists });
+    },
+  });
+}
 
 const useLive = () => useRealtimeStore((s) => s.status === 'connected');
 
@@ -90,12 +143,21 @@ export function cacheRead(qc: QC, conversationId: number, userId: number, messag
   qc.setQueriesData<ConversationSummary[]>({ queryKey: dmKeys.lists }, (list) =>
     list?.map((s) => (s.id === conversationId ? fn(s)! : s)),
   );
+  // Pack rooms keep one receipt per member for "Seen by N".
+  qc.setQueryData<RoomDetail>(dmKeys.room(conversationId), (d) => (d ? applyRoomRead(d, userId, messageId) : d));
 }
 
 export function cachePresence(qc: QC, userId: number, online: boolean) {
   const fn = (s: ConversationSummary) => (s.other?.id === userId && s.online !== online ? { ...s, online } : s);
   qc.setQueriesData<ConversationSummary[]>({ queryKey: dmKeys.lists }, (list) => list?.map(fn));
   qc.setQueriesData<ConversationSummary>({ queryKey: ['dm', 'conversation'] }, (s) => (s ? fn(s) : s));
+  qc.setQueriesData<RoomDetail>({ queryKey: ['dm', 'room'] }, (d) =>
+    d && d.members.some((m) => m.user.id === userId && m.online !== online)
+      ? { ...d, members: d.members.map((m) => (m.user.id === userId ? { ...m, online } : m)) }
+      : d,
+  );
+  // A room's "someone is online" dot is computed on the server; refresh the inbox for it.
+  void qc.invalidateQueries({ queryKey: dmKeys.lists, predicate: (q) => (q.state.data as ConversationSummary[] | undefined)?.some((s) => s.kind === 'ROOM') ?? false });
 }
 
 /* ------------------------------------------------------------------ mutations */

@@ -40,7 +40,11 @@ export type ModActionType =
   | 'UNPIN'
   | 'BAN'
   | 'UNBAN'
-  | 'RELEASE_HELD';
+  | 'RELEASE_HELD'
+  /* Automod (D-045): written with no moderator; AUTOMOD_RULE is a moderator editing a rule. */
+  | 'AUTOMOD_HOLD'
+  | 'AUTOMOD_FLAG'
+  | 'AUTOMOD_RULE';
 
 export interface ModAction {
   id: ID;

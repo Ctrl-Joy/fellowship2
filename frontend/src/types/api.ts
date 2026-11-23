@@ -256,7 +256,9 @@ export type NotificationType =
   | 'CONTENT_REMOVED'
   | 'BANNED'
   | 'APPEAL_RESOLVED'
-  | 'PULSE_RESULT';
+  | 'PULSE_RESULT'
+  | 'REACTION'
+  | 'AUTOMOD_HELD';
 export interface AppNotification {
   id: ID;
   type: NotificationType;

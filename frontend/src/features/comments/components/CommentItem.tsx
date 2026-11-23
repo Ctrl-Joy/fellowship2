@@ -12,6 +12,7 @@ import { Menu, MenuContent, MenuItem, MenuTrigger } from '@/components/ui/Menu';
 import { toast } from '@/components/ui/Toast';
 import { useAuth } from '@/features/auth/hooks';
 import { VoteControl } from '@/features/posts/components/VoteControl';
+import { ReactionBar } from '@/features/reactions/components/ReactionBar';
 import { errorMessage } from '@/services/apiError';
 import type { CommentNode } from '@/types/api';
 import { useIsNewComment } from '@/features/live/newComments';
@@ -95,7 +96,7 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
               <time dateTime={node.createdAt} title={new Date(node.createdAt).toLocaleString()}>{timeAgo(node.createdAt)}</time>
               {node.editedAt && !gone && <span className="text-faint">(edited)</span>}
               {node.pending && (
-                <span className="rounded-full bg-warning/15 px-1.5 text-[10px] font-bold uppercase text-warning" title="Held by the spam checks. Only you and the moderators can see it until it’s approved.">
+                <span className="rounded-full bg-warning/15 px-1.5 text-[10px] font-bold uppercase text-warning" title="Held by the spam checks or a community automod rule. Only you and the moderators can see it until it’s approved.">
                   Awaiting review
                 </span>
               )}
@@ -147,6 +148,7 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                         <MessageSquare size={15} /> Reply
                       </button>
                     )}
+                    {!gone && !node.pending && !node.blocked && <ReactionBar type="COMMENT" id={node.id} compact disabled={t.locked} />}
                     {!gone && (
                       <button
                         type="button"

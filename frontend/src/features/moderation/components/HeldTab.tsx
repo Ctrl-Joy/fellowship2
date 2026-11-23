@@ -19,7 +19,7 @@ export function HeldTab({ slug }: { slug: string }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted">
-        Held by automatic checks (link bursts, duplicates, posting bursts, mass mentions). Approving publishes the item and sends its notifications;
+        Held by automatic checks (link bursts, duplicates, posting bursts, mass mentions) or this community’s automod rules. Approving publishes the item and sends its notifications;
         removing keeps it hidden and tells the author, who can appeal.
       </p>
       {q.data.map((f) => (

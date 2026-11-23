@@ -4,6 +4,7 @@ import { commentsApi } from '@/features/comments/api';
 import { cachedForests, patchForests } from '@/features/comments/hooks';
 import { forestHas, insertLiveComment, patchCommentScores } from '@/features/comments/tree';
 import { patchPostEverywhere } from '@/features/posts/cache';
+import { refreshReactions } from '@/features/reactions/api';
 import { useTopic } from '@/features/realtime/RealtimeProvider';
 import { ApiError } from '@/services/apiError';
 import { mk } from '@/services/queryKeys';
@@ -37,6 +38,9 @@ export function usePostLive(postId: number, enabled: boolean) {
         if (Object.keys(scores).length) patchForests(qc, postId, (nodes) => patchCommentScores(nodes, scores));
         break;
       }
+      case 'REACTIONS':
+        refreshReactions(qc, ev.targetType, ev.targetId);
+        break;
       case 'COMMENT_CREATED': {
         const { commentId, parentId } = ev;
         // My own comments are inserted by the create mutation.
