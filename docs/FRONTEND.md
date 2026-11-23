@@ -57,8 +57,8 @@ src/
 | Notifications | `GET /notifications`, `POST /notifications/{id}/read`, `POST /notifications/read-all` |
 
 ## Not built yet (shown honestly)
-Moderator funding and Leaderboard appear under “Coming next” in the nav and route to one `/soon/:feature` page that collects
-no data. Everything else listed in the nav (AI, Collections, Podcasts, Messages, moderation, Context Mode, Digest) is built.
+Leaderboard appears under “Coming next” in the nav and routes to one `/soon/:feature` page that collects
+no data. (Moderator funding now has real routes, in demo mode; see below.) Everything else listed in the nav (AI, Collections, Podcasts, Messages, moderation, Context Mode, Digest) is built.
 
 ## Notes
 - Post bodies are authored as HTML in TipTap and rendered from the server's sanitized `bodyHtml`. Comments are markdown rendered
@@ -145,3 +145,23 @@ Signed-in only (anonymous users have no socket). Code in `features/live/`; event
     store (`newComments.ts`) with a brand tint and left rule that fades out.
 - `patchPostEverywhere` and `patchForests` now keep untouched lists and pages by reference, so a 2 s stats batch only
   re-renders what changed. Pure logic is tested in `features/live/logic.test.ts` and `features/comments/tree.test.ts`.
+
+## Moderator funding (demo mode)
+Code in `features/funding/`; types in `types/funding.ts`. Every funding view starts with `DemoBanner` ("DEMO, no real money", warning
+colours, `role="note"`), and every amount is rendered through `MoneyAmount`, which puts a DEMO badge next to it (screen readers hear
+"Demo, no real money").
+
+| Route | What it does | Endpoints |
+|---|---|---|
+| `/c/:slug?view=funding` | "Funding" tab: current pools with progress bars, Contribute (members), New pool (moderators), Close now / Allocate (owner), allocation policy panel (owner edits, others read), past periods | `GET /communities/{slug}/funding`, `POST …/funding/pools`, `PUT …/funding/policy`, `POST /funding/pools/{id}/contributions`, `GET …/allocation-preview`, `POST …/close` |
+| `/funding` (nav: Moderator funding) | Open pools in my communities, my monthly contributions with Cancel (confirm dialog), contribution history | `GET /me/funding`, `POST /me/funding/subscriptions/{id}/cancel` |
+| `/funding/pools/:id` | Public transparency report: totals, reconciliation check, anonymous/named contributors, allocations with policy and activity, append-only ledger | `GET /funding/pools/{id}/report`, `GET /funding/status` |
+
+- **Contribute dialog**: one time or monthly, preset amounts or a typed amount, "show my name" off by default. The submit button
+  repeats the amount and "(demo)".
+- **Close dialog**: for EQUAL and ACTIVITY it shows the server's preview of each moderator's share. For MANUAL it asks for an
+  amount per moderator and shows a live "left to allocate" figure. It also requires a public note, and stays disabled until the
+  amounts add up exactly.
+- `/soon/funding` redirects to `/funding`, and the "Coming next" nav entry has been replaced by the real route.
+- Pure logic lives in `features/funding/money.ts` (format/parse minor units with integer maths only, bounds, presets, progress) and is
+  tested in `money.test.ts`.
