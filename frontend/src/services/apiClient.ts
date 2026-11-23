@@ -97,6 +97,12 @@ async function send(path: string, opts: RequestOptions): Promise<Response> {
 }
 
 export async function api<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  // On a page load the session is restored by one refresh. Requests made before it finishes (React runs page effects
+  // before SessionBoot's) would otherwise go out without a token and cache signed-out data (no vote, not joined, no
+  // mod rights) that nothing refetches. So they wait for that single shared refresh first.
+  if (!opts.skipRefresh && !path.startsWith('/auth/') && useAuthStore.getState().status === 'booting') {
+    await refreshSession();
+  }
   let res = await send(path, opts);
   if (res.status === 401 && !opts.skipRefresh) {
     const ok = await refreshSession();

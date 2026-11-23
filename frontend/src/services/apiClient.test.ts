@@ -44,6 +44,38 @@ describe('apiClient', () => {
     expect(useAuthStore.getState().status).toBe('authenticated');
   });
 
+  it('holds requests made while the session is booting until the boot refresh lands', async () => {
+    useAuthStore.setState({ accessToken: null, user: null, status: 'booting' });
+    let refreshCalls = 0;
+    const seen: (string | undefined)[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/auth/refresh')) {
+        refreshCalls++;
+        await new Promise((r) => setTimeout(r, 10));
+        return json(200, { accessToken: 'boot', expiresIn: 900, user: me });
+      }
+      seen.push((init?.headers as Record<string, string>)?.Authorization);
+      return json(200, { ok: true });
+    }));
+
+    await Promise.all([api('/feed'), api('/communities/programming')]);
+    expect(refreshCalls).toBe(1);
+    expect(seen).toEqual(['Bearer boot', 'Bearer boot']); // never sent signed-out
+  });
+
+  it('sends requests without a token once a boot refresh finds no session', async () => {
+    useAuthStore.setState({ accessToken: null, user: null, status: 'booting' });
+    const seen: (string | undefined)[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (String(input).endsWith('/auth/refresh')) return json(401, { status: 401, code: 'UNAUTHORIZED', message: 'none' });
+      seen.push((init?.headers as Record<string, string>)?.Authorization);
+      return json(200, { ok: true });
+    }));
+    await api('/feed');
+    expect(seen).toEqual([undefined]);
+    expect(useAuthStore.getState().status).toBe('anonymous');
+  });
+
   it('clears the session and surfaces the 401 when refresh fails', async () => {
     vi.stubGlobal(
       'fetch',
