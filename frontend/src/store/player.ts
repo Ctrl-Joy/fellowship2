@@ -10,6 +10,8 @@ export interface PlayerTrack {
   mediaUrl: string;
   durationSeconds: number | null;
   chapters: { startSeconds: number; title: string }[];
+  /** True when the audio is an AI-generated voice; the player always labels it. */
+  aiVoice?: boolean;
 }
 
 export const RATES = [0.75, 1, 1.25, 1.5, 1.75, 2] as const;

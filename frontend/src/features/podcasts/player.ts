@@ -23,6 +23,7 @@ export function trackFromEpisode(e: EpisodeDetail): PlayerTrack | null {
     mediaUrl: e.mediaUrl,
     durationSeconds: e.durationSeconds,
     chapters: e.chapters.map((c) => ({ startSeconds: c.startSeconds, title: c.title })),
+    aiVoice: e.audioOrigin === 'AI_TTS',
   };
 }
 

@@ -4,6 +4,8 @@ import app.strata.common.error.ApiException;
 import app.strata.common.security.AuthUser;
 import app.strata.common.web.CursorPage;
 import app.strata.common.web.Cursors;
+import app.strata.podcast.PodcastDtos.AudioGeneration;
+import app.strata.podcast.PodcastDtos.AudioJob;
 import app.strata.podcast.PodcastDtos.Capabilities;
 import app.strata.podcast.PodcastDtos.CreateEpisode;
 import app.strata.podcast.PodcastDtos.DraftRequest;
@@ -41,10 +43,12 @@ import org.springframework.web.multipart.MultipartFile;
 public class PodcastController {
     private final PodcastService podcasts;
     private final ScriptDrafter drafter;
+    private final AudioGenerator audio;
 
-    public PodcastController(PodcastService podcasts, ScriptDrafter drafter) {
+    public PodcastController(PodcastService podcasts, ScriptDrafter drafter, AudioGenerator audio) {
         this.podcasts = podcasts;
         this.drafter = drafter;
+        this.audio = audio;
     }
 
     private static AuthUser require(AuthUser user) {
@@ -54,7 +58,7 @@ public class PodcastController {
 
     @GetMapping("/podcasts/capabilities")
     public Capabilities capabilities() {
-        return new Capabilities(drafter.available(), false, false, podcasts.maxUploadMb(),
+        return new Capabilities(drafter.available(), audio.available(), false, podcasts.maxUploadMb(),
                 List.of("audio/mpeg", "audio/mp4", "audio/ogg", "audio/wav"), List.of("video/mp4", "video/webm"));
     }
 
@@ -163,5 +167,23 @@ public class PodcastController {
     public EpisodeDetail draft(@PathVariable long id, @AuthenticationPrincipal AuthUser user, @Valid @RequestBody DraftRequest req) {
         drafter.start(id, require(user), req.topic(), req.targetMinutes());
         return podcasts.detail(id, user);
+    }
+
+    // ------------------------------------------------------------------ audio generation (D-036)
+
+    @GetMapping("/podcasts/episodes/{id}/audio-generation")
+    public AudioGeneration audioStatus(@PathVariable long id, @AuthenticationPrincipal AuthUser user) {
+        return audio.status(id, require(user));
+    }
+
+    @PostMapping("/podcasts/episodes/{id}/audio-generation")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public AudioJob generateAudio(@PathVariable long id, @AuthenticationPrincipal AuthUser user) {
+        return audio.start(id, require(user));
+    }
+
+    @PostMapping("/podcasts/episodes/{id}/audio-generation/cancel")
+    public AudioJob cancelAudio(@PathVariable long id, @AuthenticationPrincipal AuthUser user) {
+        return audio.cancel(id, require(user));
     }
 }

@@ -11,15 +11,12 @@ import app.strata.common.ratelimit.RateLimiter;
 import app.strata.common.security.AuthUser;
 import app.strata.community.Community;
 import app.strata.podcast.PodcastDtos.SourceInput;
-import jakarta.annotation.PreDestroy;
 import java.time.Duration;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.TreeSet;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.slf4j.Logger;
@@ -34,8 +31,8 @@ import org.springframework.stereotype.Component;
  *
  * <p>Pipeline: retrieve permission-filtered sources for the topic → stream a script from Claude that cites them as
  * [n] → strip any citation that doesn't map to a retrieved source → store the script as an AI draft and attach the
- * cited discussions as episode sources. A moderator must still review, record and publish: nothing is auto-published
- * and no audio is synthesised.
+ * cited discussions as episode sources. A moderator must still review and publish: nothing is auto-published, and audio
+ * is only synthesised when a moderator asks for it ({@code AudioGenerator}, D-036).
  */
 @Component
 public class ScriptDrafter {
@@ -50,13 +47,11 @@ public class ScriptDrafter {
     private final Retriever retriever;
     private final PodcastService podcasts;
     private final RateLimiter limiter;
-    private final ExecutorService executor = Executors.newFixedThreadPool(2, r -> {
-        Thread t = new Thread(r, "script-drafter");
-        t.setDaemon(true);
-        return t;
-    });
+    private final PodcastJobs executor;
 
-    public ScriptDrafter(JdbcClient jdbc, ClaudeProvider claude, Retriever retriever, PodcastService podcasts, RateLimiter limiter) {
+    public ScriptDrafter(JdbcClient jdbc, ClaudeProvider claude, Retriever retriever, PodcastService podcasts, RateLimiter limiter,
+                         PodcastJobs executor) {
+        this.executor = executor;
         this.jdbc = jdbc;
         this.claude = claude;
         this.retriever = retriever;
@@ -197,10 +192,5 @@ public class ScriptDrafter {
                 .append(" words). If the sources can't honestly support that length without padding, write a shorter, ")
                 .append("complete episode and say in the summary that the community's discussion of this topic is limited.");
         return b.toString();
-    }
-
-    @PreDestroy
-    void shutdown() {
-        executor.shutdownNow();
     }
 }

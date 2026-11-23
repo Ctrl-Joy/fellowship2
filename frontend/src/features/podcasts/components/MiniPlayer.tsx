@@ -7,6 +7,7 @@ import { toast } from '@/components/ui/Toast';
 import { RATES, usePlayer } from '@/store/player';
 import { cn } from '@/utils/format';
 import { saveProgressKeepalive } from '../api';
+import { AiVoiceBadge } from './AiVoiceBadge';
 import { activeIndex, formatClock } from '../helpers';
 import { createProgressSaver, isNearEnd, usePlayerClock } from '../player';
 
@@ -165,7 +166,10 @@ export function MiniPlayer() {
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand/15 text-brand"><ListMusic size={18} /></span>
           )}
           <span className="min-w-0">
-            <span className="block truncate text-sm font-semibold">{current.title}</span>
+            <span className="flex min-w-0 items-center gap-1.5">
+              <span className="truncate text-sm font-semibold">{current.title}</span>
+              {current.aiVoice && <AiVoiceBadge size="xs" />}
+            </span>
             <span className="block truncate text-xs text-muted">{chapterTitle ?? `c/${current.communitySlug}`}</span>
           </span>
         </Link>

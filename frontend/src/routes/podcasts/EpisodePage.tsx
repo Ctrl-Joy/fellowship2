@@ -9,6 +9,8 @@ import { useAuth } from '@/features/auth/hooks';
 import { ActionPill } from '@/features/posts/components/ActionPill';
 import { useEpisode, useSaveEpisode } from '@/features/podcasts/api';
 import { TranscriptPanel } from '@/features/podcasts/components/TranscriptPanel';
+import { AiVoiceBadge } from '@/features/podcasts/components/AiVoiceBadge';
+import { aiVoiceDescription } from '@/features/podcasts/audioGeneration';
 import { activeIndex, formatClock, formatDuration, typeLabel } from '@/features/podcasts/helpers';
 import { createProgressSaver, isNearEnd, playEpisode, trackFromEpisode, usePlayerClock } from '@/features/podcasts/player';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -88,6 +90,7 @@ export default function EpisodePage() {
               <Avatar src={e.community.iconUrl} name={e.community.slug} size="xs" /> c/{e.community.slug}
             </Link>
             <Badge tone="info" className="rounded-full px-2">{typeLabel(e.type)}</Badge>
+            {e.audioOrigin === 'AI_TTS' && <AiVoiceBadge provider={e.audioProvider} model={e.audioModel} />}
             {e.status !== 'PUBLISHED' && <Badge tone="warning" className="rounded-full px-2">{e.status === 'IN_REVIEW' ? 'In review' : e.status === 'DRAFT' ? 'Draft' : 'Archived'}</Badge>}
           </div>
           <h1 className="mt-2 text-2xl font-bold leading-tight sm:text-[28px]">{e.title}</h1>
@@ -138,6 +141,7 @@ export default function EpisodePage() {
             )}
           </div>
           {!e.mediaUrl && <p className="mt-3 text-sm text-muted">No media has been uploaded for this episode yet.</p>}
+          {e.audioOrigin === 'AI_TTS' && <p className="mt-3 text-xs text-muted">{aiVoiceDescription(e.audioProvider, e.audioModel)}</p>}
         </div>
       </header>
 

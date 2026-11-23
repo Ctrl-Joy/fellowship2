@@ -75,3 +75,8 @@ Still open: accessibility audit, Playwright suite, presigned media URLs (only if
 migrating legacy public DM image URLs.
 - ✅ Playwright end-to-end suite for the 23 flows, CI job, axe accessibility gate and keyboard checks (D-027).
 - ☐ Manual screen-reader pass, triage of moderate/minor axe findings, load testing, and running the production compose file behind a real domain.
+
+### Phase 6 follow-up: podcast audio generation ✅
+Generate an episode's audio from its reviewed two-host script with ElevenLabs text-to-speech (D-036): stock voices only,
+character estimate and per-community daily budget before starting, progress and cancel, timed transcript and chapters
+built automatically, and a persistent "AI-generated voice" label (D-037). Video generation remains deferred.

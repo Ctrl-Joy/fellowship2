@@ -278,3 +278,11 @@ with `features/auth/verifyOutcome.ts` (tested): **verified**, **already verified
 invalid or missing links a signed-in user gets "Send a new verification email" (`POST /auth/resend-verification`,
 3/hour; the 429 message is shown inline); a signed-out visitor is pointed to log in and use Settings › Account, where
 the existing resend button lives. The reset page links back to `/forgot-password` for expired links.
+## Podcast audio generation
+`features/podcasts/components/GenerateAudioPanel.tsx` appears in the studio editor only when `capabilities.audioGeneration`
+is true (otherwise the media panel keeps saying generation isn't configured). It shows the two voices, the estimated
+characters, requests and minutes from the saved script, the community's remaining daily budget and any blockers, then
+progress (polling `GET …/audio-generation` every 3 s while a job is active) with Cancel. When a job turns READY it refetches
+the episode, transcript and studio list. `AiVoiceBadge` is the persistent "AI-generated voice" label used on the episode
+page, the mini player (`PlayerTrack.aiVoice`), episode cards, the studio media panel and the review step; its full
+disclosure text (`aiVoiceDescription` in `features/podcasts/audioGeneration.ts`) is in the title and in screen-reader text.

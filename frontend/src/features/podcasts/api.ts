@@ -4,6 +4,8 @@ import { ApiError } from '@/services/apiError';
 import { useAuthStore } from '@/store/authStore';
 import type { CursorPage } from '@/types/api';
 import type {
+  AudioGeneration,
+  AudioJob,
   EpisodeDetail,
   EpisodePatch,
   EpisodeSummary,
@@ -46,6 +48,9 @@ export const podcastApi = {
   remove: (id: number) => http.del<void>(ep(id)),
   draftScript: (id: number, topic: string, targetMinutes: number) =>
     http.post<EpisodeDetail>(`${ep(id)}/draft-script`, { topic, targetMinutes }),
+  audioGeneration: (id: number) => http.get<AudioGeneration>(`${ep(id)}/audio-generation`),
+  generateAudio: (id: number) => http.post<AudioJob>(`${ep(id)}/audio-generation`),
+  cancelAudio: (id: number) => http.post<AudioJob>(`${ep(id)}/audio-generation/cancel`),
 };
 
 /**
@@ -123,6 +128,7 @@ export const podcastKeys = {
   episode: (id: number) => ['podcasts', 'episode', id] as const,
   transcript: (id: number, q: string) => ['podcasts', 'transcript', id, q] as const,
   studio: (slug: string) => ['podcasts', 'studio', slug] as const,
+  audio: (id: number) => ['podcasts', 'audio', id] as const,
 };
 
 const cursorOpts = {
@@ -181,3 +187,12 @@ export function useSaveEpisode(id: number) {
     },
   });
 }
+
+/** Audio generation status; polls every 3 s while a job is queued or generating. */
+export const useAudioGeneration = (id: number, enabled: boolean) =>
+  useQuery({
+    queryKey: podcastKeys.audio(id),
+    queryFn: () => podcastApi.audioGeneration(id),
+    enabled,
+    refetchInterval: (q) => (q.state.data?.job && ['QUEUED', 'GENERATING'].includes(q.state.data.job.status) ? 3000 : false),
+  });

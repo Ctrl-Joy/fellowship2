@@ -87,12 +87,17 @@ public class PodcastService {
     record Row(long id, long communityId, Long createdBy, Long publishedBy, String title, String summary, String type, String status,
                String mediaKind, String mediaKey, String mediaContentType, Integer duration, String thumbnailUrl, boolean allowDownload,
                String script, String scriptSource, String scriptStatus, String scriptError, int playCount, Instant publishedAt,
-               Instant createdAt) {}
+               Instant createdAt, String audioOrigin, String audioProvider, String audioModel) {
+        /** Null when there's no media yet; otherwise UPLOADED or AI_TTS. */
+        String origin() {
+            return mediaKey == null ? null : audioOrigin;
+        }
+    }
 
     private static final String COLS = """
             e.id, e.community_id, e.created_by, e.published_by, e.title, e.summary, e.type, e.status, e.media_kind, e.media_key,
             e.media_content_type, e.duration_seconds, e.thumbnail_url, e.allow_download, e.script, e.script_source, e.script_status,
-            e.script_error, e.play_count, e.published_at, e.created_at""";
+            e.script_error, e.play_count, e.published_at, e.created_at, e.audio_origin, e.audio_provider, e.audio_model""";
 
     private Row row(ResultSet rs, int i) throws SQLException {
         return new Row(rs.getLong("id"), rs.getLong("community_id"), (Long) rs.getObject("created_by"), (Long) rs.getObject("published_by"),
@@ -100,7 +105,7 @@ public class PodcastService {
                 rs.getString("media_key"), rs.getString("media_content_type"), (Integer) rs.getObject("duration_seconds"),
                 rs.getString("thumbnail_url"), rs.getBoolean("allow_download"), rs.getString("script"), rs.getString("script_source"),
                 rs.getString("script_status"), rs.getString("script_error"), rs.getInt("play_count"), ts(rs, "published_at"),
-                ts(rs, "created_at"));
+                ts(rs, "created_at"), rs.getString("audio_origin"), rs.getString("audio_provider"), rs.getString("audio_model"));
     }
 
     Row load(long id) {
@@ -215,7 +220,7 @@ public class PodcastService {
         return rows.stream().filter(r -> cs.containsKey(r.communityId())).map(r -> new EpisodeSummary(r.id(),
                 CommunityMapper.ref(cs.get(r.communityId())), r.title(), r.summary(), r.type(), r.mediaKind(), r.duration(),
                 r.thumbnailUrl(), r.status(), r.publishedAt(), r.createdAt(), r.playCount(), saved.contains(r.id()),
-                progress.get(r.id()), chapters.getOrDefault(r.id(), 0))).toList();
+                progress.get(r.id()), chapters.getOrDefault(r.id(), 0), r.origin())).toList();
     }
 
     // ------------------------------------------------------------------ detail
@@ -237,7 +242,8 @@ public class PodcastService {
                 sources(id, user), hasTranscript, hasTranscript ? "/api/v1/podcasts/episodes/" + id + "/transcript.vtt" : null,
                 manager ? r.script() : null, r.scriptStatus(), r.scriptSource(), manager ? r.scriptError() : null,
                 r.createdBy() == null ? null : people.get(r.createdBy()), r.publishedBy() == null ? null : people.get(r.publishedBy()),
-                new EpisodeViewer(manager));
+                new EpisodeViewer(manager), r.origin(), "AI_TTS".equals(r.origin()) ? r.audioProvider() : null,
+                "AI_TTS".equals(r.origin()) ? r.audioModel() : null);
     }
 
     /** Cited discussions, re-checked against the viewer's access on every read and skipped once deleted or removed. */
@@ -336,7 +342,7 @@ public class PodcastService {
         touch(id);
     }
 
-    private void replaceChapters(long id, List<ChapterInput> chapters, Integer duration) {
+    void replaceChapters(long id, List<ChapterInput> chapters, Integer duration) {
         jdbc.sql("DELETE FROM podcast_chapters WHERE episode_id = ?").param(id).update();
         Set<Integer> starts = new HashSet<>();
         for (ChapterInput ch : chapters) {
@@ -368,6 +374,7 @@ public class PodcastService {
         Row r = load(id);
         requireManager(r, user);
         if ("PUBLISHED".equals(r.status())) throw ApiException.badRequest("Unpublish the episode before replacing its media");
+        if (audioJobActive(id)) throw ApiException.conflict(null, "Audio is being generated for this episode. Cancel it before uploading");
         limiter.check("podcast:upload:" + user.id(), 20, Duration.ofHours(1));
         if (file == null || file.isEmpty()) throw ApiException.field("file", "Choose a file to upload");
         if (file.getSize() > maxMediaBytes) throw ApiException.field("file", "Media files must be under " + maxUploadMb() + " MB");
@@ -386,7 +393,8 @@ public class PodcastService {
             throw ApiException.badRequest("Upload failed");
         }
         jdbc.sql("""
-                        UPDATE podcast_episodes SET media_kind = ?, media_key = ?, media_content_type = ?, media_bytes = ?, duration_seconds = ?
+                        UPDATE podcast_episodes SET media_kind = ?, media_key = ?, media_content_type = ?, media_bytes = ?, duration_seconds = ?,
+                               audio_origin = 'UPLOADED', audio_provider = NULL, audio_model = NULL
                         WHERE id = ?""")
                 .params(kind.mediaKind(), key, kind.contentType(), file.getSize(), durationSeconds, id).update();
         if (r.mediaKey() != null) storage.delete(r.mediaKey());
@@ -408,13 +416,23 @@ public class PodcastService {
         requireManager(r, user);
         if ("PUBLISHED".equals(r.status())) throw ApiException.badRequest("Unpublish the episode before replacing its transcript");
         List<TranscriptParser.Segment> segs = TranscriptParser.parse(format, content, r.duration());
+        storeTranscript(id, segs);
+        touch(id);
+        return segs.size();
+    }
+
+    /** Replaces the episode's transcript (callers check permissions and the published lock). */
+    void storeTranscript(long id, List<TranscriptParser.Segment> segs) {
         jdbc.sql("DELETE FROM podcast_transcript_segments WHERE episode_id = ?").param(id).update();
         for (TranscriptParser.Segment s : segs) {
             jdbc.sql("INSERT INTO podcast_transcript_segments (episode_id, start_seconds, end_seconds, speaker, text) VALUES (?, ?, ?, ?, ?)")
                     .params(id, s.start(), s.end(), s.speaker(), s.text()).update();
         }
-        touch(id);
-        return segs.size();
+    }
+
+    boolean audioJobActive(long id) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM podcast_tts_jobs WHERE episode_id = ? AND status IN ('QUEUED', 'GENERATING'))")
+                .param(id).query(Boolean.class).single();
     }
 
     @Transactional

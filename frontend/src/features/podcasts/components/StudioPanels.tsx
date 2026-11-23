@@ -8,6 +8,7 @@ import { errorMessage } from '@/services/apiError';
 import type { EpisodeDetail, PodcastCapabilities, SourceRef, TranscriptFormat } from '@/types/podcasts';
 import { cn } from '@/utils/format';
 import { podcastApi, podcastKeys, uploadMedia, useEpisodeMutation } from '../api';
+import { AiVoiceBadge } from './AiVoiceBadge';
 import { countCues, formatClock, formatDuration, measureDuration, parseSourceRefs, parseTimestamp } from '../helpers';
 
 export function Panel({ title, children, action, hint }: { title: string; children: ReactNode; action?: ReactNode; hint?: string }) {
@@ -67,10 +68,14 @@ export function MediaPanel({ e, caps, locked }: { e: EpisodeDetail; caps?: Podca
 
   return (
     <Panel title="Media" hint={caps ? `Audio: MP3, M4A, OGG, WAV · Video: MP4, WebM · up to ${caps.maxUploadMb} MB` : undefined}>
-      <div className="mb-3 flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
-        <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
-        Audio/video generation isn't configured. Record or produce the episode and upload it.
-      </div>
+      {caps?.audioGeneration ? (
+        <p className="mb-3 text-xs text-muted">Upload a recording, or generate audio from the script (labelled as an AI-generated voice). Video generation isn't available.</p>
+      ) : (
+        <div className="mb-3 flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0 text-warning" />
+          Audio/video generation isn't configured. Record or produce the episode and upload it.
+        </div>
+      )}
       {e.mediaUrl ? (
         <div className="space-y-2">
           {e.mediaKind === 'VIDEO' ? (
@@ -78,7 +83,10 @@ export function MediaPanel({ e, caps, locked }: { e: EpisodeDetail; caps?: Podca
           ) : (
             <audio src={e.mediaUrl} controls preload="metadata" className="w-full" />
           )}
-          <p className="text-xs text-muted">{e.mediaKind === 'VIDEO' ? 'Video' : 'Audio'} · {formatDuration(e.durationSeconds)} · {e.mediaContentType}</p>
+          <p className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            {e.mediaKind === 'VIDEO' ? 'Video' : 'Audio'} · {formatDuration(e.durationSeconds)} · {e.mediaContentType}
+            {e.audioOrigin === 'AI_TTS' ? <AiVoiceBadge provider={e.audioProvider} model={e.audioModel} size="xs" /> : <span>· Uploaded</span>}
+          </p>
         </div>
       ) : (
         <p className="text-sm text-muted">No media uploaded yet.</p>

@@ -34,7 +34,8 @@ public class SecurityConfig {
 
     private static final String[] AUTHENTICATED_GETS = {
             "/api/v1/users/me", "/api/v1/users/me/**", "/api/v1/me/**", "/api/v1/notifications/**",
-            "/api/v1/auth/sessions", "/api/v1/onboarding/**"
+            "/api/v1/auth/sessions", "/api/v1/onboarding/**",
+            "/api/v1/podcasts/episodes/*/audio-generation"
     };
 
     @Bean

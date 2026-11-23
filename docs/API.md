@@ -307,7 +307,8 @@ EpisodeType = "WEEKLY_ROUNDUP"|"DEEP_DIVE"|"DEBATE"|"INTERVIEW"|"BEGINNER_GUIDE"
 EpisodeStatus = "DRAFT"|"IN_REVIEW"|"PUBLISHED"|"ARCHIVED"
 EpisodeSummary { id, community: CommunityRef, title, summary, type: EpisodeType, mediaKind: "AUDIO"|"VIDEO"|null,
                  durationSeconds|null, thumbnailUrl|null, status: EpisodeStatus, publishedAt|null, createdAt, playCount,
-                 saved: boolean, progress: { positionSeconds, completed } | null, chapterCount }
+                 saved: boolean, progress: { positionSeconds, completed } | null, chapterCount,
+                 audioOrigin: "UPLOADED"|"AI_TTS"|null /* null until there is media; AI_TTS = AI-generated voice (D-037) */ }
 EpisodeDetail = EpisodeSummary & {
   mediaUrl|null, mediaContentType|null, allowDownload: boolean,
   chapters: { id, startSeconds, title }[],
@@ -316,9 +317,10 @@ EpisodeDetail = EpisodeSummary & {
   script: string|null /* markdown; managers only */, scriptStatus: "NONE"|"GENERATING"|"READY"|"FAILED",
   scriptSource: "HUMAN"|"AI_DRAFT"|null, scriptError: string|null,
   createdBy: UserSummary|null, publishedBy: UserSummary|null,
-  viewer: { canManage: boolean } }
+  viewer: { canManage: boolean },
+  audioProvider: string|null, audioModel: string|null /* set only when audioOrigin = "AI_TTS", e.g. "elevenlabs", "eleven_multilingual_v2" */ }
 TranscriptSegment { id, startSeconds: number, endSeconds: number, speaker: string|null, text }
-Capabilities { aiScriptDrafting: boolean, audioGeneration: false, videoGeneration: false, maxUploadMb: number,
+Capabilities { aiScriptDrafting: boolean, audioGeneration: boolean /* a TTS provider is configured */, videoGeneration: false, maxUploadMb: number,
                audioTypes: string[], videoTypes: string[] }
 ```
 | Method | Path | Notes |
@@ -346,6 +348,34 @@ Capabilities { aiScriptDrafting: boolean, audioGeneration: false, videoGeneratio
 
 Media files are served from `/api/v1/files/**` with HTTP Range support (seeking). Their URLs are unguessable, but they are
 not access-controlled, so episodes in private communities have the same limit as images (see DECISIONS).
+
+### Podcast audio generation (D-036, D-037)
+Managers can turn the saved two-host script into the episode's audio with a text-to-speech provider (ElevenLabs when
+`ELEVENLABS_API_KEY` is set on the server; otherwise `capabilities.audioGeneration=false` and starting returns 400). Only
+`HOST A:` / `HOST B:` lines are read (title, summary, outline, notes and the source list are skipped; citations, links and
+Markdown are stripped). The result replaces the episode's media, transcript (one segment per synthesised chunk, timed from
+the measured MP3 duration) and, when the script has `##` sections, its chapters. The episode then has
+`audioOrigin: "AI_TTS"` with `audioProvider`/`audioModel`, and the UI labels it "AI-generated voice". Uploading media later
+sets `audioOrigin` back to `UPLOADED`. There is no RSS feed yet; when one is added it must carry the same disclosure.
+
+```ts
+AudioJobStatus = "QUEUED"|"GENERATING"|"READY"|"FAILED"|"CANCELLED"
+AudioJob { id, status: AudioJobStatus, provider, model, characters /* reserved for the budget */, charactersSent,
+           chunksTotal, chunksDone, durationSeconds: number|null, error: string|null, cancelRequested: boolean,
+           createdAt, startedAt|null, finishedAt|null }
+AudioGeneration { available: boolean, provider: string|null, providerLabel: string|null, model: string|null,
+                  voices: { speaker: "HOST A"|"HOST B", voiceId, name }[],
+                  estimate: { characters, chunks, turns, sections, perRequestLimit, maxCharacters } /* from the saved script */,
+                  budget: { dailyLimit, usedToday, remaining, resetsAt } /* per community, UTC day */,
+                  job: AudioJob|null /* latest */, blockers: string[] /* why starting would fail; empty = can start */ }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/podcasts/episodes/{id}/audio-generation` | managers (auth) → `AudioGeneration`. Poll while `job.status` is QUEUED/GENERATING |
+| POST | `/podcasts/episodes/{id}/audio-generation` | managers → 202 `AudioJob`. 400 when unconfigured, published, no script / no host lines, over `maxCharacters` or over the daily budget; 409 if one is already running. 10/day/user |
+| POST | `/podcasts/episodes/{id}/audio-generation/cancel` | managers → `AudioJob` with `cancelRequested: true`; a queued job is CANCELLED at once, a running one stops at the next chunk (the in-flight request is interrupted). 400 when nothing is running |
+
+While a job runs, `POST …/media` answers 409. Failed and cancelled jobs count only `charactersSent` against the budget.
 
 ## Direct messages (one-to-one)
 All endpoints require sign-in. You can't message someone you've blocked, or who has blocked you, and the recipient's
