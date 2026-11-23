@@ -11,9 +11,12 @@ import java.time.Instant;
 public final class FileDtos {
     private FileDtos() {}
 
-    /** scanStatus: CLEAN (passed structural checks; not an antivirus verdict), UNSCANNED (E2EE). */
+    /**
+     * scanStatus: CLEAN (accepted), UNSCANNED (E2EE). scanEngine (D-029): STRUCTURAL = type and structure checks only,
+     * not an antivirus verdict; CLAMAV = also scanned by ClamAV, which found nothing.
+     */
     public record FileItem(long id, String name, String contentType, long sizeBytes, boolean e2ee, String scanStatus,
-                           String scanDetail, String sha256, int activeLinks, Instant createdAt, Instant updatedAt) {}
+                           String scanDetail, String scanEngine, String sha256, int activeLinks, Instant createdAt, Instant updatedAt) {}
 
     public record Usage(long usedBytes, long quotaBytes, long maxFileBytes, long fileCount) {}
 
@@ -43,7 +46,8 @@ public final class FileDtos {
 
     /** Public metadata. For E2EE files, name and type are encrypted inside the file, so they're null here. */
     public record ShareMeta(String fileName, String contentType, long sizeBytes, boolean e2ee, String keyMode,
-                            Instant expiresAt, boolean requiresPassword, Integer downloadsRemaining, String scanStatus) {}
+                            Instant expiresAt, boolean requiresPassword, Integer downloadsRemaining, String scanStatus,
+                            String scanEngine) {}
 
     public record UnlockRequest(@Size(max = 128) String password) {}
 

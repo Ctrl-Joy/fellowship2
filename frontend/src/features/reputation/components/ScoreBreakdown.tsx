@@ -33,9 +33,9 @@ export function ModBadges({ badges }: { badges: ModBadge[] }) {
     <span className="flex flex-wrap gap-1">
       {badges.map((b) => (
         <Tooltip key={b.code} content={b.rule}>
-          <span tabIndex={0} className="inline-flex">
+          <button type="button" className="inline-flex rounded-full">
             <Badge tone="accent" className="rounded-full px-2"><BadgeCheck size={11} aria-hidden="true" /> {b.label}</Badge>
-          </span>
+          </button>
         </Tooltip>
       ))}
     </span>

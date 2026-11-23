@@ -114,6 +114,7 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                     <CommentComposer
                       initial={node.body}
                       submitLabel="Save"
+                      // eslint-disable-next-line jsx-a11y/no-autofocus -- opened by the user clicking Reply/Edit; the box they asked for gets focus
                       autoFocus
                       loading={update.isPending}
                       onCancel={() => setEditing(false)}
@@ -194,6 +195,7 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                 {replying && (
                   <div className="mt-2">
                     <CommentComposer
+                      // eslint-disable-next-line jsx-a11y/no-autofocus -- opened by the user clicking Reply/Edit; the box they asked for gets focus
                       autoFocus
                       submitLabel="Reply"
                       placeholder={`Reply to ${name}`}

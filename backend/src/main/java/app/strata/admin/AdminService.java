@@ -9,7 +9,9 @@ import app.strata.admin.AdminDtos.DayCount;
 import app.strata.admin.AdminDtos.Overview;
 import app.strata.auth.RefreshTokenRepository;
 import app.strata.common.error.ApiException;
+import app.strata.common.security.AccountAccessRevoked;
 import app.strata.common.security.AccountStatusCache;
+import org.springframework.context.ApplicationEventPublisher;
 import app.strata.common.security.AuthUser;
 import app.strata.common.web.CursorPage;
 import app.strata.common.web.Cursors;
@@ -49,9 +51,12 @@ public class AdminService {
     private final AccountStatusCache accounts;
     private final SpamService spam;
     private final NotificationService notifications;
+    private final ApplicationEventPublisher events;
 
     public AdminService(JdbcClient jdbc, UserDirectory directory, RefreshTokenRepository refreshTokens,
-                        AccountStatusCache accounts, SpamService spam, NotificationService notifications) {
+                        AccountStatusCache accounts, SpamService spam, NotificationService notifications,
+                        ApplicationEventPublisher events) {
+        this.events = events;
         this.jdbc = jdbc;
         this.directory = directory;
         this.refreshTokens = refreshTokens;
@@ -182,6 +187,7 @@ public class AdminService {
                 .params(reason.strip(), id).update();
         refreshTokens.revokeAllForUser(id, Instant.now());
         accounts.evict(id);
+        events.publishEvent(new AccountAccessRevoked(id, "suspended")); // closes open WebSockets after commit (D-030)
         audit(admin, "SUSPEND_USER", id, null, null, reason);
         return user(admin, id);
     }
@@ -207,6 +213,8 @@ public class AdminService {
         if (role.equals(u.role())) throw ApiException.badRequest("ADMIN".equals(role) ? "Already an admin" : "Not an admin");
         jdbc.sql("UPDATE users SET role = ?, updated_at = now() WHERE id = ?").params(role, id).update();
         accounts.evict(id);
+        // Sockets carry the role they connected with; closing them makes the client reconnect with the new one.
+        events.publishEvent(new AccountAccessRevoked(id, "role changed"));
         audit(admin, "ADMIN".equals(role) ? "PROMOTE_ADMIN" : "DEMOTE_ADMIN", id, null, null, reason);
         return user(admin, id);
     }

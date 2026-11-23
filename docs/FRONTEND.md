@@ -319,3 +319,33 @@ feed" instead of "Join the pack"; there's no redirect. Motion helpers live in `m
 observer, play gate, parallax/tilt maths) with Vitest coverage in `motion.test.ts`; styles and keyframes in
 `landing.css`. The page is always dark (see DESIGN_SYSTEM.md, "Landing page"). E2E: `e2e/10-landing.spec.ts`, and the
 landing stays in the axe audit (`08-accessibility`).
+## Privacy and safety hardening (D-028 to D-030)
+- **Scan labels** (`features/files/helpers.ts → scanSummary`). Files and share pages use `scanEngine`. They say
+  "Scanned by ClamAV: no known malware found" only for `CLAMAV`, and "Checked: passed type and structure checks. Not an
+  antivirus scan" otherwise. The badge reads "Scanned" or "Checked". `scanDetail` (tooltip) explains a fail-open upload.
+- **Streaming E2EE decryption** (`features/files/streamDecrypt.ts`, `components/StreamingSave.tsx`). For E2EE files of
+  64 MB or more in browsers with `showSaveFilePicker`, the share page and the Files page open the download as a stream
+  (`openDownloadResponse` / `openOwnContentResponse`). `openContainerStream` verifies the header and metadata, and
+  `StreamingSavePrompt` then asks for a click ("Choose where to save"), because the save dialog needs a user gesture.
+  Each chunk is decrypted and written as it arrives, with a progress percentage. Dismissing the dialog lets you try
+  again. A failure aborts the file and says so. Elsewhere the in-memory path is unchanged, and `MemoryWarning` explains
+  the risk above 500 MB. `ByteReader` and `sealedFrames` (look-ahead for the last chunk) are pure and tested in
+  `streamDecrypt.test.ts` (6 tests), including truncation at a chunk boundary, tampering, a wrong key and empty files.
+- **ESLint** (`eslint.config.js`, flat config): `@eslint/js` recommended, `typescript-eslint` recommended,
+  `react-hooks` recommended and `jsx-a11y` recommended. `npm run lint` = `tsc -b --noEmit && eslint .` (the CI step is
+  unchanged). One rule is configured rather than disabled: `label-has-associated-control` knows that `Input`,
+  `Textarea` and `Select` render native controls. Fixes the linter found:
+  - `useMemo` for transcript items (exhaustive-deps).
+  - Mod badges' tooltip triggers are buttons, not `tabIndex` spans.
+  - DM image alt text no longer says "image".
+  - `autoFocus` removed from the full-page sign-in, sign-up, forgot-password and reset-password forms.
+
+  The remaining inline disables each state their reason:
+  - autofocus in dialogs and reply/edit boxes the user just opened;
+  - whole-card click shortcuts whose title is the real link;
+  - the poll's click containment;
+  - the search combobox, whose keyboard handling lives on the input;
+  - podcast media whose captions or transcript are provided elsewhere or conditionally;
+  - the control-character regex in `safeFileName`.
+- **Live sockets.** A suspended, deactivated or deleted account's socket is closed by the server (1008) and reconnects
+  are refused. The existing client keeps retrying with backoff, and its next REST call gets 401/403, which signs it out.

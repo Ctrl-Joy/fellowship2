@@ -113,6 +113,7 @@ export function SearchBox({ className, onDone }: { className?: string; onDone?: 
           className="absolute left-0 right-0 top-[calc(100%+6px)] z-40 max-h-[60vh] overflow-y-auto rounded-lg border border-border bg-surface p-1 shadow-float"
         >
           {options.map((o, i) => (
+            // eslint-disable-next-line jsx-a11y/click-events-have-key-events -- combobox pattern: arrow keys and Enter are handled on the input (aria-activedescendant)
             <li
               key={o.key}
               id={`${listId}-${i}`}

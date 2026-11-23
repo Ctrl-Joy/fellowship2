@@ -5,10 +5,12 @@ import { Button } from '@/components/ui/Button';
 import { Skeleton } from '@/components/ui/Display';
 import { Field, FormAlert, Input } from '@/components/ui/Field';
 import { EmptyState, ErrorState } from '@/components/ui/States';
-import { fetchDownload, filesApi, saveBlob, triggerDownload, useShareMeta } from '@/features/files/api';
+import { fetchDownload, filesApi, openDownloadResponse, saveBlob, triggerDownload, useShareMeta } from '@/features/files/api';
 import { E2eeNote } from '@/features/files/components/E2eeNote';
+import { MemoryWarning, StreamingSavePrompt } from '@/features/files/components/StreamingSave';
 import { DecryptionError, decryptFile, importKey, keyFromFragment, safeFileName, unwrapKey } from '@/features/files/crypto';
-import { formatBytes, typeLabel } from '@/features/files/helpers';
+import { formatBytes, scanSummary, typeLabel } from '@/features/files/helpers';
+import { STREAM_THRESHOLD_BYTES, canStreamToDisk, openContainerStream, responseBytes, type OpenedContainer } from '@/features/files/streamDecrypt';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ApiError, errorMessage } from '@/services/apiError';
 
@@ -24,7 +26,8 @@ export default function SharePage() {
   const [passphrase, setPassphrase] = useState('');
   const [fieldError, setFieldError] = useState<{ password?: string; passphrase?: string }>({});
   const [error, setError] = useState<string | null>(null);
-  const [phase, setPhase] = useState<'idle' | 'unlocking' | 'downloading' | 'decrypting' | 'done'>('idle');
+  const [phase, setPhase] = useState<'idle' | 'unlocking' | 'downloading' | 'decrypting' | 'ready' | 'done'>('idle');
+  const [opened, setOpened] = useState<OpenedContainer | null>(null);
   const [progress, setProgress] = useState(0);
   const [savedName, setSavedName] = useState<string | null>(null);
   useDocumentTitle(meta.data?.fileName ?? 'Shared file');
@@ -71,6 +74,14 @@ export default function SharePage() {
         }
         setPhase('downloading');
         setProgress(0);
+        if (canStreamToDisk() && m.sizeBytes >= STREAM_THRESHOLD_BYTES) {
+          // Large file: decrypt as it downloads, straight to a file the user picks (needs one more click).
+          const res = await openDownloadResponse(unlock.downloadUrl);
+          setOpened(await openContainerStream(responseBytes(res), key));
+          setPhase('ready');
+          void meta.refetch();
+          return;
+        }
         const container = await fetchDownload(unlock.downloadUrl, setProgress);
         setPhase('decrypting');
         setProgress(0);
@@ -137,14 +148,26 @@ export default function SharePage() {
             )}
             {!m.e2ee && m.scanStatus === 'CLEAN' && (
               <li className="flex items-center gap-2">
-                <ShieldCheck size={14} aria-hidden /> Passed type and structure checks (not an antivirus scan). Open files from people you trust.
+                <ShieldCheck size={14} aria-hidden /> {scanSummary(m.scanEngine).text}
               </li>
             )}
           </ul>
 
           {m.e2ee && <E2eeNote className="mt-4" />}
+          {m.e2ee && <MemoryWarning sizeBytes={m.sizeBytes} className="mt-3" />}
 
-          {missingKey ? (
+          {phase === 'ready' && opened ? (
+            <div className="mt-5">
+              <StreamingSavePrompt
+                opened={opened}
+                onSaved={(name) => {
+                  setSavedName(name);
+                  setOpened(null);
+                  setPhase('done');
+                }}
+              />
+            </div>
+          ) : missingKey ? (
             <div className="mt-5">
               <FormAlert message="This link is missing its key (the part after #k=). Ask the sender for the complete link; the server never has the key." />
             </div>

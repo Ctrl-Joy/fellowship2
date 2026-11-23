@@ -1,5 +1,6 @@
 package app.strata.storage;
 
+import app.strata.antivirus.Antivirus;
 import app.strata.common.config.AppProperties;
 import app.strata.common.error.ApiException;
 import app.strata.common.text.Tokens;
@@ -21,14 +22,16 @@ public class MediaService {
     private final StorageService storage;
     private final MediaAssetRepository assets;
     private final long maxBytes;
+    private final Antivirus antivirus;
 
     public record MediaDto(long id, String url, Integer width, Integer height, String contentType, Thumbnails thumbnails) {}
 
     public record StoredImage(String key, String url, ImageInspector.ImageInfo info, long size, String variantWidths) {}
 
-    public MediaService(StorageService storage, MediaAssetRepository assets, AppProperties props) {
+    public MediaService(StorageService storage, MediaAssetRepository assets, AppProperties props, Antivirus antivirus) {
         this.storage = storage;
         this.assets = assets;
+        this.antivirus = antivirus;
         this.maxBytes = props.storage().maxImageBytes();
     }
 
@@ -48,6 +51,13 @@ public class MediaService {
         }
         ImageInspector.Decoded decoded = ImageInspector.decode(bytes);
         ImageInspector.ImageInfo info = decoded.info();
+        // The stored original carries no GPS/camera/XMP metadata (D-028); pixels are untouched (lossless segment removal).
+        try {
+            bytes = ImageMetadata.strip(bytes, info.extension());
+        } catch (ImageMetadata.MalformedImageException e) {
+            throw ApiException.field("file", "The image could not be read");
+        }
+        antivirus.check(bytes, "image");
         String key = prefix + "/" + Tokens.random(18) + "." + info.extension();
         storage.put(key, bytes, info.contentType());
         String widths = storeVariants(key, bytes, decoded);

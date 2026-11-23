@@ -66,6 +66,13 @@ file can't be decrypted by anyone, including Strata.
 - Requires a secure context (HTTPS or localhost) for WebCrypto.
 - No key rotation: re-encrypting means uploading again.
 
+## Large files (D-030)
+In browsers with the File System Access API (Chromium-based desktop browsers), E2EE files of 64 MB or more are
+decrypted as they download and written chunk by chunk to a file the user chooses. Only about two chunks (2 MiB) are in
+memory, whatever the size. The format is unchanged and every chunk is still authenticated before it is written. A
+failure (wrong key, tampering, truncation, network error) aborts the write, and the browser discards the partial file.
+Other browsers decrypt in memory, as before, and warn above 500 MB.
+
 ## Tests
 `frontend/src/features/files/crypto.test.ts` (Vitest, Node WebCrypto): round trip across chunks, empty files and
 exact chunk multiples, no plaintext or name in the container, wrong key fails, flipped bits in header, metadata, body

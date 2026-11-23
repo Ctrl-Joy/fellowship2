@@ -147,8 +147,20 @@ export async function fetchOwnContent(id: number, onProgress?: (fraction: number
   return readWithProgress(res, onProgress);
 }
 
-/** Fetches a signed download URL as a Blob (for E2EE shares, decrypted in the browser). */
-export async function fetchDownload(url: string, onProgress?: (fraction: number) => void): Promise<Blob> {
+/** Opens the signed owner's content as a streaming Response (large E2EE files are decrypted to disk as they arrive). */
+export async function openOwnContentResponse(id: number): Promise<Response> {
+  const get = () => {
+    const token = useAuthStore.getState().accessToken;
+    return fetch(`${API_BASE}${f(id)}/content`, { headers: token ? { Authorization: `Bearer ${token}` } : {}, credentials: 'include' });
+  };
+  let res = await get();
+  if (res.status === 401 && (await refreshSession())) res = await get();
+  if (!res.ok) throw new ApiError({ status: res.status, code: 'HTTP_ERROR', message: 'Could not download the file' });
+  return res;
+}
+
+/** Opens a signed download URL as a streaming Response, without reading the body. */
+export async function openDownloadResponse(url: string): Promise<Response> {
   const res = await fetch(url, { credentials: 'omit' });
   if (!res.ok) {
     let message = 'Could not download the file';
@@ -159,7 +171,12 @@ export async function fetchDownload(url: string, onProgress?: (fraction: number)
     }
     throw new ApiError({ status: res.status, code: 'HTTP_ERROR', message });
   }
-  return readWithProgress(res, onProgress);
+  return res;
+}
+
+/** Fetches a signed download URL as a Blob (for E2EE shares, decrypted in the browser). */
+export async function fetchDownload(url: string, onProgress?: (fraction: number) => void): Promise<Blob> {
+  return readWithProgress(await openDownloadResponse(url), onProgress);
 }
 
 async function readWithProgress(res: Response, onProgress?: (fraction: number) => void): Promise<Blob> {

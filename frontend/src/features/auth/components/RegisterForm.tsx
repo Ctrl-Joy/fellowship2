@@ -49,7 +49,7 @@ export function RegisterForm({ onSuccess }: { onSuccess: (me: Me) => void }) {
     >
       <FormAlert message={formError} />
       <Field label="Username" error={formState.errors.username?.message} hint={<AvailabilityHint {...avail} />}>
-        {(a) => <Input {...a} autoComplete="username" autoFocus {...register('username')} />}
+        {(a) => <Input {...a} autoComplete="username" {...register('username')} />}
       </Field>
       <Field label="Email" error={formState.errors.email?.message} hint="Used for verification and password resets. Never shown publicly.">
         {(a) => <Input {...a} type="email" autoComplete="email" {...register('email')} />}

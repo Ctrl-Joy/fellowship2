@@ -148,6 +148,20 @@ strata:
     quota-mb: ${FILE_QUOTA_MB:1024}
     # Salt for hashing visitor IPs in share access logs. Blank = random per start (hashes not linkable across restarts).
     visitor-salt: ${FILE_VISITOR_SALT:}
+    # Malware scanning (D-029): none (structural checks only) | clamav (clamd INSTREAM over TCP).
+    antivirus: ${ANTIVIRUS:none}
+    # When clamd is unreachable: true = refuse uploads (fail closed; recommended in production), false = accept them
+    # as structurally checked only, labelled "Checked, not an antivirus scan" (fail open).
+    antivirus-required: ${ANTIVIRUS_REQUIRED:false}
+    clamav:
+      host: ${CLAMAV_HOST:localhost}
+      port: ${CLAMAV_PORT:3310}
+      connect-timeout: ${CLAMAV_CONNECT_TIMEOUT:PT2S}
+      read-timeout: ${CLAMAV_READ_TIMEOUT:PT120S}
+      chunk-kb: 64
+  # One-time privacy migrations (D-030). Moves DM images sent before D-024 to the private prefix at startup.
+  privacy:
+    migrate-legacy-dm-media: ${MIGRATE_LEGACY_DM_MEDIA:true}
   # Podcast audio from scripts (D-036). auto = ElevenLabs when ELEVENLABS_API_KEY is set (server-side only), else unavailable.
   podcasts:
     tts:
@@ -228,6 +242,9 @@ strata:
     secure: true
   seed:
     enabled: ${SEED_DEMO_DATA:false}
+  files:
+    # Fail closed in production when ClamAV is enabled but unreachable (D-029).
+    antivirus-required: ${ANTIVIRUS_REQUIRED:true}
 # Metrics and the full actuator live on a separate port that is never published (Caddy/nginx only proxy 8080).
 management:
   server:

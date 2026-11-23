@@ -8,13 +8,24 @@ import { Menu, MenuContent, MenuItem, MenuSeparator, MenuTrigger } from '@/compo
 import { EmptyState, ErrorState, LoadMore } from '@/components/ui/States';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { toast } from '@/components/ui/Toast';
-import { fetchOwnContent, filesApi, saveBlob, triggerDownload, useFileMutation, useFileUsage, useFiles } from '@/features/files/api';
+import {
+  fetchOwnContent,
+  filesApi,
+  openOwnContentResponse,
+  saveBlob,
+  triggerDownload,
+  useFileMutation,
+  useFileUsage,
+  useFiles,
+} from '@/features/files/api';
 import { LinksDialog } from '@/features/files/components/LinksDialog';
 import { ShareDialog } from '@/features/files/components/ShareDialog';
+import { MemoryWarning, StreamingSavePrompt } from '@/features/files/components/StreamingSave';
 import { UploadPanel } from '@/features/files/components/UploadPanel';
 import { decryptFile, importKey, parseKeyInput, safeFileName } from '@/features/files/crypto';
-import { formatBytes, typeLabel, usageFraction } from '@/features/files/helpers';
+import { formatBytes, scanSummary, typeLabel, usageFraction } from '@/features/files/helpers';
 import { keyStore } from '@/features/files/keyStore';
+import { MEMORY_WARNING_BYTES, STREAM_THRESHOLD_BYTES, canStreamToDisk, openContainerStream, responseBytes, type OpenedContainer } from '@/features/files/streamDecrypt';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { PageColumns, PageHeader } from '@/layouts/PageColumns';
@@ -71,7 +82,10 @@ function RenameDialog({ file, onClose }: { file: FileItem; onClose: () => void }
       }
     >
       <Field label="Name" hint={file.e2ee ? 'Labels are visible to the server. The real name stays encrypted.' : 'The extension has to stay the same.'}>
-        {(p) => <Input {...p} value={name} onChange={(e) => setName(e.target.value)} maxLength={255} autoFocus />}
+        {(p) => (
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog opened by the user for this one field; focus belongs in it
+          <Input {...p} value={name} onChange={(e) => setName(e.target.value)} maxLength={255} autoFocus />
+        )}
       </Field>
       <div className="mt-3"><FormAlert message={save.error ? errorMessage(save.error) : null} /></div>
     </Dialog>
@@ -145,8 +159,12 @@ function KeyPrompt({ file, onKey, onClose }: { file: FileItem; onKey: (key: stri
       <p className="mb-3 text-sm text-muted">
         This browser doesn't remember this file's key. Paste the recovery key or a full link to it. Decryption happens here; the key isn't sent anywhere.
       </p>
+      <MemoryWarning sizeBytes={file.sizeBytes} className="mb-3" />
       <Field label="Key or link" error={err ?? undefined}>
-        {(p) => <Input {...p} value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" spellCheck={false} autoFocus />}
+        {(p) => (
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- dialog opened by the user for this one field; focus belongs in it
+          <Input {...p} value={text} onChange={(e) => setText(e.target.value)} autoComplete="off" spellCheck={false} autoFocus />
+        )}
       </Field>
     </Dialog>
   );
@@ -157,7 +175,8 @@ type Modal =
   | { kind: 'links'; file: FileItem }
   | { kind: 'rename'; file: FileItem }
   | { kind: 'delete'; file: FileItem }
-  | { kind: 'key'; file: FileItem };
+  | { kind: 'key'; file: FileItem }
+  | { kind: 'save'; file: FileItem; opened: OpenedContainer };
 
 function FileRow({ file, onOpen, busy, onDownload }: { file: FileItem; onOpen: (m: Modal) => void; busy: boolean; onDownload: () => void }) {
   return (
@@ -177,8 +196,8 @@ function FileRow({ file, onOpen, busy, onDownload }: { file: FileItem; onOpen: (
             </Tooltip>
           ) : (
             file.scanStatus === 'CLEAN' && (
-              <Tooltip content={file.scanDetail ?? 'Passed type and structure checks. This is not an antivirus scan.'}>
-                <span><Badge><ShieldCheck size={10} aria-hidden /> Checked</Badge></span>
+              <Tooltip content={file.scanDetail ?? scanSummary(file.scanEngine).text}>
+                <span><Badge><ShieldCheck size={10} aria-hidden /> {scanSummary(file.scanEngine).badge}</Badge></span>
               </Tooltip>
             )
           )}
@@ -238,6 +257,16 @@ export default function FilesPage() {
     }
     setBusyId(file.id);
     try {
+      if (canStreamToDisk() && file.sizeBytes >= STREAM_THRESHOLD_BYTES) {
+        // Large file: decrypt to disk as it downloads; the save dialog needs one more click.
+        const opened = await openContainerStream(responseBytes(await openOwnContentResponse(file.id)), await importKey(key));
+        if (keyOverride) keyStore.set(file.id, keyOverride);
+        setModal({ kind: 'save', file, opened });
+        return;
+      }
+      if (!canStreamToDisk() && file.sizeBytes > MEMORY_WARNING_BYTES) {
+        toast.info(`Decrypting ${formatBytes(file.sizeBytes)} in memory. This browser can't save straight to disk, so large files may fail.`);
+      }
       const container = await fetchOwnContent(file.id);
       const { meta, file: plain } = await decryptFile(container, await importKey(key));
       if (keyOverride) keyStore.set(file.id, keyOverride);
@@ -298,6 +327,17 @@ export default function FilesPage() {
       )}
       {modal?.kind === 'rename' && <RenameDialog file={modal.file} onClose={() => setModal(null)} />}
       {modal?.kind === 'delete' && <DeleteDialog file={modal.file} onClose={() => setModal(null)} />}
+      {modal?.kind === 'save' && (
+        <Dialog open onOpenChange={(v) => !v && setModal(null)} title="Save decrypted file" size="sm">
+          <StreamingSavePrompt
+            opened={modal.opened}
+            onSaved={(name) => {
+              setModal(null);
+              toast.success(`Decrypted and saved as “${name}”`);
+            }}
+          />
+        </Dialog>
+      )}
       {modal?.kind === 'key' && (
         <KeyPrompt
           file={modal.file}

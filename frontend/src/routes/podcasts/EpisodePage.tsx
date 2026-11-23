@@ -147,6 +147,7 @@ export default function EpisodePage() {
 
       {isVideo && e.mediaUrl && (
         <div className="mt-6 overflow-hidden rounded-2xl border border-border bg-black">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption -- the captions <track> is rendered below from the transcript (required to publish); the rule can't see conditional children */}
           <video
             ref={video}
             src={e.mediaUrl}

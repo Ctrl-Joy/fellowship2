@@ -119,7 +119,7 @@ public final class ImageVariants {
      * EXIF orientation (1-8) from a JPEG's APP1 segment, or 1 when absent or unreadable. Only the IFD0 orientation tag
      * is read; nothing else from the metadata is used.
      */
-    static int jpegOrientation(byte[] b) {
+    public static int jpegOrientation(byte[] b) {
         try {
             int i = 2;
             while (i + 4 < b.length && (b[i] & 0xFF) == 0xFF) {

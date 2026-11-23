@@ -751,3 +751,43 @@ No contract change. First pages of Popular/Latest/Rising/Top and of public commu
 | `/livez`, `/readyz` | main (8080) | liveness/readiness probes, public, no details |
 | `/actuator/health`, `/actuator/info` | main outside prod; management (8081) in prod | |
 | `/actuator/prometheus` | management port (8081) in prod only | never published by the proxy; not exposed outside prod |
+
+## Privacy and safety hardening (D-028 to D-030)
+
+### Image metadata
+No contract change. Every image upload (`POST /media`, `/me/dm-media`, avatars, banners, community icons, podcast
+covers) is stored without EXIF/GPS, XMP, IPTC, comments, text chunks or trailing data. A non-default EXIF orientation is
+kept as a minimal orientation-only EXIF block. Pixels are untouched (lossless). A file whose structure can't be read
+→ 400 `fieldErrors.file`. Private files (`POST /me/files`) are stored byte for byte, metadata included (D-028).
+
+### Antivirus (`strata.files.antivirus=clamav`)
+- `FileItem` and `ShareMeta` gain `scanEngine: "STRUCTURAL"|"CLAMAV"`. `CLAMAV` means ClamAV scanned the file and found
+  nothing. `STRUCTURAL` means type and structure checks only, which is not an antivirus scan (always the case when
+  scanning is off, for files uploaded before V13, and for fail-open uploads, whose `scanDetail` says the scanner was
+  unavailable).
+- `POST /me/files` → 400 `fieldErrors.file` "ClamAV flagged this file (<signature>)…" when clamd reports a signature.
+  While clamd is unreachable and `antivirus-required=true`: 400 with "The antivirus scanner isn't reachable…".
+- Images (`POST /media`, `/me/dm-media`, profile and community images) and podcast media
+  (`POST /podcasts/episodes/{id}/media`): 400 `fieldErrors.file` when flagged; 503 `ANTIVIRUS_UNAVAILABLE` while clamd
+  is unreachable and scanning is required. E2EE uploads are never sent to the scanner.
+
+### Maintenance (admin)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/maintenance` | → `{antivirus: {engine: "none"\|"clamav", required, reachable, version\|null}, legacyDmMedia: {pending, runs: MaintenanceRun[]}}` |
+| POST | `/admin/maintenance/legacy-dm-media` | runs the legacy DM image move now (it also runs at startup when anything is pending) → `MaintenanceRun`. Idempotent |
+
+```ts
+MaintenanceRun { id, job: "legacy-dm-media-private", triggeredBy: number|null /* null = at startup */, startedAt,
+                 finishedAt|null, candidates, moved, skipped /* key also published in a post, comment or profile */, failed,
+                 detail|null }
+```
+After a move, the image's old `/files/media/...` URL returns 404 and messages carry participant-signed `DmMedia`
+(`signed: true`) for it. `POST /me/conversations/{id}/messages` with one of your public uploads that isn't in any post
+now moves it to private storage too, so the response and events carry signed URLs, and that media id can no longer go into a post.
+
+### Real-time
+- STOMP `CONNECT` is refused (ERROR frame "This account can't connect") for suspended, deactivated and deleted
+  accounts, even with an unexpired access token. The session's role is read from the account.
+- When an account is suspended, deactivated, deleted or has its role changed, its open WebSockets on the node are
+  closed at once with close code 1008 ("Account access revoked"). Clients should treat this like a revoked session.

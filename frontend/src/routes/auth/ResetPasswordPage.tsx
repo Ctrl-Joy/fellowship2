@@ -47,7 +47,7 @@ export default function ResetPasswordPage() {
         })}
       >
         <FormAlert message={err} />
-        <Field label="New password" error={formState.errors.newPassword?.message}>{(a) => <Input {...a} type="password" autoComplete="new-password" autoFocus {...register('newPassword')} />}</Field>
+        <Field label="New password" error={formState.errors.newPassword?.message}>{(a) => <Input {...a} type="password" autoComplete="new-password" {...register('newPassword')} />}</Field>
         <Field label="Confirm password" error={formState.errors.confirm?.message}>{(a) => <Input {...a} type="password" autoComplete="new-password" {...register('confirm')} />}</Field>
         <Button type="submit" className="w-full" loading={formState.isSubmitting}>Update password</Button>
       </form>

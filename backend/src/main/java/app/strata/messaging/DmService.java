@@ -45,10 +45,12 @@ public class DmService {
     private final PresenceTracker presence;
     private final DmMediaUrls mediaUrls;
     private final app.strata.common.metrics.StrataMetrics metrics;
+    private final LegacyDmMedia legacy;
 
     public DmService(JdbcClient jdbc, DmAccess access, UserDirectory users, StorageService storage, RateLimiter limiter,
                      RealtimePublisher realtime, PresenceTracker presence, DmMediaUrls mediaUrls,
-                     app.strata.common.metrics.StrataMetrics metrics) {
+                     app.strata.common.metrics.StrataMetrics metrics, LegacyDmMedia legacy) {
+        this.legacy = legacy;
         this.metrics = metrics;
         this.mediaUrls = mediaUrls;
         this.jdbc = jdbc;
@@ -188,6 +190,8 @@ public class DmService {
             jdbc.sql("INSERT INTO dm_message_media (message_id, media_id, position) VALUES (?, ?, ?)")
                     .params(id, mediaIds.get(i), i).update();
         }
+        // The compatibility path accepts the sender's public uploads; move DM-only ones to private storage (D-030).
+        legacy.privatize(mediaIds);
         jdbc.sql("UPDATE dm_conversations SET last_message_at = now() WHERE id = ?").param(conversationId).update();
         // Your own messages count as read by you.
         jdbc.sql("UPDATE dm_participants SET last_read_message_id = ? WHERE conversation_id = ? AND user_id = ?")

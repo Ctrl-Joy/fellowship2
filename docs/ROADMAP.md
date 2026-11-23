@@ -82,3 +82,12 @@ migrating legacy public DM image URLs.
 Generate an episode's audio from its reviewed two-host script with ElevenLabs text-to-speech (D-036): stock voices only,
 character estimate and per-community daily budget before starting, progress and cancel, timed transcript and chapters
 built automatically, and a persistent "AI-generated voice" label (D-037). Video generation remains deferred.
+
+## Privacy and safety hardening (D-028 to D-030) - done
+- Image originals stripped of GPS/EXIF/XMP/IPTC losslessly (orientation kept); private files stay byte-identical.
+- Optional ClamAV (clamd INSTREAM) after the structural checks, fail open or closed by config, honest UI labels; compose services.
+- Legacy public DM images moved to private storage by an idempotent, recorded job; the compatibility send path can't create new ones.
+- WebSockets closed on suspension, deactivation, deletion and role change; CONNECT checks the account status.
+- Streaming E2EE decryption to disk (File System Access API) with an in-memory fallback and a large-file warning.
+- Real ESLint (typescript-eslint, react-hooks, jsx-a11y) in `npm run lint`.
+- Next: rescan stored files when signatures update; broadcast account revocations across nodes (Redis pub/sub or the broker relay).

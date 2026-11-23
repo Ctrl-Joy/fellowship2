@@ -1,5 +1,6 @@
 package app.strata.podcast;
 
+import app.strata.antivirus.Antivirus;
 import app.strata.common.config.AppProperties;
 import app.strata.common.error.ApiException;
 import app.strata.common.ratelimit.RateLimiter;
@@ -64,9 +65,12 @@ public class PodcastService {
     private final PostService posts;
     private final RateLimiter limiter;
     private final long maxMediaBytes;
+    private final Antivirus antivirus;
 
     public PodcastService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, StorageService storage,
-                          MediaService media, UserDirectory users, PostService posts, RateLimiter limiter, AppProperties props) {
+                          MediaService media, UserDirectory users, PostService posts, RateLimiter limiter, AppProperties props,
+                          Antivirus antivirus) {
+        this.antivirus = antivirus;
         this.jdbc = jdbc;
         this.communities = communities;
         this.access = access;
@@ -391,6 +395,14 @@ public class PodcastService {
             storage.put(key, (InputStream) in, kind.contentType());
         } catch (IOException e) {
             throw ApiException.badRequest("Upload failed");
+        }
+        // Malware scan of the stored bytes when ClamAV is configured (D-029); refused media is removed again.
+        String stored = key;
+        try {
+            antivirus.check(() -> storage.get(stored).orElseThrow(() -> new IOException("stored object missing")).stream(), "media file");
+        } catch (ApiException e) {
+            storage.delete(key);
+            throw e;
         }
         jdbc.sql("""
                         UPDATE podcast_episodes SET media_kind = ?, media_key = ?, media_content_type = ?, media_bytes = ?, duration_seconds = ?,

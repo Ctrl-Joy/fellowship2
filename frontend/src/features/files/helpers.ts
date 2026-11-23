@@ -1,4 +1,13 @@
-import type { AccessEvent, LinkStatus, ShareLink } from '@/types/files';
+import type { AccessEvent, LinkStatus, ScanEngine, ShareLink } from '@/types/files';
+
+/**
+ * What the server checked on an accepted plaintext file (D-029). A structural check is never called an antivirus scan.
+ */
+export function scanSummary(engine: ScanEngine | null | undefined): { badge: string; text: string } {
+  return engine === 'CLAMAV'
+    ? { badge: 'Scanned', text: 'Scanned by ClamAV: no known malware found. Still, only open files from people you trust.' }
+    : { badge: 'Checked', text: 'Checked: passed type and structure checks. Not an antivirus scan.' };
+}
 
 export function formatBytes(n: number): string {
   if (!Number.isFinite(n) || n < 0) return '—';

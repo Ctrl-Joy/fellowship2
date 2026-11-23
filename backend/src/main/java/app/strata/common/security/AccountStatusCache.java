@@ -50,4 +50,15 @@ public class AccountStatusCache {
     public void evict(long userId) {
         cache.remove(userId);
     }
+
+    /**
+     * Evicts again once the change is committed: a request that read the old row between the in-transaction evict and
+     * the commit could otherwise have re-cached the stale status for up to the TTL. Runs before the WebSocket close
+     * listener ({@code @Order}), so a reconnect that races the close sees the new status.
+     */
+    @org.springframework.core.annotation.Order(0)
+    @org.springframework.transaction.event.TransactionalEventListener(fallbackExecution = true)
+    public void onAccessRevoked(AccountAccessRevoked e) {
+        evict(e.userId());
+    }
 }

@@ -24,8 +24,8 @@ export const VERSION = 1;
 export const HEADER_BYTES = 29; // magic + version + chunk size + nonce
 export const DEFAULT_CHUNK = 1024 * 1024; // 1 MiB of plaintext per chunk
 export const PBKDF2_ITERATIONS = 600_000;
-const IV_BYTES = 12;
-const TAG_BYTES = 16;
+export const IV_BYTES = 12;
+export const TAG_BYTES = 16;
 const KEY_WRAP_AAD = new TextEncoder().encode('strata-e2ee-key-v1');
 
 export class DecryptionError extends Error {
@@ -154,7 +154,7 @@ function u32(n: number): Uint8Array {
   return b;
 }
 
-function chunkAad(header: Uint8Array, index: number, last: boolean): Uint8Array {
+export function chunkAad(header: Uint8Array, index: number, last: boolean): Uint8Array {
   return concat([header, u32(index), new Uint8Array([last ? 1 : 0])]);
 }
 
@@ -247,7 +247,7 @@ export async function decryptFile(container: Blob, key: CryptoKey, onProgress?: 
   return { meta, file: new Blob(parts, { type: safeType(meta.type) }) };
 }
 
-function safeType(t: string): string {
+export function safeType(t: string): string {
   return /^[a-z0-9.+-]+\/[a-z0-9.+-]+$/i.test(t) ? t : 'application/octet-stream';
 }
 
@@ -256,6 +256,7 @@ export function safeFileName(name: string): string {
   const n = (name || '')
     .split(/[/\\]/)
     .pop()!
+    // eslint-disable-next-line no-control-regex -- stripping control and bidi characters from decrypted names is the point
     .replace(new RegExp('[\\u0000-\\u001f\\u007f\\u202a-\\u202e\\u2066-\\u2069]', 'g'), '')
     .trim();
   return n.replace(/^\.+/, '').slice(0, 255) || 'decrypted-file';

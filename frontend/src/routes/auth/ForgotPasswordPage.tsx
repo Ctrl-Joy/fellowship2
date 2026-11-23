@@ -46,7 +46,7 @@ export default function ForgotPasswordPage() {
         })}
       >
         <FormAlert message={err} />
-        <Field label="Email" error={formState.errors.email?.message}>{(a) => <Input {...a} type="email" autoComplete="email" autoFocus {...register('email')} />}</Field>
+        <Field label="Email" error={formState.errors.email?.message}>{(a) => <Input {...a} type="email" autoComplete="email" {...register('email')} />}</Field>
         <Button type="submit" className="w-full" loading={formState.isSubmitting}>Send reset link</Button>
       </form>
     </AuthCard>
