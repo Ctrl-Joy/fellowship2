@@ -87,6 +87,12 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY:?set S3_SECRET_KEY in .env}
       FILE_VISITOR_SALT: ${FILE_VISITOR_SALT:-}
       FUNDING_DEMO_WEBHOOK_SECRET: ${FUNDING_DEMO_WEBHOOK_SECRET:-dev-only-demo-webhook-secret-change-me}
+      # Moderator funding provider (D-034): demo by default; stripe uses hosted Checkout with the keys from .env.
+      FUNDING_PROVIDER: ${FUNDING_PROVIDER:-demo}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      FUNDING_LIVE_MODE: ${FUNDING_LIVE_MODE:-false}
+      FUNDING_COMPLIANCE_ACK: ${FUNDING_COMPLIANCE_ACK:-}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
       AI_EFFORT: ${AI_EFFORT:-medium}

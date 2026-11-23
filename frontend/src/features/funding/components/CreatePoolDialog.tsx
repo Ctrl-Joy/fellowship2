@@ -4,7 +4,7 @@ import { Dialog } from '@/components/ui/Dialog';
 import { Field, Input, Select, Textarea } from '@/components/ui/Field';
 import { toast } from '@/components/ui/Toast';
 import { errorMessage } from '@/services/apiError';
-import { fundingApi, useFundingMutation } from '../api';
+import { fundingApi, useFundingMutation, useFundingStatus } from '../api';
 import { DEMO_LABEL, EXPONENTS, formatMinor, parseToMinor } from '../money';
 
 const PERIODS = [
@@ -16,6 +16,8 @@ const PERIODS = [
 
 /** Moderators start a pool: what it's for, a goal and a period. The server re-checks every rule. */
 export function CreatePoolDialog({ slug, open, onOpenChange }: { slug: string; open: boolean; onOpenChange: (o: boolean) => void }) {
+  const status = useFundingStatus();
+  const modeLabel = status.data ? status.data.label : DEMO_LABEL;
   const [title, setTitle] = useState('');
   const [purpose, setPurpose] = useState('');
   const [currency, setCurrency] = useState('USD');
@@ -40,7 +42,7 @@ export function CreatePoolDialog({ slug, open, onOpenChange }: { slug: string; o
       open={open}
       onOpenChange={onOpenChange}
       title="New funding pool"
-      description={`Members contribute toward a goal; when the period ends the pool is allocated by the community's policy. ${DEMO_LABEL}.`}
+      description={`Members contribute toward a goal; when the period ends the pool is allocated by the community's policy.${modeLabel ? ` ${modeLabel}.` : ''}`}
       footer={
         <>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button>

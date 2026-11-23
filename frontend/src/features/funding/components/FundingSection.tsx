@@ -11,7 +11,7 @@ import { useCommunityFunding } from '../api';
 import { ClosePoolDialog } from './ClosePoolDialog';
 import { ContributeDialog } from './ContributeDialog';
 import { CreatePoolDialog } from './CreatePoolDialog';
-import { DemoBanner } from './Demo';
+import { ModeBanner } from './Mode';
 import { PolicyPanel } from './PolicyPanel';
 import { PoolCard } from './PoolCard';
 
@@ -33,7 +33,7 @@ export function FundingSection({ c }: { c: CommunityDetail }) {
 
   return (
     <div className="space-y-5 px-3 sm:px-0">
-      <DemoBanner status={f.status} />
+      <ModeBanner status={f.status} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-bold">Moderator funding</h2>

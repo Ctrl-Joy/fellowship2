@@ -70,7 +70,11 @@ Optional:
 | `ELEVENLABS_API_KEY` | empty | podcast audio generation (D-036); without it the studio says generation is unavailable. Server-side only |
 | `ELEVENLABS_MODEL`, `ELEVENLABS_VOICE_A`, `ELEVENLABS_VOICE_B` | `eleven_multilingual_v2`, Sarah `EXAVITQu4vr4xnAQ5fpe`, George `JBFqnCBsd6RMkjVDRZzb` | TTS model and the premade voices for HOST A / HOST B |
 | `TTS_PROVIDER`, `TTS_DAILY_CHARACTER_BUDGET`, `TTS_MAX_CHARS_PER_EPISODE` | `auto`, `100000`, `60000` | `auto`/`elevenlabs`/`none`; characters per community per UTC day; cap per generation |
-| `FUNDING_ENABLED` | `true` | moderator funding (demo provider only) |
+| `FUNDING_ENABLED` | `true` | moderator funding |
+| `FUNDING_PROVIDER` | `demo` | `demo` (simulated) or `stripe` (hosted Checkout, D-034); see "Stripe payments" below |
+| `STRIPE_SECRET_KEY` | empty | Stripe secret key, server-side only. `sk_test_…` = test mode. A live key refuses to start without the two settings below |
+| `STRIPE_WEBHOOK_SECRET` | empty | signing secret of the webhook endpoint (`whsec_…`); required in production with Stripe |
+| `FUNDING_LIVE_MODE`, `FUNDING_COMPLIANCE_ACK` | `false`, empty | both needed before a live key is accepted; the acknowledgement records who signed off the compliance review (D-034) |
 | `SEED_DEMO_DATA` | `false` | fictional demo content |
 | `DATABASE_POOL_SIZE` | 15 | Hikari pool size |
 | `FEED_CACHE_ENABLED`, `FEED_CACHE_TTL` | `true`, `PT30S` | first-page feed id cache (D-025) |
@@ -234,3 +238,31 @@ WebSocket clients reconnect with backoff and refetch.
 - The SPA's CSP (in `frontend/nginx.conf`) allows scripts only from the same origin, WebSockets to the same host, and
   inline styles (Recharts/Radix); see D-026.
 - Keep images patched: rebuild monthly (`docker compose ... build --pull`).
+
+## 10. Stripe payments for moderator funding (D-034)
+Test mode first. Nothing here moves real money until you deliberately switch to a live key and set
+`FUNDING_LIVE_MODE=true` and `FUNDING_COMPLIANCE_ACK` after the compliance review in D-022/D-034.
+
+1. **Keys.** In the Stripe dashboard (test mode on), open Developers → API keys and copy the **secret** key (`sk_test_…`).
+   No publishable key is needed: Checkout is hosted by Stripe. Put the keys in the git-ignored files, never in the repo:
+   - local backend (`./mvnw spring-boot:run`): `backend/.env.local` with `FUNDING_PROVIDER=stripe`, `STRIPE_SECRET_KEY=sk_test_…`
+     and optionally `STRIPE_WEBHOOK_SECRET=whsec_…`;
+   - Docker: the same variables in `.env` (local stack) or `deploy/.env` (production). Both compose files pass them through.
+2. **Webhook endpoint (deployed).** Developers → Webhooks → Add endpoint: `https://<your domain>/api/v1/funding/webhooks/stripe`,
+   with the events `checkout.session.completed`, `checkout.session.async_payment_succeeded`, `checkout.session.async_payment_failed`,
+   `checkout.session.expired`, `invoice.paid`, `invoice.payment_failed`, `customer.subscription.deleted`, `charge.refunded`.
+   Copy its signing secret into `STRIPE_WEBHOOK_SECRET`.
+3. **Local webhooks (optional).** Contributions are confirmed without webhooks when you come back from Checkout (the
+   server asks Stripe). For renewals, refunds and cancellations made in the dashboard, forward events with the Stripe CLI:
+   `stripe listen --forward-to localhost:8080/api/v1/funding/webhooks/stripe` and use the `whsec_…` it prints as
+   `STRIPE_WEBHOOK_SECRET`. `stripe trigger checkout.session.completed` sends a sample event; it will be acknowledged
+   as "unknown checkout session" because it doesn't belong to a pending contribution.
+4. **Try it.** Restart the backend; the funding banner says "TEST MODE: no real money". Create a pool, contribute, pay with
+   the test card `4242 4242 4242 4242` (any future date, any CVC), and you land back on the pool page, which confirms the payment.
+5. **Owner's live check (optional).** From `backend/`: `./mvnw test -Dtest=StripeLiveCheckTest -Dstripe.live=true
+   -Dsurefire.excludedGroups=none -Dsurefire.failIfNoSpecifiedTests=false`. It reads `STRIPE_SECRET_KEY` from
+   `backend/.env.local` (never printed), refuses anything but `sk_test_`, creates a 5.00 USD Checkout Session and prints only
+   the session id prefix and its URL.
+
+Pools remember the provider and mode they were created with: demo pools keep their demo labels and stop taking contributions
+after you switch to Stripe; create new pools for Stripe. The demo seed doesn't create a funding pool when Stripe is active.

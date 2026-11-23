@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import type { TransparencyReport } from '@/types/funding';
 import { formatDate, pluralize } from '@/utils/format';
 import { POLICY_LABELS } from '../money';
-import { MoneyAmount } from './Demo';
+import { MoneyAmount } from './Mode';
 
 function Tile({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -22,7 +22,7 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
     <div className="space-y-5">
       <section aria-label="Totals" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Tile label="Raised"><MoneyAmount m={r.raised} /></Tile>
-        <Tile label="Allocated"><MoneyAmount m={r.allocated} /></Tile>
+        <Tile label="Allocated, not paid out"><MoneyAmount m={r.allocated} /></Tile>
         <Tile label="Held in pool"><MoneyAmount m={rec.poolBalance} /></Tile>
         <Tile label={`${pluralize(r.contributionCount, 'contribution')} · ${pluralize(r.contributorCount, 'contributor')}`}>
           <span className="font-semibold tabular-nums">{r.contributionCount} · {r.contributorCount}</span>
@@ -41,7 +41,16 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
           <span className="text-muted">Contributions</span> <MoneyAmount m={rec.contributionsTotal} />
           <span className="text-muted">= ledger in</span> <MoneyAmount m={rec.ledgerIn} />
           <span className="text-muted">; allocations</span> <MoneyAmount m={rec.allocationsTotal} />
+          {rec.refundsTotal && rec.refundsTotal.amountMinor > 0 && (
+            <><span className="text-muted">+ refunds</span> <MoneyAmount m={rec.refundsTotal} /></>
+          )}
           <span className="text-muted">= ledger out</span> <MoneyAmount m={rec.ledgerOut} />
+          {rec.shortfall && rec.shortfall.amountMinor > 0 && (
+            <span className="basis-full text-xs text-muted">
+              {/* A refund after the close reverses money that was already allocated as an obligation. */}
+              Refunded after the pool closed: <MoneyAmount m={rec.shortfall} />. Those allocations are no longer covered.
+            </span>
+          )}
         </div>
       </section>
 
@@ -59,6 +68,7 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
 
       <section aria-labelledby="alloc-h">
         <h3 id="alloc-h" className="mb-1 text-xs font-bold uppercase tracking-wider text-muted">Allocations</h3>
+        <p className="mb-2 text-xs text-faint">Allocated, not paid out: each row is a recorded obligation to a moderator. No money is sent to moderators by this site.</p>
         {r.allocations.length === 0 ? (
           <p className="text-sm text-muted">
             {r.pool.status === 'OPEN' ? 'Allocated when the period ends on ' + formatDate(r.pool.periodEnd) + '.' : r.pool.status === 'AWAITING_ALLOCATION' ? 'The period has ended; waiting for the owner’s manual allocation.' : 'Nothing was allocated.'}
@@ -95,7 +105,7 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
 
       <section aria-labelledby="ledger-h">
         <h3 id="ledger-h" className="mb-1 text-xs font-bold uppercase tracking-wider text-muted">Ledger (append-only)</h3>
-        <p className="mb-2 text-xs text-faint">Each row moves an amount from one account to another: contributions into the pool, allocations out to moderators. Rows are never edited or deleted.</p>
+        <p className="mb-2 text-xs text-faint">Each row moves an amount from one account to another: contributions into the pool, allocations out to moderators, refunds back to contributors. Rows are never edited or deleted; a refund is a new row.</p>
         {r.ledger.length === 0 ? (
           <p className="text-sm text-muted">No entries yet.</p>
         ) : (
@@ -116,7 +126,7 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
                   <tr key={l.id} className="border-t border-border">
                     <td className="py-1.5 tabular-nums text-faint">{l.id}</td>
                     <td className="py-1.5 whitespace-nowrap text-muted">{formatDate(l.createdAt)}</td>
-                    <td className="py-1.5">{l.debitLabel}</td>
+                    <td className="py-1.5">{l.entryType === 'REFUND' ? <>{l.debitLabel} <span className="text-xs text-muted">(refund)</span></> : l.debitLabel}</td>
                     <td className="py-1.5">{l.creditLabel}</td>
                     <td className="py-1.5 text-right"><MoneyAmount m={l.amount} className="justify-end" /></td>
                   </tr>

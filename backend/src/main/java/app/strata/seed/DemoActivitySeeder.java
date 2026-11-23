@@ -212,6 +212,11 @@ public class DemoActivitySeeder implements ApplicationRunner {
     // ---------------------------------------------------------------- funding (demo provider only)
 
     private void fundingPool() {
+        if (!"instant".equals(funding.status().checkout())) {
+            // Stripe (even test mode) takes real checkouts; demo contributions are never invented there (D-034).
+            log.info("Demo funding pool not seeded: the payment provider isn't the demo provider");
+            return;
+        }
         try {
             AuthUser mira = require("mira_k");
             funding.setPolicy("programming", mira, new PolicyRequest("ACTIVITY", 50));

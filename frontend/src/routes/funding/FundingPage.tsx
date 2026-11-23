@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/Display';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { useMyFunding } from '@/features/funding/api';
 import { ContributeDialog } from '@/features/funding/components/ContributeDialog';
-import { DemoBanner } from '@/features/funding/components/Demo';
+import { ModeBanner } from '@/features/funding/components/Mode';
 import { MyContributions } from '@/features/funding/components/MyContributions';
 import { PoolCard } from '@/features/funding/components/PoolCard';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -26,7 +26,7 @@ export default function FundingPage() {
           <h1 className="text-2xl font-bold">Moderator funding</h1>
           <p className="text-sm text-muted">Support the moderators of communities you belong to. Every pool publishes who received what, and why.</p>
         </header>
-        <DemoBanner status={q.data?.status} />
+        <ModeBanner status={q.data?.status} />
         {q.isPending && <><Skeleton className="h-40 rounded-2xl" /><Skeleton className="h-24 rounded-2xl" /></>}
         {q.isError && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
         {q.data && (

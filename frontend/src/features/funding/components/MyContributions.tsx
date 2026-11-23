@@ -11,7 +11,7 @@ import type { Contribution, FundingSubscription } from '@/types/funding';
 import { formatDate } from '@/utils/format';
 import { fundingApi, useFundingMutation } from '../api';
 import { formatMoney } from '../money';
-import { MoneyAmount } from './Demo';
+import { MoneyAmount } from './Mode';
 
 const SUB_STATUS: Record<FundingSubscription['status'], string> = { ACTIVE: 'Active', CANCELLED: 'Cancelled', ENDED: 'Ended' };
 
@@ -46,8 +46,12 @@ export function MyContributions({ contributions, subscriptions }: { contribution
                   </div>
                   <div className="mt-0.5 text-xs text-muted">
                     {s.cyclesCharged} {s.cyclesCharged === 1 ? 'month' : 'months'} recorded
-                    {s.status === 'ACTIVE' && s.nextChargeAt && <> · next demo charge {formatDate(s.nextChargeAt)}</>}
+                    {s.status === 'ACTIVE' && s.billedBy === 'strata' && s.nextChargeAt && <> · next demo charge {formatDate(s.nextChargeAt)}</>}
+                    {s.status === 'ACTIVE' && s.billedBy === 'provider' && <> · billed monthly by Stripe</>}
                     {endedWhy(s) && <> · {endedWhy(s)}</>}
+                    {s.status === 'ACTIVE' && s.paymentFailedAt && (
+                      <span className="block text-warning">The last renewal payment failed ({formatDate(s.paymentFailedAt)}); Stripe will retry it.</span>
+                    )}
                   </div>
                 </div>
                 {s.status === 'ACTIVE' ? (
@@ -71,6 +75,7 @@ export function MyContributions({ contributions, subscriptions }: { contribution
                   <span className="text-muted"> · c/{c.pool.community.slug} · {formatDate(c.createdAt)}</span>
                   <span className="block text-xs text-faint">
                     {c.kind === 'RECURRING' ? `Monthly, month ${c.cycle}` : 'One time'} · {c.showName ? 'Named in the report' : 'Anonymous'}
+                    {c.refunded && c.refunded.amountMinor > 0 && <> · refunded {formatMoney(c.refunded)}</>}
                   </span>
                 </span>
                 <MoneyAmount m={c.amount} />
@@ -85,7 +90,9 @@ export function MyContributions({ contributions, subscriptions }: { contribution
           onOpenChange={(o) => !o && setCancelling(null)}
           size="sm"
           title="Cancel monthly contribution?"
-          description={`No further demo charges of ${formatMoney(cancelling.amount)} will be recorded. Months already recorded stay in the pool and its ledger.`}
+          description={cancelling.billedBy === 'provider'
+            ? `Stripe won't charge the monthly ${formatMoney(cancelling.amount)} again. Months already paid stay in the pool and its ledger.`
+            : `No further demo charges of ${formatMoney(cancelling.amount)} will be recorded. Months already recorded stay in the pool and its ledger.`}
           footer={
             <>
               <Button variant="ghost" onClick={() => setCancelling(null)}>Keep it</Button>
@@ -104,7 +111,13 @@ export function MyContributions({ contributions, subscriptions }: { contribution
             </>
           }
         >
-          <p className="text-sm text-muted">This is a demo contribution: no real money was ever charged.</p>
+          <p className="text-sm text-muted">
+            {cancelling.amount.mode === 'live'
+              ? 'The subscription is cancelled at Stripe right away.'
+              : cancelling.amount.mode === 'test'
+                ? 'This is a Stripe test-mode subscription: no real money was ever charged.'
+                : 'This is a demo contribution: no real money was ever charged.'}
+          </p>
         </Dialog>
       )}
     </div>

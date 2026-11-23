@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Background work for funding: charges due monthly subscriptions and closes pools whose period ended. Each item runs in
+ * Background work for funding: charges due monthly demo subscriptions (never Stripe ones) and closes pools whose period ended. Each item runs in
  * its own transaction (through the service proxy) so one failure doesn't block the rest; both steps are idempotent, so
  * running them on several nodes at once is safe.
  */
@@ -37,6 +37,8 @@ public class FundingJobs {
 
     /** Charges every subscription due at {@code now}. Returns the number of new charges. */
     public int chargeDue(Instant now) {
+        // Hosted providers (Stripe) bill cycles themselves and Strata records each paid invoice from the webhook.
+        if (runtime.enabled() && runtime.provider().hostedCheckout()) return 0;
         int charged = 0;
         for (long id : funding.dueSubscriptions(now, BATCH)) {
             try {

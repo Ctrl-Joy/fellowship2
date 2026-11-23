@@ -32,6 +32,7 @@ import app.strata.funding.FundingDtos.Reconciliation;
 import app.strata.funding.FundingDtos.SubscriptionDto;
 import app.strata.funding.FundingDtos.TransparencyReport;
 import app.strata.funding.FundingDtos.WebhookResult;
+import app.strata.funding.payment.DemoPaymentProvider;
 import app.strata.funding.payment.FundingRuntime;
 import app.strata.funding.payment.PaymentProvider;
 import app.strata.funding.payment.PaymentProvider.Charge;
@@ -68,6 +69,7 @@ import java.util.stream.Stream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -85,6 +87,8 @@ public class FundingService {
     private static final int LEDGER_LIMIT = 1000;
     private static final Duration MAX_PERIOD = Duration.ofDays(366);
     private static final Duration MIN_PERIOD = Duration.ofDays(1);
+    /** Allocations are obligations recorded in the ledger; no provider payout (e.g. Stripe Connect) exists yet (D-034). */
+    static final String PAYOUTS = "Allocated, not paid out: allocations are recorded obligations and no money is sent to moderators.";
 
     private final JdbcClient jdbc;
     private final FundingRuntime runtime;
@@ -111,12 +115,12 @@ public class FundingService {
 
     public FundingStatus status() {
         List<CurrencyInfo> currencies = Money.CURRENCY_ORDER.stream().map(c -> new CurrencyInfo(c, Money.CURRENCIES.get(c))).toList();
-        if (!runtime.enabled()) return new FundingStatus(false, null, true, Money.DEMO_LABEL, runtime.disabledReason(), currencies);
+        if (!runtime.enabled()) {
+            return new FundingStatus(false, null, true, Money.MODE_DEMO, Money.DEMO_LABEL, runtime.disabledReason(), null, PAYOUTS, currencies);
+        }
         PaymentProvider p = runtime.provider();
-        String notice = p.demo()
-                ? "Demo mode: contributions are simulated, always succeed, and no real money moves. Nothing is charged and nobody is paid."
-                : null;
-        return new FundingStatus(true, p.id(), p.demo(), p.demo() ? Money.DEMO_LABEL : null, notice, currencies);
+        return new FundingStatus(true, p.id(), p.demo(), p.mode(), p.label(), p.notice(), p.hostedCheckout() ? "hosted" : "instant", PAYOUTS,
+                currencies);
     }
 
     // ------------------------------------------------------------------ community overview, policy
@@ -180,20 +184,49 @@ public class FundingService {
         if (open >= MAX_OPEN_POOLS) throw ApiException.badRequest("A community can run at most " + MAX_OPEN_POOLS + " open pools");
         long id = jdbc.sql("""
                         INSERT INTO funding_pools (community_id, created_by, title, purpose, currency, goal_minor, period_start, period_end,
-                          provider, demo)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
+                          provider, demo, mode)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
                 .params(c.getId(), user.id(), req.title().strip(), req.purpose().strip(), req.currency(), req.goalMinor(),
-                        Timestamp.from(start), Timestamp.from(end), provider.id(), provider.demo())
+                        Timestamp.from(start), Timestamp.from(end), provider.id(), provider.demo(), provider.mode())
                 .query(Long.class).single();
         return summaries(List.of(pool(id))).getFirst();
     }
 
     // ------------------------------------------------------------------ contributions
 
+    /** Instant (demo) contributions. Hosted-checkout providers go through {@link FundingCheckouts#contribute}. */
     @Transactional
     public ContributeResult contribute(long poolId, AuthUser user, ContributeRequest req) {
         PaymentProvider provider = runtime.require();
-        PoolRow p = lockPool(poolId);
+        if (provider.hostedCheckout()) throw new IllegalStateException("Hosted-checkout contributions go through FundingCheckouts");
+        PoolRow p = checkContribution(lockPool(poolId), provider, user, req);
+        long amount = req.amountMinor();
+        Instant now = Instant.now().truncatedTo(ChronoUnit.MICROS);
+        if (!req.recurring()) {
+            Charge charge = provider.createCharge(new ChargeRequest(amount, p.currency(), "Pool " + p.id(),
+                    "one:" + user.id() + ":" + UUID.randomUUID()));
+            if (!charge.succeeded()) throw ApiException.badRequest("The payment didn't go through");
+            long cid = recordContribution(p, user.id(), null, null, "ONE_TIME", amount, req.showName(), provider, charge.chargeId(), null);
+            return new ContributeResult(contribution(cid), null, null);
+        }
+        Subscription sub = provider.createSubscription(new SubscriptionRequest(amount, p.currency(), "Pool " + p.id() + " monthly",
+                "sub:" + user.id() + ":" + UUID.randomUUID()));
+        long subId = jdbc.sql("""
+                        INSERT INTO funding_subscriptions (pool_id, contributor_id, amount_minor, currency, show_name, provider, provider_ref,
+                          demo, mode, next_charge_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
+                .params(p.id(), user.id(), amount, p.currency(), req.showName(), provider.id(), sub.subscriptionRef(), provider.demo(),
+                        provider.mode(), Timestamp.from(now))
+                .query(Long.class).single();
+        Long cid = chargeCycleLocked(subId, now); // the first month is charged right away
+        return new ContributeResult(cid == null ? null : contribution(cid), subscription(subId), null);
+    }
+
+    /**
+     * Who may contribute what, shared by the instant and hosted paths: a member who isn't banned, an open pool made with
+     * the active provider and mode, and an amount within limits.
+     */
+    PoolRow checkContribution(PoolRow p, PaymentProvider provider, AuthUser user, ContributeRequest req) {
         Community c = communities.findById(p.communityId()).orElseThrow(() -> ApiException.notFound("Pool"));
         Optional<CommunityRole> role = access.roleOf(c, user);
         if (!access.canView(c, role, user)) throw ApiException.notFound("Pool");
@@ -204,45 +237,69 @@ public class FundingService {
         if (!"OPEN".equals(p.status()) || now.isBefore(p.periodStart()) || !now.isBefore(p.periodEnd())) {
             throw ApiException.badRequest("This pool isn't accepting contributions");
         }
-        if (!p.provider().equals(provider.id())) throw ApiException.badRequest("This pool was created with a different payment provider");
+        if (!p.provider().equals(provider.id()) || !p.mode().equals(provider.mode())) {
+            throw ApiException.badRequest("This pool was created with a different payment provider or mode, so it can't take contributions now");
+        }
         long amount = req.amountMinor();
         if (amount < Money.minContribution(p.currency()) || amount > Money.maxContribution(p.currency())) {
             throw ApiException.field("amountMinor", "Contributions must be between " + Money.minContribution(p.currency()) + " and "
                     + Money.maxContribution(p.currency()) + " minor units of " + p.currency());
         }
-        if (!req.recurring()) {
-            Charge charge = provider.createCharge(new ChargeRequest(amount, p.currency(), "Pool " + p.id(),
-                    "one:" + user.id() + ":" + UUID.randomUUID()));
-            if (!charge.succeeded()) throw ApiException.badRequest("The payment didn't go through");
-            long cid = recordContribution(p, user.id(), null, null, "ONE_TIME", amount, req.showName(), provider.id(), charge);
-            return new ContributeResult(contribution(cid), null);
-        }
-        Subscription sub = provider.createSubscription(new SubscriptionRequest(amount, p.currency(), "Pool " + p.id() + " monthly",
-                "sub:" + user.id() + ":" + UUID.randomUUID()));
-        long subId = jdbc.sql("""
-                        INSERT INTO funding_subscriptions (pool_id, contributor_id, amount_minor, currency, show_name, provider, provider_ref,
-                          demo, next_charge_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
-                .params(p.id(), user.id(), amount, p.currency(), req.showName(), provider.id(), sub.subscriptionRef(), sub.demo(),
-                        Timestamp.from(now))
-                .query(Long.class).single();
-        Long cid = chargeCycleLocked(subId, now); // the first month is charged right away
-        return new ContributeResult(cid == null ? null : contribution(cid), subscription(subId));
+        return p;
     }
 
-    private long recordContribution(PoolRow p, long userId, Long subId, Integer cycle, String kind, long amount, boolean showName,
-                                    String providerId, Charge charge) {
+    /**
+     * Records a confirmed contribution and its ledger row (contributors to pool), in the pool's provider and mode.
+     * {@code chargeId} is unique, so a second attempt to record the same payment fails with a duplicate key.
+     */
+    long recordContribution(PoolRow p, long userId, Long subId, Integer cycle, String kind, long amount, boolean showName,
+                            PaymentProvider provider, String chargeId, String paymentRef) {
         long cid = jdbc.sql("""
                         INSERT INTO funding_contributions (pool_id, contributor_id, subscription_id, cycle, kind, amount_minor, currency,
-                          show_name, provider, provider_charge_id, demo)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
-                .params(p.id(), userId, subId, cycle, kind, amount, p.currency(), showName, providerId, charge.chargeId(), charge.demo())
+                          show_name, provider, provider_charge_id, provider_payment_ref, demo, mode)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
+                .params(p.id(), userId, subId, cycle, kind, amount, p.currency(), showName, provider.id(), chargeId, paymentRef, p.demo(), p.mode())
                 .query(Long.class).single();
         jdbc.sql("""
-                        INSERT INTO funding_ledger (pool_id, entry_type, debit_account, credit_account, amount_minor, currency, contribution_id, demo)
-                        VALUES (?, 'CONTRIBUTION', ?, ?, ?, ?, ?, ?)""")
-                .params(p.id(), CONTRIBUTORS_ACCOUNT, poolAccount(p.id()), amount, p.currency(), cid, charge.demo()).update();
+                        INSERT INTO funding_ledger (pool_id, entry_type, debit_account, credit_account, amount_minor, currency, contribution_id, demo, mode)
+                        VALUES (?, 'CONTRIBUTION', ?, ?, ?, ?, ?, ?, ?)""")
+                .params(p.id(), CONTRIBUTORS_ACCOUNT, poolAccount(p.id()), amount, p.currency(), cid, p.demo(), p.mode()).update();
         return cid;
+    }
+
+    /**
+     * Reverses (part of) a contribution with new rows: a refund and a REFUND ledger row moving the amount from the pool
+     * back to contributors. Nothing is edited. {@code refundRef} is unique, so the same refund state is recorded once, and
+     * a contribution is never reversed by more than its amount. Returns the refund id, or null when there was nothing to record.
+     */
+    Long recordRefund(long contributionId, long amount, String refundRef) {
+        record C(long poolId, long amount, String currency, String provider, boolean demo, String mode) {}
+        C c = jdbc.sql("SELECT pool_id, amount_minor, currency, provider, demo, mode FROM funding_contributions WHERE id = ?")
+                .param(contributionId)
+                .query((rs, i) -> new C(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getString(4), rs.getBoolean(5), rs.getString(6)))
+                .single();
+        lockPool(c.poolId());
+        if (jdbc.sql("SELECT count(*) FROM funding_refunds WHERE provider_refund_ref = ?").param(refundRef).query(Long.class).single() > 0) return null;
+        long already = jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_refunds WHERE contribution_id = ?").param(contributionId)
+                .query(Long.class).single();
+        long delta = Math.min(amount, c.amount() - already);
+        if (delta <= 0) return null;
+        long rid = jdbc.sql("""
+                        INSERT INTO funding_refunds (pool_id, contribution_id, amount_minor, currency, provider, provider_refund_ref, demo, mode)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
+                .params(c.poolId(), contributionId, delta, c.currency(), c.provider(), refundRef, c.demo(), c.mode())
+                .query(Long.class).single();
+        jdbc.sql("""
+                        INSERT INTO funding_ledger (pool_id, entry_type, debit_account, credit_account, amount_minor, currency, refund_id, demo, mode)
+                        VALUES (?, 'REFUND', ?, ?, ?, ?, ?, ?, ?)""")
+                .params(c.poolId(), poolAccount(c.poolId()), CONTRIBUTORS_ACCOUNT, delta, c.currency(), rid, c.demo(), c.mode()).update();
+        return rid;
+    }
+
+    /** Total refunded so far for a contribution. */
+    long refundedOf(long contributionId) {
+        return jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_refunds WHERE contribution_id = ?").param(contributionId)
+                .query(Long.class).single();
     }
 
     /**
@@ -271,6 +328,7 @@ public class FundingService {
             return null;
         }
         PaymentProvider provider = runtime.require();
+        if (provider.hostedCheckout()) return null; // the provider (Stripe) bills cycles itself; Strata records paid invoices
         if (!provider.id().equals(s.provider())) {
             log.warn("Subscription {} belongs to provider {} but {} is active; not charging", s.id(), s.provider(), provider.id());
             return null;
@@ -281,7 +339,7 @@ public class FundingService {
         if (!charge.succeeded()) return null;
         long cid;
         try {
-            cid = recordContribution(p, s.userId(), s.id(), cycle, "RECURRING", s.amount(), s.showName(), s.provider(), charge);
+            cid = recordContribution(p, s.userId(), s.id(), cycle, "RECURRING", s.amount(), s.showName(), provider, charge.chargeId(), null);
         } catch (DuplicateKeyException e) {
             return null; // another node charged this cycle first
         }
@@ -320,7 +378,15 @@ public class FundingService {
         if (!Objects.equals(s.userId(), user.id())) throw ApiException.notFound("Subscription");
         if (!"ACTIVE".equals(s.status())) return subscription(id); // already over: cancelling is idempotent
         PaymentProvider provider = runtime.require();
-        if (provider.id().equals(s.provider())) provider.cancel(s.ref());
+        if (provider.id().equals(s.provider())) {
+            try {
+                provider.cancel(s.ref());
+            } catch (RuntimeException e) {
+                log.warn("Cancelling subscription {} at {} failed: {}", id, provider.id(), e.getMessage());
+                throw new ApiException(HttpStatus.BAD_GATEWAY, "PAYMENT_PROVIDER_ERROR",
+                        "The payment provider didn't confirm the cancellation. Nothing changed; please try again.");
+            }
+        }
         jdbc.sql("UPDATE funding_subscriptions SET status = 'CANCELLED', next_charge_at = NULL, cancelled_at = now(), cancelled_by = 'USER' WHERE id = ?")
                 .param(id).update();
         return subscription(id);
@@ -467,7 +533,8 @@ public class FundingService {
     private void closeLocked(PoolRow p, Long closedBy, CloseRequest req, Instant now) {
         if ("CLOSED".equals(p.status())) throw ApiException.badRequest("This pool is already closed");
         Instant to = min(now, p.periodEnd());
-        // No more charges once the period is over.
+        // No more charges once the period is over. Provider-billed subscriptions are cancelled at the provider too.
+        cancelAtProvider(p.id());
         jdbc.sql("UPDATE funding_subscriptions SET status = 'ENDED', next_charge_at = NULL, cancelled_at = now(), cancelled_by = 'SYSTEM' "
                 + "WHERE pool_id = ? AND status = 'ACTIVE'").param(p.id()).update();
         Policy pol = policy(p.communityId());
@@ -492,21 +559,40 @@ public class FundingService {
         for (Planned r : rows) {
             long aid = jdbc.sql("""
                             INSERT INTO funding_allocations (pool_id, moderator_id, policy, amount_minor, currency, activity_score,
-                              reports_resolved, appeals_handled, note, demo)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
-                    .params(p.id(), r.moderatorId(), pol.policy(), r.amount(), p.currency(), r.score(), r.reports(), r.appeals(), r.note(), p.demo())
+                              reports_resolved, appeals_handled, note, demo, mode)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING id""")
+                    .params(p.id(), r.moderatorId(), pol.policy(), r.amount(), p.currency(), r.score(), r.reports(), r.appeals(), r.note(),
+                            p.demo(), p.mode())
                     .query(Long.class).single();
             if (r.amount() > 0) {
                 jdbc.sql("""
-                                INSERT INTO funding_ledger (pool_id, entry_type, debit_account, credit_account, amount_minor, currency, allocation_id, demo)
-                                VALUES (?, 'ALLOCATION', ?, ?, ?, ?, ?, ?)""")
-                        .params(p.id(), poolAccount(p.id()), "moderator:" + r.moderatorId(), r.amount(), p.currency(), aid, p.demo()).update();
+                                INSERT INTO funding_ledger (pool_id, entry_type, debit_account, credit_account, amount_minor, currency, allocation_id, demo, mode)
+                                VALUES (?, 'ALLOCATION', ?, ?, ?, ?, ?, ?, ?)""")
+                        .params(p.id(), poolAccount(p.id()), "moderator:" + r.moderatorId(), r.amount(), p.currency(), aid, p.demo(), p.mode()).update();
             }
         }
         long allocated = rows.stream().mapToLong(Planned::amount).sum();
         if (allocated != total) throw new IllegalStateException("Allocation of pool " + p.id() + " doesn't add up: " + allocated + " != " + total);
         jdbc.sql("UPDATE funding_pools SET status = 'CLOSED', closed_policy = ?, closed_note = ?, closed_by = ?, closed_at = ? WHERE id = ?")
                 .params(pol.policy(), note, closedBy, Timestamp.from(now), p.id()).update();
+    }
+
+    /**
+     * Cancels the pool's still-active provider-billed subscriptions at the provider, so nobody is billed for a closed pool.
+     * A failure is logged and doesn't block the close; a renewal that arrives for a closed pool is not recorded (D-035).
+     */
+    private void cancelAtProvider(long poolId) {
+        PaymentProvider provider = runtime.provider();
+        if (provider == null || !provider.hostedCheckout()) return;
+        List<String> refs = jdbc.sql("SELECT provider_ref FROM funding_subscriptions WHERE pool_id = ? AND status = 'ACTIVE' AND provider = ?")
+                .params(poolId, provider.id()).query(String.class).list();
+        for (String ref : refs) {
+            try {
+                provider.cancel(ref);
+            } catch (RuntimeException e) {
+                log.warn("Cancelling a provider subscription of closed pool {} failed; cancel it in the provider dashboard: {}", poolId, e.getMessage());
+            }
+        }
     }
 
     private List<Planned> manual(PoolRow p, long total, CloseRequest req) {
@@ -595,13 +681,19 @@ public class FundingService {
                     l.credit(), accountLabel(l.credit(), labels, p), money(l.amount(), p), l.at());
         }).toList();
 
-        return new TransparencyReport(summary, money(t.sum(), p), t.count(), t.contributors(), t.contributors() - namedList.size(), namedList,
-                money(allocated, p), allocations, ledger, truncated, reconcile(p), p.closedNote());
+        record R(long count, long sum) {}
+        R refunds = jdbc.sql("SELECT count(*), coalesce(sum(amount_minor), 0) FROM funding_refunds WHERE pool_id = ?").param(p.id())
+                .query((rs, i) -> new R(rs.getLong(1), rs.getLong(2))).single();
+        return new TransparencyReport(summary, money(t.sum() - refunds.sum(), p), t.count(), t.contributors(), t.contributors() - namedList.size(),
+                namedList, money(allocated, p), allocations, ledger, truncated, reconcile(p), p.closedNote(), money(refunds.sum(), p), refunds.count());
     }
 
     /** Cross-checks the contribution, allocation and ledger tables against each other with independent sums. */
     Reconciliation reconcile(PoolRow p) {
-        long contributions = raised(p.id());
+        long contributions = jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_contributions WHERE pool_id = ?").param(p.id())
+                .query(Long.class).single();
+        long refunds = jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_refunds WHERE pool_id = ?").param(p.id())
+                .query(Long.class).single();
         long allocations = jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_allocations WHERE pool_id = ?").param(p.id())
                 .query(Long.class).single();
         long in = jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_ledger WHERE pool_id = ? AND credit_account = ?")
@@ -609,9 +701,17 @@ public class FundingService {
         long out = jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_ledger WHERE pool_id = ? AND debit_account = ?")
                 .params(p.id(), poolAccount(p.id())).query(Long.class).single();
         long balance = in - out;
-        String status = jdbc.sql("SELECT status FROM funding_pools WHERE id = ?").param(p.id()).query(String.class).single();
-        boolean ok = contributions == in && allocations == out && balance >= 0 && (!"CLOSED".equals(status) || balance == 0);
-        return new Reconciliation(money(contributions, p), money(in, p), money(out, p), money(allocations, p), money(balance, p), ok);
+        record S(String status, Instant closedAt) {}
+        S st = jdbc.sql("SELECT status, closed_at FROM funding_pools WHERE id = ?").param(p.id())
+                .query((rs, i) -> new S(rs.getString(1), ts(rs, 2))).single();
+        // Refunds after the close reverse money that was already allocated (as an obligation): that part is a shortfall.
+        long shortfall = st.closedAt() == null ? 0 : jdbc.sql("""
+                        SELECT coalesce(sum(amount_minor), 0) FROM funding_refunds WHERE pool_id = ? AND created_at > ?""")
+                .params(p.id(), Timestamp.from(st.closedAt())).query(Long.class).single();
+        boolean ok = contributions == in && allocations + refunds == out
+                && ("CLOSED".equals(st.status()) ? balance == -shortfall : balance >= 0);
+        return new Reconciliation(money(contributions, p), money(in, p), money(out, p), money(allocations, p), money(balance, p), ok,
+                money(refunds, p), money(shortfall, p));
     }
 
     private static String accountLabel(String account, Map<Long, UserSummary> users, PoolRow p) {
@@ -640,9 +740,7 @@ public class FundingService {
         } catch (WebhookVerificationException e) {
             throw ApiException.badRequest("Invalid webhook: " + e.getMessage());
         }
-        int fresh = jdbc.sql("INSERT INTO funding_webhook_events (provider, event_id, event_type) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
-                .params(provider.id(), event.id(), event.type().length() > 60 ? event.type().substring(0, 60) : event.type()).update();
-        if (fresh == 0) return new WebhookResult("duplicate", event.id());
+        if (!claimEvent(provider.id(), event)) return new WebhookResult("duplicate", event.id());
         String outcome = switch (event.type()) {
             case "charge.succeeded" -> {
                 Object chargeId = event.data().get("chargeId");
@@ -661,28 +759,42 @@ public class FundingService {
             }
             default -> "ignored";
         };
-        jdbc.sql("UPDATE funding_webhook_events SET outcome = ? WHERE provider = ? AND event_id = ?")
-                .params(outcome, provider.id(), event.id()).update();
+        recordOutcome(provider.id(), event.id(), outcome);
         return new WebhookResult("processed", event.id());
+    }
+
+    /**
+     * Records an event id for a provider. False if it was already there (a replay or a provider retry of a processed
+     * event). Must run in the same transaction as the event's effect, so a failure rolls both back and the retry applies it.
+     */
+    boolean claimEvent(String providerId, WebhookEvent event) {
+        return jdbc.sql("INSERT INTO funding_webhook_events (provider, event_id, event_type) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
+                .params(providerId, event.id(), event.type().length() > 60 ? event.type().substring(0, 60) : event.type()).update() > 0;
+    }
+
+    void recordOutcome(String providerId, String eventId, String outcome) {
+        jdbc.sql("UPDATE funding_webhook_events SET outcome = ? WHERE provider = ? AND event_id = ?")
+                .params(outcome.length() > 200 ? outcome.substring(0, 200) : outcome, providerId, eventId).update();
     }
 
     // ------------------------------------------------------------------ rows and mapping
 
     private static final String POOL_SQL = """
             SELECT p.id, p.community_id, p.created_by, p.title, p.purpose, p.currency, p.goal_minor, p.period_start, p.period_end,
-              p.status, p.provider, p.demo, p.closed_policy, p.closed_note, p.closed_by, p.closed_at, p.created_at,
-              coalesce((SELECT sum(c.amount_minor) FROM funding_contributions c WHERE c.pool_id = p.id), 0) AS raised,
+              p.status, p.provider, p.demo, p.mode, p.closed_policy, p.closed_note, p.closed_by, p.closed_at, p.created_at,
+              coalesce((SELECT sum(c.amount_minor) FROM funding_contributions c WHERE c.pool_id = p.id), 0)
+                - coalesce((SELECT sum(r.amount_minor) FROM funding_refunds r WHERE r.pool_id = p.id), 0) AS raised,
               (SELECT count(DISTINCT c.contributor_id) FROM funding_contributions c WHERE c.pool_id = p.id) AS contributors
             FROM funding_pools p""";
 
     record PoolRow(long id, long communityId, Long createdBy, String title, String purpose, String currency, long goal, Instant periodStart,
-                   Instant periodEnd, String status, String provider, boolean demo, String closedPolicy, String closedNote, Long closedBy,
+                   Instant periodEnd, String status, String provider, boolean demo, String mode, String closedPolicy, String closedNote, Long closedBy,
                    Instant closedAt, Instant createdAt, long raised, long contributors) {}
 
     private PoolRow poolRow(ResultSet rs, int i) throws SQLException {
         return new PoolRow(rs.getLong("id"), rs.getLong("community_id"), (Long) rs.getObject("created_by"), rs.getString("title"),
                 rs.getString("purpose"), rs.getString("currency"), rs.getLong("goal_minor"), ts(rs, "period_start"), ts(rs, "period_end"),
-                rs.getString("status"), rs.getString("provider"), rs.getBoolean("demo"), rs.getString("closed_policy"),
+                rs.getString("status"), rs.getString("provider"), rs.getBoolean("demo"), rs.getString("mode"), rs.getString("closed_policy"),
                 rs.getString("closed_note"), (Long) rs.getObject("closed_by"), ts(rs, "closed_at"), ts(rs, "created_at"),
                 rs.getLong("raised"), rs.getLong("contributors"));
     }
@@ -692,22 +804,25 @@ public class FundingService {
                 .orElseThrow(() -> ApiException.notFound("Pool"));
     }
 
-    private PoolRow lockPool(long id) {
+    PoolRow lockPool(long id) {
         jdbc.sql("SELECT id FROM funding_pools WHERE id = ? FOR UPDATE").param(id).query(Long.class).optional()
                 .orElseThrow(() -> ApiException.notFound("Pool"));
         return pool(id);
     }
 
+    /** Net amount raised: confirmed contributions minus refunds. This is what a close allocates. */
     private long raised(long poolId) {
-        return jdbc.sql("SELECT coalesce(sum(amount_minor), 0) FROM funding_contributions WHERE pool_id = ?").param(poolId)
-                .query(Long.class).single();
+        return jdbc.sql("""
+                        SELECT coalesce((SELECT sum(amount_minor) FROM funding_contributions WHERE pool_id = ?), 0)
+                          - coalesce((SELECT sum(amount_minor) FROM funding_refunds WHERE pool_id = ?), 0)""")
+                .params(poolId, poolId).query(Long.class).single();
     }
 
     private List<PoolSummary> summaries(List<PoolRow> rows) {
         Map<Long, CommunityRef> refs = refs(rows.stream().map(PoolRow::communityId).toList());
         Map<Long, UserSummary> u = directory.summaries(rows.stream().map(PoolRow::createdBy).toList());
         return rows.stream().map(p -> new PoolSummary(p.id(), refs.get(p.communityId()), p.title(), p.purpose(), money(p.goal(), p),
-                money(p.raised(), p), p.contributors(), p.periodStart(), p.periodEnd(), p.status(), p.provider(), p.demo(),
+                money(p.raised(), p), p.contributors(), p.periodStart(), p.periodEnd(), p.status(), p.provider(), p.demo(), p.mode(),
                 p.createdBy() == null ? null : u.get(p.createdBy()), p.closedPolicy(), p.closedAt(), p.createdAt())).toList();
     }
 
@@ -718,42 +833,43 @@ public class FundingService {
         return out;
     }
 
-    private PoolRef poolRef(long poolId) {
+    PoolRef poolRef(long poolId) {
         PoolRow p = pool(poolId);
         return new PoolRef(p.id(), p.title(), refs(List.of(p.communityId())).get(p.communityId()), p.status());
     }
 
-    private Contribution contribution(long id) {
+    Contribution contribution(long id) {
         record C(long poolId, String kind, long amount, String currency, boolean show, Long sub, Integer cycle, String charge,
-                 boolean demo, Instant at) {}
+                 String provider, String mode, Instant at) {}
         C c = jdbc.sql("""
-                        SELECT pool_id, kind, amount_minor, currency, show_name, subscription_id, cycle, provider_charge_id, demo, created_at
+                        SELECT pool_id, kind, amount_minor, currency, show_name, subscription_id, cycle, provider_charge_id, provider, mode, created_at
                         FROM funding_contributions WHERE id = ?""")
                 .param(id)
                 .query((rs, i) -> new C(rs.getLong(1), rs.getString(2), rs.getLong(3), rs.getString(4), rs.getBoolean(5),
-                        (Long) rs.getObject(6), (Integer) rs.getObject(7), rs.getString(8), rs.getBoolean(9), ts(rs, 10)))
+                        (Long) rs.getObject(6), (Integer) rs.getObject(7), rs.getString(8), rs.getString(9), rs.getString(10), ts(rs, 11)))
                 .single();
-        return new Contribution(id, poolRef(c.poolId()), c.kind(), Money.of(c.amount(), c.currency(), c.demo()), c.show(), c.sub(),
-                c.cycle(), c.charge(), c.at());
+        return new Contribution(id, poolRef(c.poolId()), c.kind(), Money.of(c.amount(), c.currency(), c.mode()), c.show(), c.sub(),
+                c.cycle(), c.charge(), c.provider(), Money.of(refundedOf(id), c.currency(), c.mode()), c.at());
     }
 
-    private SubscriptionDto subscription(long id) {
+    SubscriptionDto subscription(long id) {
         record S(long poolId, long amount, String currency, boolean show, String status, int cycles, Instant next, Instant at,
-                 Instant cancelled, String by, boolean demo) {}
+                 Instant cancelled, String by, String provider, String mode, Instant failed) {}
         S s = jdbc.sql("""
                         SELECT pool_id, amount_minor, currency, show_name, status, cycles_charged, next_charge_at, created_at, cancelled_at,
-                          cancelled_by, demo
+                          cancelled_by, provider, mode, payment_failed_at
                         FROM funding_subscriptions WHERE id = ?""")
                 .param(id)
                 .query((rs, i) -> new S(rs.getLong(1), rs.getLong(2), rs.getString(3), rs.getBoolean(4), rs.getString(5), rs.getInt(6),
-                        ts(rs, 7), ts(rs, 8), ts(rs, 9), rs.getString(10), rs.getBoolean(11)))
+                        ts(rs, 7), ts(rs, 8), ts(rs, 9), rs.getString(10), rs.getString(11), rs.getString(12), ts(rs, 13)))
                 .single();
-        return new SubscriptionDto(id, poolRef(s.poolId()), Money.of(s.amount(), s.currency(), s.demo()), s.show(), s.status(), s.cycles(),
-                s.next(), s.at(), s.cancelled(), s.by());
+        String billedBy = DemoPaymentProvider.ID.equals(s.provider()) ? "strata" : "provider";
+        return new SubscriptionDto(id, poolRef(s.poolId()), Money.of(s.amount(), s.currency(), s.mode()), s.show(), s.status(), s.cycles(),
+                s.next(), s.at(), s.cancelled(), s.by(), s.provider(), billedBy, s.failed());
     }
 
-    private static Money money(long amount, PoolRow p) {
-        return Money.of(amount, p.currency(), p.demo());
+    static Money money(long amount, PoolRow p) {
+        return Money.of(amount, p.currency(), p.mode());
     }
 
     static String poolAccount(long poolId) {
@@ -780,7 +896,7 @@ public class FundingService {
         return a.isBefore(b) ? a : b;
     }
 
-    private static Instant ts(ResultSet rs, int col) throws SQLException {
+    static Instant ts(ResultSet rs, int col) throws SQLException {
         OffsetDateTime t = rs.getObject(col, OffsetDateTime.class);
         return t == null ? null : t.toInstant();
     }

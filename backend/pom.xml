@@ -24,8 +24,10 @@
         <jsoup.version>1.24.1</jsoup.version>
         <embedded-postgres.version>2.2.3</embedded-postgres.version>
         <awssdk.version>2.30.18</awssdk.version>
-        <!-- Tests tagged "live" call paid external APIs (AI model, ElevenLabs, Brevo); run one with -Dsurefire.excludedGroups=none -Dtest=... -->
-        <surefire.excludedGroups>live</surefire.excludedGroups>
+        <stripe.version>34.1.0</stripe.version>
+        <!-- Tests tagged "live" (AI model, ElevenLabs, Brevo) or "stripe-live" call paid external APIs and never run in
+             the suite. Run one with -Dsurefire.excludedGroups=none -Dtest=... (Stripe also needs -Dstripe.live=true). -->
+        <surefire.excludedGroups>live,stripe-live</surefire.excludedGroups>
     </properties>
 
     <dependencies>
@@ -54,6 +56,8 @@
         <dependency><groupId>software.amazon.awssdk</groupId><artifactId>apache-client</artifactId><version>${awssdk.version}</version></dependency>
         <!-- Prometheus scrape endpoint (/actuator/prometheus on the management port in prod, D-025). -->
         <dependency><groupId>io.micrometer</groupId><artifactId>micrometer-registry-prometheus</artifactId></dependency>
+        <!-- Stripe payments for moderator funding, FUNDING_PROVIDER=stripe (D-034). Pinned; hosted Checkout only. -->
+        <dependency><groupId>com.stripe</groupId><artifactId>stripe-java</artifactId><version>${stripe.version}</version></dependency>
         <dependency><groupId>com.anthropic</groupId><artifactId>anthropic-java</artifactId><version>3.12.0</version></dependency>
 
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>

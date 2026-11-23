@@ -5,17 +5,32 @@ import java.util.Map;
 
 /**
  * An amount of money in integer minor units (cents) of an ISO 4217 currency. Never floating point.
- * Every amount the API returns carries {@code demo} and, for demo money, a label that clients must show next to it.
+ *
+ * <p>Every amount the API returns carries the {@code mode} it was recorded in ({@code demo}, {@code test} or {@code live}),
+ * {@code demo = true} whenever no real money moved (demo and Stripe test mode), and for non-live money a label that
+ * clients must show next to it. The label comes from the mode of the row, not from the server's current provider, so
+ * old demo pools stay labelled as demo after a switch to Stripe.
  */
-public record Money(long amountMinor, String currency, boolean demo, String label) {
+public record Money(long amountMinor, String currency, boolean demo, String mode, String label) {
+    public static final String MODE_DEMO = "demo";
+    public static final String MODE_TEST = "test";
+    public static final String MODE_LIVE = "live";
     public static final String DEMO_LABEL = "DEMO, no real money";
+    public static final String TEST_LABEL = "TEST MODE: no real money";
 
-    /** Supported currencies and their minor-unit exponent. Kept small on purpose; demo money needs no FX. */
+    /** Supported currencies and their minor-unit exponent. Kept small on purpose. */
     public static final Map<String, Integer> CURRENCIES = Map.of("USD", 2, "EUR", 2, "GBP", 2, "JPY", 0);
     public static final List<String> CURRENCY_ORDER = List.of("USD", "EUR", "GBP", "JPY");
 
-    public static Money of(long amountMinor, String currency, boolean demo) {
-        return new Money(amountMinor, currency, demo, demo ? DEMO_LABEL : null);
+    public static Money of(long amountMinor, String currency, String mode) {
+        return new Money(amountMinor, currency, !MODE_LIVE.equals(mode), mode, labelFor(mode));
+    }
+
+    /** The label clients show next to an amount of this mode. Live money carries none. */
+    public static String labelFor(String mode) {
+        if (MODE_LIVE.equals(mode)) return null;
+        if (MODE_TEST.equals(mode)) return TEST_LABEL;
+        return DEMO_LABEL;
     }
 
     public static boolean supported(String currency) {
@@ -34,7 +49,7 @@ public record Money(long amountMinor, String currency, boolean demo, String labe
         return unit(currency);
     }
 
-    /** Largest single contribution in demo mode: 10,000 major units. */
+    /** Largest single contribution: 10,000 major units. */
     public static long maxContribution(String currency) {
         return Math.multiplyExact(10_000L, unit(currency));
     }

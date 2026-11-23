@@ -50,7 +50,13 @@ public class ProductionSafetyCheck implements InitializingBean {
                 out.add("JWT_SECRET must be base64 (openssl rand -base64 48)");
             }
         }
-        if (env.getProperty("strata.funding.enabled", Boolean.class, true)) {
+        boolean stripe = "stripe".equalsIgnoreCase(env.getProperty("strata.funding.provider", "demo").strip());
+        if (env.getProperty("strata.funding.enabled", Boolean.class, true) && stripe) {
+            // Stripe (D-034): renewals, refunds and cancellations arrive only by signed webhook.
+            if (env.getProperty("strata.funding.stripe.webhook-secret", "").isBlank()) {
+                out.add("STRIPE_WEBHOOK_SECRET is unset (FUNDING_PROVIDER=stripe needs the endpoint's signing secret, whsec_...)");
+            }
+        } else if (env.getProperty("strata.funding.enabled", Boolean.class, true)) {
             String hook = env.getProperty("strata.funding.demo-webhook-secret", "");
             if (hook.isBlank() || DEV_WEBHOOK_SECRET.equals(hook) || hook.length() < 16) {
                 out.add("FUNDING_DEMO_WEBHOOK_SECRET is unset, shorter than 16 characters or the development default");

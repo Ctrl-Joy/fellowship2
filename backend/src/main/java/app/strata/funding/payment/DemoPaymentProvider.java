@@ -1,5 +1,6 @@
 package app.strata.funding.payment;
 
+import app.strata.funding.Money;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -46,8 +47,18 @@ public class DemoPaymentProvider implements PaymentProvider {
     }
 
     @Override
-    public boolean demo() {
-        return true;
+    public String mode() {
+        return Money.MODE_DEMO;
+    }
+
+    @Override
+    public String notice() {
+        return "Demo mode: contributions are simulated, always succeed, and no real money moves. Nothing is charged and nobody is paid.";
+    }
+
+    @Override
+    public String signatureHeader() {
+        return SIGNATURE_HEADER;
     }
 
     @Override

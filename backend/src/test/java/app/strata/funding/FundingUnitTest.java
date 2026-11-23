@@ -95,18 +95,23 @@ class FundingUnitTest {
 
     @Test
     void unknownProviderRefusesToStartAndDisabledFundingRefusesWrites() {
-        assertThatThrownBy(() -> PaymentProviderConfig.select(new FundingProperties(true, "stripe", SECRET, null, null), mapper, Clock.systemUTC()))
+        assertThatThrownBy(() -> PaymentProviderConfig.select(FundingProperties.of(true, "paypal", SECRET), mapper, Clock.systemUTC(), k -> null))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("not implemented");
-        assertThatThrownBy(() -> PaymentProviderConfig.select(new FundingProperties(true, "demo", "short", null, null), mapper, Clock.systemUTC()))
+        assertThatThrownBy(() -> PaymentProviderConfig.select(FundingProperties.of(true, "stripe", SECRET), mapper, Clock.systemUTC(), k -> null))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("STRIPE_SECRET_KEY");
+        assertThatThrownBy(() -> PaymentProviderConfig.select(FundingProperties.of(true, "demo", "short"), mapper, Clock.systemUTC(), k -> null))
                 .isInstanceOf(IllegalStateException.class);
 
-        FundingRuntime off = PaymentProviderConfig.select(new FundingProperties(false, "stripe", null, null, null), mapper, Clock.systemUTC());
+        FundingRuntime off = PaymentProviderConfig.select(FundingProperties.of(false, "stripe", null), mapper, Clock.systemUTC(), k -> null);
         assertThat(off.enabled()).isFalse();
         assertThatThrownBy(off::require).isInstanceOf(ApiException.class).hasMessageContaining("turned off");
 
-        FundingRuntime on = PaymentProviderConfig.select(new FundingProperties(null, null, SECRET, null, null), mapper, Clock.systemUTC());
+        FundingRuntime on = PaymentProviderConfig.select(FundingProperties.of(null, null, SECRET), mapper, Clock.systemUTC(), k -> null);
         assertThat(on.provider().id()).isEqualTo("demo");
         assertThat(on.provider().demo()).isTrue();
+        assertThat(on.provider().mode()).isEqualTo("demo");
+        assertThat(on.provider().label()).isEqualTo(Money.DEMO_LABEL);
+        assertThat(on.provider().hostedCheckout()).isFalse();
     }
 
     @Test
@@ -114,8 +119,11 @@ class FundingUnitTest {
         assertThat(Money.unit("USD")).isEqualTo(100);
         assertThat(Money.unit("JPY")).isEqualTo(1);
         assertThat(Money.maxContribution("EUR")).isEqualTo(1_000_000);
-        assertThat(Money.of(5, "USD", true).label()).isEqualTo(Money.DEMO_LABEL);
-        assertThat(Money.of(5, "USD", false).label()).isNull();
+        assertThat(Money.of(5, "USD", "demo").label()).isEqualTo(Money.DEMO_LABEL);
+        assertThat(Money.of(5, "USD", "test").label()).isEqualTo("TEST MODE: no real money");
+        assertThat(Money.of(5, "USD", "test").demo()).isTrue();
+        assertThat(Money.of(5, "USD", "live").label()).isNull();
+        assertThat(Money.of(5, "USD", "live").demo()).isFalse();
         assertThat(Money.supported("XYZ")).isFalse();
     }
 }

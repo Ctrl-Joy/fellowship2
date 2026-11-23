@@ -83,9 +83,13 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
   fallback. Without a key (and in tests) they stay offline, and on the seeded threads most comments are then "neutral"
   until readers label them. Verified with a fake model in tests and one manual live run; not checked in a browser.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
-- Not built yet: real payment provider for moderator funding (demo-only by design, D-022) and podcast video generation.
-- Podcast audio generation (ElevenLabs TTS, D-036/D-037) is built and runs only when `ELEVENLABS_API_KEY` is set; the suite uses a
-  fake provider and never calls ElevenLabs. No RSS feed exists yet to carry the AI-voice label.
+- Not built yet: podcast video generation, and payouts to moderators (Stripe Connect). Moderator funding has a real
+  provider (Stripe hosted Checkout, test mode by default, D-034/D-035); live mode needs an explicit compliance
+  acknowledgement.
+- Podcast audio generation (ElevenLabs TTS, D-036/D-037) runs only when `ELEVENLABS_API_KEY` is set. No RSS feed
+  exists yet to carry the AI-voice label.
+- External services in tests: the suite never calls Stripe, ElevenLabs or Brevo (fake gateways and local stub servers).
+  Live checks are opt-in tests tagged `live`/`stripe-live`; whether each one has been run is noted in its row above.
 - Docker: `docker compose up --build` runs locally (Docker Desktop 29.9). Verified: all five services healthy (PostgreSQL, Redis, SeaweedFS S3, backend, web), demo login, feeds, Claude AI and the WebSocket through nginx on http://localhost:8088; uploads go to the private bucket (image with 320/960 variants, private file with a ranged 206 read, owner-only access, delete removes the object, anonymous bucket access 403). MinIO no longer publishes public images, so the bundled S3 service is SeaweedFS.
 - Accessibility: no manual screen-reader pass yet; moderate/minor axe findings not triaged; pages outside the audited ten
   not scanned (see docs/ACCESSIBILITY.md).
@@ -101,3 +105,10 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
   suspended user's open WebSocket isn't closed until it reconnects (REST calls fail at once). The account-status cache is
   per node (up to 30 s delay across several nodes).
 - Admin dashboard, mutes and holds were verified by integration tests and builds only; not exercised in a browser.
+
+## Stripe payments for moderator funding (D-034, D-035)
+| Item | Backend | Frontend |
+|---|---|---|
+| `FUNDING_PROVIDER=stripe`: hosted Checkout (payment mode once, subscription mode monthly with inline `price_data`), pending contributions, confirm on return (server retrieves the session) and by webhook, `Stripe-Signature` verification, invoice cycles, failed renewals, provider cancellation, refunds as reversing ledger rows, mode (`demo`/`test`/`live`) on every money row, live keys refused without `FUNDING_LIVE_MODE` + `FUNDING_COMPLIANCE_ACK` | ✅ `StripeFundingIT` 9, `StripeProviderTest` 5, `FundingUnitTest`/`FundingIT` updated | ✅ redirect to Checkout, return banner polling the confirm endpoint (success / pending / cancelled / expired / failed), mode labels from the API, "Allocated, not paid out" |
+| Payouts to moderators (Stripe Connect), live mode, automatic refund of payments that arrive after a pool closed | ❌ not built (obligations only) | ❌ |
+| Live test-mode check (`StripeLiveCheckTest`, excluded from the suite) | not run: no `STRIPE_SECRET_KEY` in `backend/.env.local` at the time of writing | |

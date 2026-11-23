@@ -1,10 +1,17 @@
 import type { CommunityRef, UserSummary } from './api';
 
-/** Integer minor units (cents) of an ISO 4217 currency. Never a float. `label` is "DEMO, no real money" for demo money. */
+/** demo: simulated; test: Stripe test mode; live: real money. */
+export type FundingMode = 'demo' | 'test' | 'live';
+
+/**
+ * Integer minor units (cents) of an ISO 4217 currency. Never a float. `demo` is true whenever no real money moved
+ * (demo and test mode). `label` comes from the server ("DEMO, no real money", "TEST MODE: no real money", or null for live).
+ */
 export interface Money {
   amountMinor: number;
   currency: string;
   demo: boolean;
+  mode: FundingMode;
   label: string | null;
 }
 
@@ -15,8 +22,12 @@ export interface FundingStatus {
   enabled: boolean;
   provider: string | null;
   demo: boolean;
+  mode: FundingMode;
   label: string | null;
   notice: string | null;
+  /** instant: recorded at once (demo). hosted: the browser goes to Stripe Checkout and the contribution is confirmed afterwards. */
+  checkout: 'instant' | 'hosted' | null;
+  payouts: string;
   currencies: { code: string; exponent: number }[];
 }
 
@@ -40,6 +51,7 @@ export interface PoolSummary {
   status: PoolStatus;
   provider: string;
   demo: boolean;
+  mode: FundingMode;
   createdBy: UserSummary | null;
   closedPolicy: AllocationPolicy | null;
   closedAt: string | null;
@@ -69,6 +81,9 @@ export interface Contribution {
   subscriptionId: number | null;
   cycle: number | null;
   chargeId: string;
+  provider: string;
+  /** Refunded so far by the provider; reversed in the ledger with new rows. */
+  refunded: Money;
   createdAt: string;
 }
 
@@ -83,9 +98,35 @@ export interface FundingSubscription {
   createdAt: string;
   cancelledAt: string | null;
   cancelledBy: 'USER' | 'PROVIDER' | 'SYSTEM' | null;
+  provider: string;
+  /** strata: the demo job records each month; provider: Stripe bills each month and the server records paid invoices. */
+  billedBy: 'strata' | 'provider';
+  paymentFailedAt: string | null;
+}
+
+export interface CheckoutStart {
+  pendingId: number;
+  url: string;
+  provider: string;
+  mode: FundingMode;
 }
 
 export interface ContributeResult {
+  contribution: Contribution | null;
+  subscription: FundingSubscription | null;
+  /** Set for hosted checkout: send the browser to `url`. */
+  checkout: CheckoutStart | null;
+}
+
+export type CheckoutState = 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'EXPIRED' | 'FAILED';
+
+export interface CheckoutStatus {
+  pendingId: number;
+  status: CheckoutState;
+  reason: string | null;
+  pool: PoolRef;
+  kind: 'ONE_TIME' | 'RECURRING';
+  amount: Money;
   contribution: Contribution | null;
   subscription: FundingSubscription | null;
 }
@@ -110,7 +151,7 @@ export interface FundingAllocation {
 
 export interface LedgerEntry {
   id: number;
-  entryType: 'CONTRIBUTION' | 'ALLOCATION';
+  entryType: 'CONTRIBUTION' | 'ALLOCATION' | 'REFUND';
   debitAccount: string;
   debitLabel: string;
   creditAccount: string;
@@ -126,6 +167,9 @@ export interface Reconciliation {
   allocationsTotal: Money;
   poolBalance: Money;
   reconciles: boolean;
+  refundsTotal: Money;
+  /** Refunded after the pool closed: allocations (obligations) no longer fully covered. */
+  shortfall: Money;
 }
 
 export interface TransparencyReport {
@@ -141,6 +185,8 @@ export interface TransparencyReport {
   ledgerTruncated: boolean;
   reconciliation: Reconciliation;
   closedNote: string | null;
+  refunded: Money;
+  refundCount: number;
 }
 
 export interface AllocationPreview {

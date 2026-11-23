@@ -37,7 +37,7 @@ and support for the moderators who keep communities healthy.
 | Direct messages (1:1) and real-time events (messages, badges, live feeds and threads) | 2–4 | ✅ |
 | Community AI (RAG with citations) | 5 | ✅ |
 | Podcasts (upload-first; AI script drafting; audio generation only with a configured TTS provider) | 6 | ✅ |
-| Moderator funding (demo mode until a provider is configured) | 8 | ✅ demo mode |
+| Moderator funding (demo mode until a provider is configured) | 8 | ✅ demo mode; Stripe hosted Checkout in test mode (D-034) |
 | Secure file sharing → E2EE | 7 | ✅ (private files, share links, browser-side E2EE; see SECURITY_E2EE.md) |
 | Moderator leaderboard | 9 | ✅ |
 

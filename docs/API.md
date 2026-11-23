@@ -513,6 +513,47 @@ TransparencyReport { pool: PoolSummary, raised, contributionCount, contributorCo
   (`funding_webhook_events`); a replay returns 200 `duplicate`. Handled types: `subscription.cancelled {subscriptionRef}` and
   `charge.succeeded {chargeId}` (acknowledged). Other types are recorded and ignored. Bad signature → 400, unknown provider → 404.
 - **Disabled** (`FUNDING_ENABLED=false`): reads work and report `enabled: false`; writes return 503 with code `FUNDING_DISABLED`.
+
+### Moderator funding with Stripe (D-034, D-035)
+`FUNDING_PROVIDER=stripe` swaps the demo provider for Stripe hosted Checkout (test mode unless live mode is explicitly
+acknowledged). Everything above still applies, with these additions (all additive fields; the demo provider fills them too):
+
+```ts
+Money { amountMinor, currency, demo /* true when no real money moved: demo and test */, mode: "demo"|"test"|"live",
+        label: "DEMO, no real money" | "TEST MODE: no real money" | null /* live */ }   // label follows the row's mode
+FundingStatus { ..., mode, label /* from the provider */, checkout: "instant"|"hosted"|null,
+                payouts: "Allocated, not paid out: ..." }
+PoolSummary { ..., mode }
+Contribution { ..., provider, refunded: Money }
+Subscription { ..., provider, billedBy: "strata"|"provider", paymentFailedAt|null }   // provider-billed: nextChargeAt is null
+ContributeResult { contribution|null, subscription|null, checkout: { pendingId, url, provider, mode }|null }
+CheckoutStatus { pendingId, status: "PENDING"|"CONFIRMED"|"CANCELLED"|"EXPIRED"|"FAILED", reason|null, pool: PoolRef,
+                 kind, amount: Money, contribution|null, subscription|null }
+Reconciliation { ..., refundsTotal, shortfall /* refunded after the pool closed */ }
+TransparencyReport { ..., raised /* net of refunds */, refunded, refundCount }
+LedgerEntry.entryType: "CONTRIBUTION"|"ALLOCATION"|"REFUND"    // REFUND: pool:{id} -> contributors
+```
+
+| Method | Path | Who | Body / notes | Returns |
+|---|---|---|---|---|
+| POST | `/funding/pools/{id}/contributions` | members who aren't banned | as above. With Stripe nothing is recorded yet: a PENDING contribution and a Checkout Session (payment mode, or subscription mode with an inline monthly `price_data`) are created; ≤10 unfinished checkouts per user per hour | 201 `{contribution: null, subscription: null, checkout}`; 502 `PAYMENT_PROVIDER_ERROR` if Stripe fails |
+| POST | `/funding/checkouts/confirm` | the contributor | `{sessionId}` from the success URL. The server retrieves the session from Stripe and confirms it if paid; idempotent, safe to poll | `CheckoutStatus` |
+| POST | `/funding/checkouts/{pendingId}/cancel` | the contributor | expires the open session at Stripe (confirms instead if it was paid after all) | `CheckoutStatus` |
+| POST | `/funding/webhooks/stripe` | Stripe (no JWT) | raw event + `Stripe-Signature` (verified with the SDK's `Webhook.constructEvent`, 300 s tolerance; a test event to a live server or vice versa is refused) | `{status: "processed"\|"duplicate", eventId}` |
+
+- **Return URLs**: success `{APP_PUBLIC_URL}/funding/pools/{id}?checkout=success&session_id={CHECKOUT_SESSION_ID}`, cancel
+  `{APP_PUBLIC_URL}/funding/pools/{id}?checkout=cancelled&pending={pendingId}`. Session metadata (also copied to the
+  PaymentIntent or subscription): `strata_pool_id`, `strata_contributor_id`, `strata_contribution_id` (the pending id, also the
+  `client_reference_id`), `strata_anonymous`, `strata_kind`.
+- **Webhook events**: `checkout.session.completed` / `async_payment_succeeded` (confirm), `async_payment_failed` and `expired`
+  (nothing recorded), `invoice.paid` (each paid invoice is one RECURRING contribution, recorded once by invoice id; the first one
+  may arrive before the session event), `invoice.payment_failed` (sets `paymentFailedAt`; Stripe retries),
+  `customer.subscription.deleted` (CANCELLED by PROVIDER), `charge.refunded` (cumulative `amount_refunded` becomes REFUND rows,
+  never more than the contribution). Other types are recorded and ignored. Event ids go into `funding_webhook_events` in the
+  same transaction as their effect; an error returns 500 so Stripe retries.
+- **Recurring with Stripe**: Stripe bills each month; the demo charging job never touches Stripe subscriptions. Cancel calls
+  Stripe's subscription cancel. Closing a pool cancels its Stripe subscriptions; a payment that arrives for a closed pool is
+  not added (the pending row is FAILED with a reason) and has to be refunded from the Stripe dashboard.
 ## Files & share links (Phase 7)
 Private file library. Everything under `/me/files` requires auth and only ever returns the caller's own files (other
 people's ids answer 404). Every file response is `Content-Disposition: attachment` with `X-Content-Type-Options: nosniff`,

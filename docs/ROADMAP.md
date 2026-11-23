@@ -56,6 +56,8 @@ PBKDF2/Argon2-derived keys, documented threat model and limits (no server previe
 Funding pools, contributions (one-time and recurring), allocation policies, transparency report;
 `PaymentProvider` abstraction with webhook verification. **Demo mode only** until a provider and compliance
 review exist; demo transactions are labelled and never represent real money.
+Update (D-034, D-035): Stripe hosted Checkout works in **test mode** (`FUNDING_PROVIDER=stripe`); live keys are refused without
+`FUNDING_LIVE_MODE` + `FUNDING_COMPLIANCE_ACK`. Next: moderator payouts (Stripe Connect), automatic refunds for late payments.
 
 ## Phase 9: Moderator recognition ✅ (D-020)
 Quality-weighted moderator score (consistency, response time, appeal outcomes, community health, peer

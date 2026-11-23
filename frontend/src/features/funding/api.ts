@@ -3,6 +3,7 @@ import { http } from '@/services/apiClient';
 import type {
   AllocationPolicy,
   AllocationPreview,
+  CheckoutStatus,
   CloseBody,
   CommunityFunding,
   ContributeBody,
@@ -29,6 +30,9 @@ export const fundingApi = {
   close: (poolId: number, body?: CloseBody) => http.post<TransparencyReport>(`/funding/pools/${poolId}/close`, body ?? {}),
   mine: () => http.get<MyFunding>('/me/funding'),
   cancel: (subscriptionId: number) => http.post<FundingSubscription>(`/me/funding/subscriptions/${subscriptionId}/cancel`),
+  /** Back from Stripe Checkout: the server asks Stripe whether the session was paid. Safe to poll. */
+  confirmCheckout: (sessionId: string) => http.post<CheckoutStatus>('/funding/checkouts/confirm', { sessionId }),
+  cancelCheckout: (pendingId: number) => http.post<CheckoutStatus>(`/funding/checkouts/${pendingId}/cancel`),
 };
 
 export const fundingKeys = {
