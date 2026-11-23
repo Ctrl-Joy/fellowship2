@@ -30,10 +30,11 @@ function ModeratorRow({ s, formula }: { s: ModeratorScore; formula: ScoreFormula
         <Avatar src={s.moderator.avatarUrl} name={s.moderator.username} size="md" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 text-sm">
-            <Link to={`/u/${s.moderator.username}`} className="font-semibold hover:underline">
+            {/* min-h-6 keeps both links at least 24 px tall, the WCAG 2.2 minimum touch target. */}
+            <Link to={`/u/${s.moderator.username}`} className="inline-flex min-h-6 items-center font-semibold hover:underline">
               u/{s.moderator.username}
             </Link>
-            <Link to={`/c/${s.community.slug}`} className="text-xs text-muted hover:underline">
+            <Link to={`/c/${s.community.slug}`} className="inline-flex min-h-6 items-center text-xs text-muted hover:underline">
               c/{s.community.slug}
             </Link>
           </div>
