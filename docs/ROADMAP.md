@@ -15,7 +15,7 @@ Communities (public/restricted/private), roles, rules, flairs, membership, posts
 sanitised rich text, image upload, voting + karma, nested comments with lazy replies, feeds and ranking, search,
 saved and hidden posts, notifications (grouped, polled).
 
-## Phase 3: Moderation & quality ◐ (reports, queue, remove/approve/lock/pin, bans, appeals, audit log, blocking ✅; admin dashboard, mute, spam heuristics, topic reputation ☐)
+## Phase 3: Moderation & quality ◐ (reports, queue, remove/approve/lock/pin, bans, appeals, audit log, blocking, admin dashboard, mute, spam heuristics ✅; topic reputation ☐)
 `reports`, `moderation_actions` (auditable: moderator, action, target, reason, community, reversal), user
 block/mute, mod queue, remove/approve/lock/pin, bans and timed suspensions, appeals, admin dashboard (users,
 communities, flags, audit log), spam heuristics (link velocity, duplicate content), topic reputation v1

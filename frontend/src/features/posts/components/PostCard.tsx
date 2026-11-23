@@ -1,4 +1,4 @@
-import { Bookmark, BookmarkCheck, ExternalLink, Lock, MessageSquare, Pin, Share2 } from 'lucide-react';
+import { Bookmark, BookmarkCheck, ExternalLink, Lock, MessageSquare, Pin, Share2, ShieldAlert } from 'lucide-react';
 import { memo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Avatar, Badge } from '@/components/ui/Display';
@@ -42,6 +42,7 @@ export function PostMeta({ post, showCommunity }: { post: PostSummary; showCommu
       {post.editedAt && <span className="text-faint">(edited)</span>}
       {post.pinned && <Badge tone="accent"><Pin size={11} /> Pinned</Badge>}
       {post.locked && <Badge tone="warning"><Lock size={11} /> Locked</Badge>}
+      {post.pending && <Badge tone="warning"><ShieldAlert size={11} /> Awaiting review</Badge>}
     </div>
   );
 }
@@ -113,7 +114,7 @@ export const PostCard = memo(function PostCard({ post, showCommunity = true }: {
       <div className="flex items-start justify-between gap-2">
         <PostMeta post={post} showCommunity={showCommunity} />
         <div className="-mr-1 -mt-1 opacity-70 group-hover:opacity-100">
-          <PostMenu post={post} />
+          <PostMenu post={post} canModerate={!!post.viewer?.canModerate} />
         </div>
       </div>
 

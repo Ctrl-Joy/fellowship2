@@ -40,6 +40,9 @@ With `SEED_DEMO_DATA=true` (the default outside the `prod` profile), fictional d
 `mira_k`, `nadia_sec` and `first_job_fern`, all with the password **`strata-demo-1`**. The content is
 illustrative demo data, not real activity. Disable it in production.
 
+`admin_demo` (same password) is a platform admin: sign in and open **Admin dashboard** from the account menu (`/admin`).
+It's created whenever demo seeding is on, including on databases seeded before it existed.
+
 ### Community AI
 Set `ANTHROPIC_API_KEY` (server-side) to get answers from Claude (`claude-opus-5-5` by default; override with
 `AI_MODEL` / `AI_EFFORT`). Without it, Community AI still works in offline mode: it returns cited summaries of the

@@ -9,6 +9,7 @@ import app.strata.post.dto.PostDtos.MediaRef;
 import app.strata.post.dto.PostDtos.PollDto;
 import app.strata.post.dto.PostDtos.PollOptionDto;
 import app.strata.post.dto.PostDtos.PostSummary;
+import app.strata.post.dto.PostDtos.SummaryViewer;
 import app.strata.storage.StorageService;
 import app.strata.user.UserDirectory;
 import app.strata.user.dto.UserDtos.UserSummary;
@@ -59,9 +60,13 @@ public class PostQueryService {
     public record Spec(String scopeSql, Map<String, Object> params, Sort sort, String window, String tsQuery,
                        String cursor, int limit, Long viewerId, boolean excludePinned) {}
 
-    /** Hidden posts and private communities are filtered for every list, centrally. */
+    /**
+     * Hidden posts, private and banned communities are filtered for every list, centrally. Held (pending) posts are
+     * stored as removed, so they never reach lists; their author and moderators open them on the post page and in the
+     * mod queue. Keeping {@code removed = FALSE} here lets the partial feed indexes apply.
+     */
     private static final String VISIBILITY = """
-             p.deleted_at IS NULL AND p.removed = FALSE
+             p.deleted_at IS NULL AND p.removed = FALSE AND c.status <> 'BANNED'
              AND (c.visibility <> 'PRIVATE' OR EXISTS (SELECT 1 FROM community_members vm
                                                        WHERE vm.community_id = c.id AND vm.user_id = :viewer))
              AND NOT EXISTS (SELECT 1 FROM hidden_posts hp WHERE hp.post_id = p.id AND hp.user_id = :viewer)
@@ -150,7 +155,7 @@ public class PostQueryService {
     public List<PostSummary> pinned(long communityId, Long viewerId) {
         List<Long> ids = jdbc.sql("""
                         SELECT id FROM posts WHERE community_id = ? AND pinned = TRUE AND deleted_at IS NULL
-                        AND removed = FALSE ORDER BY id DESC LIMIT 3""")
+                        AND removed = FALSE AND pending = FALSE ORDER BY id DESC LIMIT 3""")
                 .param(communityId).query(Long.class).list();
         return hydrate(ids, viewerId);
     }
@@ -161,7 +166,7 @@ public class PostQueryService {
                         long communityId, String slug, String communityName, String iconUrl, Long flairId,
                         String flairText, String flairColor, List<String> tags, int up, int down, int score,
                         int comments, boolean pinned, boolean locked, boolean removed, Instant createdAt,
-                        Instant editedAt, boolean deleted) {}
+                        Instant editedAt, boolean deleted, boolean pending) {}
 
     public List<PostSummary> hydrate(List<Long> ids, Long viewerId) {
         if (ids.isEmpty()) return List.of();
@@ -170,7 +175,7 @@ public class PostQueryService {
                         SELECT p.id, p.type, p.title, p.body_text, p.url, p.author_id, p.community_id, c.slug, c.name,
                                c.icon_url, p.flair_id, f.text AS flair_text, f.color AS flair_color, p.tags, p.upvotes,
                                p.downvotes, p.score, p.comment_count, p.pinned, p.locked, p.removed, p.created_at,
-                               p.edited_at, p.deleted_at IS NOT NULL AS deleted
+                               p.edited_at, p.deleted_at IS NOT NULL AS deleted, p.pending
                         FROM posts p JOIN communities c ON c.id = p.community_id
                         LEFT JOIN community_flairs f ON f.id = p.flair_id
                         WHERE p.id IN (:ids)""")
@@ -182,7 +187,7 @@ public class PostQueryService {
                         textArray(rs.getArray("tags")), rs.getInt("upvotes"), rs.getInt("downvotes"), rs.getInt("score"),
                         rs.getInt("comment_count"), rs.getBoolean("pinned"), rs.getBoolean("locked"),
                         rs.getBoolean("removed"), instant(rs, "created_at"), instant(rs, "edited_at"),
-                        rs.getBoolean("deleted")))
+                        rs.getBoolean("deleted"), rs.getBoolean("pending")))
                 .list().forEach(b -> base.put(b.id(), b));
 
         Map<Long, UserSummary> authors = users.summaries(base.values().stream().map(Base::authorId).toList());
@@ -198,13 +203,16 @@ public class PostQueryService {
             saved.addAll(jdbc.sql("SELECT post_id FROM saved_posts WHERE user_id = :u AND post_id IN (:ids)")
                     .param("u", viewerId).param("ids", ids).query(Long.class).list());
         }
+        Set<Long> moderated = moderatedCommunities(base.values().stream().map(Base::communityId).distinct().toList(), viewerId);
 
         List<PostSummary> out = new ArrayList<>(ids.size());
         for (Long id : ids) {
             Base b = base.get(id);
             if (b == null) continue;
-            boolean hiddenContent = b.deleted() || b.removed();
-            String title = b.deleted() ? "[deleted]" : b.removed() ? "[removed by moderators]" : b.title();
+            // Held posts are only ever loaded for their author or a moderator, who see the real content.
+            boolean held = b.pending() && !b.deleted();
+            boolean hiddenContent = b.deleted() || (b.removed() && !held);
+            String title = b.deleted() ? "[deleted]" : b.removed() && !held ? "[removed by moderators]" : b.title();
             out.add(new PostSummary(b.id(), b.type(), title,
                     hiddenContent ? "" : HtmlSanitizer.preview(b.bodyText(), 300),
                     hiddenContent ? null : b.url(), hiddenContent ? null : domain(b.url()),
@@ -214,9 +222,25 @@ public class PostQueryService {
                     new CommunityRef(b.communityId(), b.slug(), b.communityName(), b.iconUrl()),
                     b.flairId() == null ? null : new FlairDto(b.flairId(), b.flairText(), b.flairColor()),
                     b.tags(), b.score(), b.up(), b.down(), b.comments(), votes.getOrDefault(id, 0),
-                    saved.contains(id), b.pinned(), b.locked(), b.removed(), b.createdAt(), b.editedAt()));
+                    saved.contains(id), b.pinned(), b.locked(), b.removed(), b.createdAt(), b.editedAt(), held,
+                    new SummaryViewer(moderated.contains(b.communityId()))));
         }
         return out;
+    }
+
+    /**
+     * Communities on this page the viewer may moderate: one query per page, never one per row. Platform admins
+     * moderate everywhere, mirroring {@code CommunityAccess.canModerate}.
+     */
+    private Set<Long> moderatedCommunities(List<Long> communityIds, Long viewerId) {
+        if (viewerId == null || communityIds.isEmpty()) return Set.of();
+        return new HashSet<>(jdbc.sql("""
+                        SELECT c.id FROM communities c
+                        WHERE c.id IN (:cids)
+                          AND (EXISTS (SELECT 1 FROM users u WHERE u.id = :u AND u.role = 'ADMIN')
+                               OR EXISTS (SELECT 1 FROM community_members m WHERE m.community_id = c.id AND m.user_id = :u
+                                          AND m.role IN ('MODERATOR', 'ADMIN', 'OWNER')))""")
+                .param("cids", communityIds).param("u", viewerId).query(Long.class).list());
     }
 
     private Map<Long, List<MediaRef>> media(Collection<Long> ids) {

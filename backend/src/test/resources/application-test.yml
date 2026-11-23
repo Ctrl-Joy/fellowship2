@@ -5,6 +5,8 @@ strata:
     enabled: false
   seed:
     enabled: false
+  spam:
+    enabled: false   # tests that exercise a heuristic switch it on through SpamProperties and restore it
   storage:
     local-dir: ./target/test-uploads
   funding:

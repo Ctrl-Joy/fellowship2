@@ -39,7 +39,8 @@ export type ModActionType =
   | 'PIN'
   | 'UNPIN'
   | 'BAN'
-  | 'UNBAN';
+  | 'UNBAN'
+  | 'RELEASE_HELD';
 
 export interface ModAction {
   id: ID;
@@ -82,6 +83,8 @@ export interface ModStats {
   activeBans: number;
   actionsLast30Days: number;
   removedLast30Days: number;
+  /** Open spam holds (D-021). */
+  heldForReview?: number;
 }
 
 export interface MyModAction {

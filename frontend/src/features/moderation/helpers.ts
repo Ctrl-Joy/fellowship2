@@ -51,6 +51,7 @@ export const ACTION_LABELS: Record<ModActionType, string> = {
   UNPIN: 'Unpinned post',
   BAN: 'Banned user',
   UNBAN: 'Unbanned user',
+  RELEASE_HELD: 'Released held content',
 };
 
 export const BAN_DURATIONS: { value: string; label: string; days: number | null }[] = [

@@ -44,6 +44,9 @@ public class Post {
     private boolean pinned;
     private boolean locked;
     private boolean removed;
+    /** Held for review by the spam heuristics (always together with removed = TRUE); written with SQL only. */
+    @Column(insertable = false, updatable = false)
+    private boolean pending;
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
     private Instant editedAt;
@@ -81,6 +84,7 @@ public class Post {
     public void setTags(List<String> tags) { this.tags = new ArrayList<>(tags); }
     public boolean isLocked() { return locked; }
     public boolean isRemoved() { return removed; }
+    public boolean isPending() { return pending; }
     public Instant getCreatedAt() { return createdAt; }
     public void markEdited() { this.editedAt = Instant.now(); }
     public Instant getDeletedAt() { return deletedAt; }

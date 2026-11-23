@@ -125,6 +125,26 @@ strata:
     demo-webhook-secret: ${FUNDING_DEMO_WEBHOOK_SECRET:dev-only-demo-webhook-secret-change-me}
     webhook-tolerance-seconds: 300
     jobs-enabled: ${FUNDING_JOBS_ENABLED:true}
+  # Write-time spam heuristics (D-021). Held content goes to the mod queue; "reject" thresholds refuse outright.
+  spam:
+    enabled: ${SPAM_HEURISTICS_ENABLED:true}
+    new-account-age: P7D
+    link-velocity:
+      max-links: 5          # more links than this from a new account within the window is held
+      reject-links: 20
+      window: PT10M
+    duplicate:
+      max-communities: 3    # same content in this many communities within the window is held
+      reject-communities: 6
+      window: PT1H
+      cross-account-min-body: 40
+    burst:
+      max-items: 8          # posts + comments from a new account within the window
+      reject-items: 30
+      window: PT5M
+    mentions:
+      max: 8                # distinct @mentions in one post or comment
+      reject: 25
 
 ---
 spring:

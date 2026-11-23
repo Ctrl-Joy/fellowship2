@@ -49,6 +49,11 @@ public class Community {
     @Column(insertable = false, updatable = false)
     private int postCount;
     private Long createdBy;
+    /** ACTIVE | QUARANTINED | BANNED, set by platform admins with SQL (see AdminService). */
+    @Column(insertable = false, updatable = false)
+    private String status = "ACTIVE";
+    @Column(insertable = false, updatable = false)
+    private String statusReason;
     @Column(nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
     @Column(nullable = false)
@@ -101,6 +106,9 @@ public class Community {
     public void setTags(List<String> tags) { this.tags = new ArrayList<>(tags); }
     public int getMemberCount() { return memberCount; }
     public int getPostCount() { return postCount; }
+    public String getStatus() { return status == null ? "ACTIVE" : status; }
+    public String getStatusReason() { return statusReason; }
+    public boolean isBanned() { return "BANNED".equals(status); }
     public Instant getCreatedAt() { return createdAt; }
     public List<CommunityRule> getRules() { return rules; }
     public List<CommunityFlair> getFlairs() { return flairs; }

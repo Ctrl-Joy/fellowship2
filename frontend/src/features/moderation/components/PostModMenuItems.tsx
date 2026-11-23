@@ -23,7 +23,12 @@ export function PostModMenuItems({ post, onRemove, onBan }: { post: PostSummary;
     <>
       <MenuSeparator />
       <MenuLabel>Moderation</MenuLabel>
-      {post.removed ? (
+      {post.pending ? (
+        <>
+          <MenuItem icon={<CheckCircle2 />} onSelect={() => run('approve')}>Approve and publish</MenuItem>
+          <MenuItem icon={<ShieldX />} danger onSelect={onRemove}>Remove post</MenuItem>
+        </>
+      ) : post.removed ? (
         <MenuItem icon={<CheckCircle2 />} onSelect={() => run('approve')}>Approve (restore)</MenuItem>
       ) : (
         <>

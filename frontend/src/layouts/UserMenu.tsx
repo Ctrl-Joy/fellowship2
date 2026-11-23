@@ -1,4 +1,4 @@
-import { Bookmark, LogOut, Moon, Settings, Sun, User } from 'lucide-react';
+import { Bookmark, LogOut, Moon, Settings, ShieldHalf, Sun, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Avatar } from '@/components/ui/Display';
 import { Menu, MenuContent, MenuItem, MenuLabel, MenuSeparator, MenuTrigger } from '@/components/ui/Menu';
@@ -35,6 +35,7 @@ export function UserMenu() {
         <MenuItem icon={<User />} onSelect={() => navigate(`/u/${user.username}`)}>Profile</MenuItem>
         <MenuItem icon={<Bookmark />} onSelect={() => navigate('/saved')}>Saved</MenuItem>
         <MenuItem icon={<Settings />} onSelect={() => navigate('/settings')}>Settings</MenuItem>
+        {user.role === 'ADMIN' && <MenuItem icon={<ShieldHalf />} onSelect={() => navigate('/admin')}>Admin dashboard</MenuItem>}
         <MenuItem
           icon={dark ? <Sun /> : <Moon />}
           onSelect={() => {

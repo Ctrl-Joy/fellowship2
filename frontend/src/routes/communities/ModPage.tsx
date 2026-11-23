@@ -10,11 +10,12 @@ import { useTopic } from '@/features/realtime/RealtimeProvider';
 import { AppealsTab, BansTab, LogTab } from '@/features/moderation/components/DashboardTabs';
 import { QueueTab } from '@/features/moderation/components/QueueTab';
 import { PeerEndorsements } from '@/features/reputation/components/PeerEndorsements';
+import { HeldTab } from '@/features/moderation/components/HeldTab';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ApiError } from '@/services/apiError';
 import { cn } from '@/utils/format';
 
-type Tab = 'queue' | 'appeals' | 'bans' | 'log' | 'team';
+type Tab = 'queue' | 'held' | 'appeals' | 'bans' | 'log' | 'team';
 
 function Tile({ label, value }: { label: string; value: number | undefined }) {
   return (
@@ -38,6 +39,7 @@ export default function ModPage() {
   const modCommunityId = community.data?.viewer.canModerate ? community.data.id : null;
   useTopic(modCommunityId != null ? `/topic/modqueue.${modCommunityId}` : null, () => {
     void qc.invalidateQueries({ queryKey: modKeys.queue(slug) });
+    void qc.invalidateQueries({ queryKey: [...modKeys.all(slug), 'held'] });
     void qc.invalidateQueries({ queryKey: modKeys.stats(slug) });
   });
 
@@ -54,6 +56,7 @@ export default function ModPage() {
   const s = stats.data;
   const tabs: { v: Tab; label: string; badge?: number }[] = [
     { v: 'queue', label: 'Queue', badge: s?.openReports },
+    { v: 'held', label: 'Held', badge: s?.heldForReview },
     { v: 'appeals', label: 'Appeals', badge: s?.pendingAppeals },
     { v: 'bans', label: 'Bans' },
     { v: 'log', label: 'Log' },
@@ -88,6 +91,7 @@ export default function ModPage() {
       </div>
       <div role="tabpanel">
         {tab === 'queue' && <QueueTab slug={slug} />}
+        {tab === 'held' && <HeldTab slug={slug} />}
         {tab === 'appeals' && <AppealsTab slug={slug} />}
         {tab === 'bans' && <BansTab slug={slug} />}
         {tab === 'log' && <LogTab slug={slug} />}

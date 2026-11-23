@@ -13,4 +13,6 @@ export const onboardingApi = {
     followUsernames: string[];
     theme?: 'dark' | 'light' | 'system';
   }) => http.post<Me>('/onboarding/complete', body),
+  /** Remembered server-side, so onboarding isn't offered again on the next sign-in. */
+  skip: () => http.post<Me>('/onboarding/skip'),
 };

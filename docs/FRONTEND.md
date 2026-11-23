@@ -195,3 +195,21 @@ Code in `features/reputation/` (`api.ts`, pure `logic.ts` + `logic.test.ts`, com
 - **Mod tools → Team** tab: `PeerEndorsements` ("Helpful +1" with an optional note, one per co-moderator per month).
 - **Settings → Preferences → Moderator recognition**: "Show me on moderator leaderboards" (`/me/moderator-settings`).
 - Empty states say why a board is empty (no qualifying activity yet) instead of showing placeholder rankings.
+## Admin, mutes and spam holds (D-021)
+| Route | What it shows | API |
+|---|---|---|
+| `/admin` | Admin dashboard (ADMIN only; others see an "Admins only" page and the server refuses every call). Tabs: **Overview** (real counts, 14-day sign-up bar chart in Recharts with an accessible text label), **Users** (debounced prefix search, status filter, detail dialog with counts, moderated communities, admin history and suspend/unsuspend/promote/demote with a reason), **Communities** (search, filter, quarantine/ban/restore with a required reason), **Flags** (spam holds and rejections across communities; open reports grouped per target with remove/dismiss), **Audit log** | `/admin/**` |
+| `/c/:slug/mod?tab=held` | "Held" tab in mod tools: content held by the spam checks, with Approve and publish / Remove | `/communities/{slug}/mod/held`, `/mod/flags/{id}/…` |
+| `/settings?tab=muted` | Muted people and communities with Unmute | `/me/mutes`, `/users/{u}/mute`, `/communities/{slug}/mute` |
+- **Entry points:** "Admin dashboard" in the account menu for admins. Mute button on profiles (next to Block) and an icon
+  button in the community header. Mute state comes only from `/me/mutes` (`features/mutes/api.ts`), never from public payloads.
+- **Held content:** feed cards and the post page show "Awaiting review"; the post page explains who can see it. A held
+  comment shows an "Awaiting review" tag, and the author gets a toast instead of a comment-count bump. Moderators see
+  "Approve and publish" in the post and comment menus.
+- **Muted comments** start collapsed with a "muted" hint and expand on click.
+- **Quarantined/banned communities** show a banner with the admins' reason; a banned community shows a closed state.
+- **Feed mod tools:** `PostCard`/`PostRow` pass `post.viewer?.canModerate` to `PostMenu`, so moderators get remove,
+  approve, lock, pin and ban in feeds. `patchPostEverywhere` keeps the detail's wider `viewer` when patching from a feed row.
+- **Onboarding:** "Skip for now" calls `POST /onboarding/skip` and stores the returned `Me`.
+- Pure logic: `features/admin/helpers.ts` (chart series, offered account actions, audit sentences, rule labels) and
+  `features/mutes/api.ts` lookups, tested in `helpers.test.ts` and `mutes.test.ts`.

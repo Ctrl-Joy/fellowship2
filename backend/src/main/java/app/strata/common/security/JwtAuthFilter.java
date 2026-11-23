@@ -24,10 +24,12 @@ import org.springframework.web.filter.OncePerRequestFilter;
 public class JwtAuthFilter extends OncePerRequestFilter {
     private final JwtService jwt;
     private final ObjectMapper mapper;
+    private final AccountStatusCache accounts;
 
-    public JwtAuthFilter(JwtService jwt, ObjectMapper mapper) {
+    public JwtAuthFilter(JwtService jwt, ObjectMapper mapper, AccountStatusCache accounts) {
         this.jwt = jwt;
         this.mapper = mapper;
+        this.accounts = accounts;
     }
 
     @Override
@@ -35,18 +37,30 @@ public class JwtAuthFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
         String header = req.getHeader("Authorization");
         if (header != null && header.startsWith("Bearer ") && !req.getRequestURI().startsWith("/api/v1/auth/")) {
-            Optional<AuthUser> user = jwt.verify(header.substring(7));
-            if (user.isEmpty()) {
-                res.setStatus(HttpStatus.UNAUTHORIZED.value());
-                res.setContentType(MediaType.APPLICATION_JSON_VALUE);
-                mapper.writeValue(res.getOutputStream(),
-                        GlobalExceptionHandler.body(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", "Access token expired or invalid"));
+            Optional<AuthUser> token = jwt.verify(header.substring(7));
+            if (token.isEmpty()) {
+                reject(res, "Access token expired or invalid");
                 return;
             }
-            var auth = new UsernamePasswordAuthenticationToken(user.get(), null,
-                    List.of(new SimpleGrantedAuthority("ROLE_" + user.get().role())));
+            // A valid token is not enough: suspended or deleted accounts lose access at once, and the role comes
+            // from the account (a promoted or demoted admin doesn't wait for the token to expire). See D-021.
+            Optional<AccountStatusCache.State> state = accounts.state(token.get().id());
+            if (state.isEmpty() || !state.get().active()) {
+                reject(res, state.isPresent() && "SUSPENDED".equals(state.get().status())
+                        ? "This account is suspended" : "Account is not active");
+                return;
+            }
+            AuthUser user = new AuthUser(token.get().id(), token.get().username(), state.get().role());
+            var auth = new UsernamePasswordAuthenticationToken(user, null,
+                    List.of(new SimpleGrantedAuthority("ROLE_" + user.role())));
             SecurityContextHolder.getContext().setAuthentication(auth);
         }
         chain.doFilter(req, res);
+    }
+
+    private void reject(HttpServletResponse res, String message) throws IOException {
+        res.setStatus(HttpStatus.UNAUTHORIZED.value());
+        res.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        mapper.writeValue(res.getOutputStream(), GlobalExceptionHandler.body(HttpStatus.UNAUTHORIZED, "UNAUTHORIZED", message));
     }
 }

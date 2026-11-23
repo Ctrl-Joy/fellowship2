@@ -8,7 +8,7 @@ import { FormAlert } from '@/components/ui/Field';
 import { ErrorState } from '@/components/ui/States';
 import { toast } from '@/components/ui/Toast';
 import { useAuth } from '@/features/auth/hooks';
-import { useCompleteOnboarding, useOnboardingSuggestions, useTopics } from '@/features/onboarding/hooks';
+import { useCompleteOnboarding, useOnboardingSuggestions, useSkipOnboarding, useTopics } from '@/features/onboarding/hooks';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { useTheme, type ThemePref } from '@/hooks/useTheme';
 import { errorMessage } from '@/services/apiError';
@@ -52,6 +52,7 @@ export default function OnboardingPage() {
   const topics = useTopics();
   const suggestions = useOnboardingSuggestions(topicIds, step >= 1);
   const complete = useCompleteOnboarding();
+  const skip = useSkipOnboarding();
   const [err, setErr] = useState<string | null>(null);
 
   const finish = () => {
@@ -177,7 +178,18 @@ export default function OnboardingPage() {
       </AnimatePresence>
 
       <div className="mt-8 flex items-center justify-between gap-3 border-t border-border pt-5">
-        <Button variant="ghost" onClick={() => navigate('/home')}>Skip for now</Button>
+        <Button
+          variant="ghost"
+          loading={skip.isPending}
+          onClick={() =>
+            skip.mutate(undefined, {
+              onSuccess: () => navigate('/home'),
+              onError: (e) => toast.error(errorMessage(e)),
+            })
+          }
+        >
+          Skip for now
+        </Button>
         <div className="flex gap-2">
           {step > 0 && <Button variant="outline" onClick={() => setStep((s) => s - 1)}>Back</Button>}
           {step < STEPS.length - 1 ? (

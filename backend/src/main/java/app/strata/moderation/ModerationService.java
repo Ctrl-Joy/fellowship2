@@ -68,13 +68,15 @@ public class ModerationService {
     private final RateLimiter limiter;
     private final app.strata.realtime.RealtimePublisher realtime;
     private final app.strata.reputation.ReputationQueue reputation;
+    private final app.strata.spam.SpamService spam;
 
     public ModerationService(JdbcClient jdbc, CommunityRepository communities, CommunityAccess access, MembershipDao memberships,
                              PostService posts, UserRepository users, UserDirectory directory, NotificationService notifications,
                              RateLimiter limiter, app.strata.realtime.RealtimePublisher realtime,
-                             app.strata.reputation.ReputationQueue reputation) {
+                             app.strata.reputation.ReputationQueue reputation, app.strata.spam.SpamService spam) {
         this.realtime = realtime;
         this.reputation = reputation;
+        this.spam = spam;
         this.jdbc = jdbc;
         this.communities = communities;
         this.access = access;
@@ -189,12 +191,16 @@ public class ModerationService {
             case REMOVE_POST -> {
                 jdbc.sql("UPDATE posts SET removed = TRUE, pinned = FALSE WHERE id = ?").param(postId).update();
                 reputation.markDirty(author); // votes on removed content stop counting
+                if (ctx.post().isPending()) spam.closeHeld(postId, null, user, "REMOVED");
                 long id = log(communityId, user, action, author, postId, null, reason, null);
                 resolveReports(postId, null, user, "REMOVED");
                 if (author != null) notifications.contentRemoved(author, ctx.community().getSlug(), "post", id, reason);
             }
             case APPROVE_POST -> {
-                jdbc.sql("UPDATE posts SET removed = FALSE WHERE id = ?").param(postId).update();
+                // A held post is released (counters, notifications, live event); anything else is simply restored.
+                if (!spam.release(postId, null, user)) {
+                    jdbc.sql("UPDATE posts SET removed = FALSE WHERE id = ?").param(postId).update();
+                }
                 reputation.markDirty(author);
                 reverseOpen(postId, null, Action.REMOVE_POST, user);
                 log(communityId, user, action, author, postId, null, reason, null);
@@ -234,11 +240,14 @@ public class ModerationService {
         if (action == Action.REMOVE_COMMENT) {
             jdbc.sql("UPDATE comments SET removed = TRUE WHERE id = ?").param(commentId).update();
             reputation.markDirty(c.authorId());
+            spam.closeHeld(c.postId(), commentId, user, "REMOVED");
             long id = log(communityId, user, action, c.authorId(), c.postId(), commentId, reason, null);
             resolveReports(c.postId(), commentId, user, "REMOVED");
             if (c.authorId() != null) notifications.contentRemoved(c.authorId(), ctx.community().getSlug(), "comment", id, reason);
         } else if (action == Action.APPROVE_COMMENT) {
-            jdbc.sql("UPDATE comments SET removed = FALSE WHERE id = ?").param(commentId).update();
+            if (!spam.release(c.postId(), commentId, user)) {
+                jdbc.sql("UPDATE comments SET removed = FALSE WHERE id = ?").param(commentId).update();
+            }
             reputation.markDirty(c.authorId());
             reverseOpen(c.postId(), commentId, Action.REMOVE_COMMENT, user);
             log(communityId, user, action, c.authorId(), c.postId(), commentId, reason, null);
@@ -380,7 +389,7 @@ public class ModerationService {
                 .param(cid).query(Long.class).single();
         long removed = jdbc.sql("SELECT count(*) FROM moderation_actions WHERE community_id = ? AND action IN ('REMOVE_POST','REMOVE_COMMENT') AND created_at > now() - interval '30 days'")
                 .param(cid).query(Long.class).single();
-        return new ModStats(open, appeals, bans, actions, removed);
+        return new ModStats(open, appeals, bans, actions, removed, spam.openHoldCount(cid));
     }
 
     // ------------------------------------------------------------------ appeals

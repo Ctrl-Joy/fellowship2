@@ -71,6 +71,18 @@ public class OnboardingController {
         return new Suggestions(communities.byIds(ids, user), people);
     }
 
+    /**
+     * "Skip for now" is remembered: the account is marked as onboarded without changing interests, memberships or
+     * follows, so the guided setup isn't offered again on the next sign-in. Everything stays editable in Settings.
+     */
+    @PostMapping("/skip")
+    @Transactional
+    public Me skip(@AuthenticationPrincipal AuthUser user) {
+        User u = userService.requireActive(user.id());
+        u.setOnboardingCompleted(true);
+        return UserMapper.toMe(u);
+    }
+
     @PostMapping("/complete")
     @Transactional
     public Me complete(@AuthenticationPrincipal AuthUser user, @Valid @RequestBody CompleteRequest req) {

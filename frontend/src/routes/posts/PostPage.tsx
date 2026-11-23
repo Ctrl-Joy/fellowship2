@@ -129,7 +129,15 @@ export default function PostPage() {
               </div>
             )}
 
-            {p.removed && <p className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">This post was removed by moderators.</p>}
+            {p.pending ? (
+              <p role="status" className="mt-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
+                {p.viewer.canModerate
+                  ? 'Held by the automatic spam checks. Only the author and moderators can see it. Approve it from the menu or the mod queue to publish it.'
+                  : 'Your post is waiting for a moderator to review it. Automatic spam checks held it; only you and the moderators can see it for now.'}
+              </p>
+            ) : (
+              p.removed && <p className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">This post was removed by moderators.</p>
+            )}
 
             {p.type === 'LINK' && p.url && (
               <a href={p.url} target="_blank" rel="noopener noreferrer nofollow ugc" className="mt-4 flex items-center gap-3 rounded-md border border-border bg-surface-2/50 px-3 py-2.5 text-sm hover:border-accent/50">

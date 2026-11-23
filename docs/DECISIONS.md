@@ -251,3 +251,49 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
 - **Freshness.** Scores refresh every 10 minutes, at startup and immediately after an endorsement. The demo seed has
   votes but no moderation history, so reputation pages are populated on first start and moderator boards stay honestly
   empty until moderators act.
+**D-021 Admin dashboard, mutes and write-time spam heuristics (rest of Phase 3).**
+- **Admin access is checked three times.** `/api/v1/admin/**` needs the ADMIN role (the matcher now sits before the
+  public-GET rule, which previously let admin GETs through to the service), the service re-checks it, and the role
+  itself is read from the account on every request. `AccountStatusCache` keeps each account's status and role for 30 s
+  and admin actions evict it, so a suspension or demotion applies on the next request instead of when the 15-minute
+  access token expires. Suspension also revokes every refresh token, and login refuses suspended accounts (already did).
+  On several nodes the cache means up to 30 s of delay. WebSocket sessions are authenticated at CONNECT and are not cut
+  by a suspension until they reconnect (the next REST call fails, and the client then signs out).
+- **Guard rails.** Admins can't suspend, promote or demote themselves, and an admin must be demoted before being
+  suspended, so the dashboard can't be used to lock out the last admin by accident.
+- **Append-only audit.** `admin_actions` has a trigger that rejects DELETE and any UPDATE except foreign keys being set
+  to NULL (when a referenced row is deleted). Moderator decisions on held content also go to the community's
+  `moderation_actions` log, so a community's own log stays complete.
+- **Community status.** Quarantine hides a community from discovery (Popular/All tabs, trending, site search,
+  suggestions, directory) but keeps it reachable with a banner; ban closes it to everyone but admins and drops its
+  posts from every feed. Joined members still see a quarantined community in For You/Following, because they opted in.
+  Moderators are notified with the reason.
+- **Mute vs block.** Block stays the strong, two-way tool (hides content, stops DMs, removes follows). Mute is private and
+  one-way: the muted person's posts leave the muter's feeds, their comments are collapsed (not erased) and they can't
+  notify the muter, but they can still interact. A muted community leaves the Home tabs only. Mutes are never exposed on
+  public payloads; the client learns them only from `/me/mutes`.
+- **Spam heuristics at write time, no ML.** Four cheap checks run inside the post/comment transaction, each a couple of
+  indexed lookups on the author's own recent rows:
+  - **Link velocity** (new accounts): more than 5 links across posts and comments within 10 min → hold; 20 or more → reject.
+  - **Duplicate content**: the same normalised title+body (sha256 of lower-cased text with punctuation and spacing
+    collapsed), or the same normalised link from the same author, in 3 or more communities within 1 h → hold; 6 or more → reject.
+    Identical bodies of 40+ characters also match across different accounts, which catches simple copy-paste rings.
+  - **Posting burst** (new accounts): more than 8 posts and comments within 5 min → hold; more than 30 → reject.
+  - **Excessive mentions**: more than 8 distinct @mentions in one item → hold; more than 25 → reject.
+  "New" means younger than 7 days. Community moderators and platform admins are exempt. Every number is configurable
+  under `strata.spam.*` (`SPAM_HEURISTICS_ENABLED=false` turns them off), and the test profile disables them unless a
+  test switches one on.
+- **Held, not deleted.** Held content is stored with `pending = TRUE` and `removed = TRUE`, so every existing
+  `removed = FALSE` filter (feeds and their partial indexes, AI retrieval, digests, collections, votes) already hides it.
+  Only the author and the community's moderators can open it. Counters, notifications and live events are deferred
+  until release, so nothing leaks that the content exists. A rejection rolls the write back, but its flag is written in
+  its own transaction so admins can see what was refused.
+- **What it does not catch.** These are rate and repetition rules. They don't judge content, so a slow, patient spammer,
+  rotating links on aged accounts, paraphrased copies, or image-only spam all pass. They can also hold an honest new
+  user who shares many links in one go, which is why the outcome is a hold for human review rather than a removal.
+  Known gap: an author's pending reply under a comment with no other replies isn't re-shown to them after a reload
+  (the reply count is only bumped on release); it still appears in the mod queue and is released normally.
+- **Feed mod tools.** `PostSummary.viewer.canModerate` is computed for the whole page with one query (memberships with a
+  moderator role in the page's communities, or the viewer is an admin), so feed cards show the existing
+  remove/approve/lock/pin menu without per-row requests.
+- **Onboarding skip** is now persisted (`POST /onboarding/skip` marks the account as onboarded without changing anything else).

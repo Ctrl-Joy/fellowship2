@@ -540,3 +540,77 @@ ModPeers { period, community: CommunityRef, peers: { moderator: UserSummary, end
 | POST | `/communities/{slug}/moderators/{username}/endorsement` | auth; `{note? (≤280)}` → 204. Co-moderators only, not yourself; one per endorser → moderator → month (posting again edits the note). Recomputes that community's scores. 30/hour |
 | DELETE | `/communities/{slug}/moderators/{username}/endorsement` | 204; 404 if you hadn't endorsed them this month |
 | GET / PUT | `/me/moderator-settings` | `{publicRanking: boolean}`. Off = scores are still computed, but hidden from every leaderboard and from other people's view of your profile |
+## Admin, mutes and spam holds (Phase 3, D-021)
+
+### Admin (`/admin/**`, ADMIN role only; anonymous → 401, other users → 403)
+Every state change writes one row to the append-only admin audit log.
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/admin/overview` | `Overview {users, newUsers7d, suspendedUsers, communities, quarantinedCommunities, bannedCommunities, posts, comments, openReports, openFlags, signups: DayCount[14]}`; `DayCount {day: "YYYY-MM-DD" (UTC), count}`, zero-filled |
+| GET | `/admin/users?q=&status=&cursor=&limit=` | `CursorPage<AdminUser>`, newest first. `q` = username or email prefix; `status` = `ACTIVE`, `SUSPENDED`, `DEACTIVATED`, `DELETED` or `ADMIN` (role) |
+| GET | `/admin/users/{id}` | `AdminUserDetail {user: AdminUser, moderatorOf: CommunityRef[], history: AuditEntry[]}` |
+| POST | `/admin/users/{id}/suspend` | `{reason}` (required) → `AdminUserDetail`. Revokes every session; the account's live access tokens stop working on the next request. Not yourself, not an admin (demote first) |
+| POST | `/admin/users/{id}/unsuspend` | `{reason?}` → `AdminUserDetail` |
+| POST | `/admin/users/{id}/role` | `{role: "ADMIN"|"USER", reason?}` → `AdminUserDetail`. Never your own account; active accounts only; applies on the user's next request |
+| GET | `/admin/communities?q=&status=&cursor=&limit=` | `CursorPage<AdminCommunity>`; `q` matches slug or name; `status` = `ACTIVE`, `QUARANTINED`, `BANNED` |
+| POST | `/admin/communities/{slug}/status` | `{status, reason}` (reason required unless restoring to `ACTIVE`) → `AdminCommunity`. Moderators get a `COMMUNITY_STATUS` notification |
+| GET | `/admin/flags?status=OPEN|ALL&cursor=` | `CursorPage<SpamFlag>` across all communities; `ALL` includes rejections and resolved flags |
+| POST | `/admin/flags/{id}/approve` · `/admin/flags/{id}/remove` | → `FlagResolution {flagId, communityId, status}` (also audited) |
+| GET | `/admin/reports` | `AdminReport[]`: open reports grouped per target across communities, most-reported first (top 100). Act with the moderator endpoints; admins moderate everywhere |
+| GET | `/admin/audit?cursor=` | `CursorPage<AuditEntry>`, newest first |
+
+```ts
+AdminUser { id, username, displayName, avatarUrl, email, role: "USER"|"ADMIN", status: "ACTIVE"|"DEACTIVATED"|"DELETED"|"SUSPENDED",
+            emailVerified, createdAt, postKarma, commentKarma, postCount, commentCount, suspendedReason, suspendedAt }
+AdminCommunity { id, slug, name, iconUrl, visibility, status: "ACTIVE"|"QUARANTINED"|"BANNED", statusReason, memberCount, postCount,
+                 createdAt, owner: UserSummary|null, openReports, openFlags }
+AuditEntry { id, action, admin: UserSummary|null, targetUser: UserSummary|null, targetCommunity: CommunityRef|null, flagId, reason, createdAt }
+// action: SUSPEND_USER | UNSUSPEND_USER | PROMOTE_ADMIN | DEMOTE_ADMIN | QUARANTINE_COMMUNITY | BAN_COMMUNITY | RESTORE_COMMUNITY | APPROVE_FLAG | REMOVE_FLAG
+AdminReport { community: CommunityRef, targetType, postId, commentId, title, excerpt, author, reportCount, reasons: string[], removed, lastReportedAt }
+```
+
+**Account status on every request.** A valid access token is no longer enough: the request filter checks the account's
+status and role (cached for 30 s, evicted immediately by admin actions). Suspended, deactivated or deleted accounts get
+`401` (`"This account is suspended"` for suspensions), so the client's refresh also fails and it signs out. Login of a
+suspended account returns `403 "This account is suspended"`.
+
+**Community status.** `CommunityDetail` gains `status` and `statusReason`. `QUARANTINED`: left out of the Popular/All
+tabs (latest, rising, top, popular), trending, the For You topic fallback, site-wide search and suggestions, the
+directory and trending communities; still reachable by link and searchable inside the community. `BANNED`: the community
+and its posts return `403 "This community has been banned"` for everyone but admins, its posts leave every feed, and
+nobody can post or comment.
+
+### Spam holds (community moderators)
+Posts and comments that trip a write-time heuristic are **held**: saved with `pending: true` (and `removed: true`
+internally), visible only to the author and the community's moderators, without notifications, counters or live
+events until a moderator approves them. Clearly abusive content (far past a threshold) is refused with
+`422 SPAM_REJECTED`; the refusal is still recorded as a closed `SpamFlag` with `outcome: "REJECTED"`.
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/communities/{slug}/mod/held` | moderators only → `SpamFlag[]` (open holds, newest first) |
+| POST | `/mod/flags/{id}/approve` | releases the content (counters, reply/mention notifications and live events happen now); logs `RELEASE_HELD` in the mod log |
+| POST | `/mod/flags/{id}/remove` | keeps it hidden, logs a normal `REMOVE_POST`/`REMOVE_COMMENT` (appealable) and notifies the author |
+
+The regular moderator actions also work on held content: `POST /mod/posts/{id}/approve` (or `/mod/comments/{id}/approve`)
+releases it, `remove` removes it, and both close its flags. `ModStats` gains `heldForReview`.
+```ts
+SpamFlag { id, community: CommunityRef, author: UserSummary|null, authorJoinedAt, targetType: "POST"|"COMMENT", postId, commentId,
+           postTitle, rules: ("LINK_VELOCITY"|"DUPLICATE"|"BURST"|"MENTIONS")[], outcome: "HELD"|"REJECTED", details, excerpt,
+           status: "OPEN"|"APPROVED"|"REMOVED"|"CLOSED", resolvedBy, resolvedAt, createdAt }
+```
+`PostSummary`/`PostDetail` gain `pending: boolean`; `CommentNode` gains `pending: boolean` and `muted: boolean`.
+Thresholds live in `application.yml` under `strata.spam.*` (see D-021).
+
+### Mutes (private)
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/me/mutes` | `{users: UserSummary[], communities: CommunityRef[]}` |
+| PUT / DELETE | `/users/{username}/mute` | 204. Their posts leave all your feeds (including community feeds), their comments arrive with `muted: true` (the client collapses them; the body is still included), and they can't notify you. They can still see and reply to you |
+| PUT / DELETE | `/communities/{slug}/mute` | 204. The community leaves your Home tabs (For You, Following, Latest, Popular, Rising, Top) and trending; its own page still works |
+
+### Feed rows carry moderator rights
+`PostSummary` gains `viewer: {canModerate}`, computed for the whole page in one batched query (platform admins moderate
+everywhere). `PostDetail.viewer` keeps its wider shape `{canEdit, canDelete, canModerate}`.
+
+### Onboarding skip
+| POST | `/onboarding/skip` | → `Me` with `onboardingCompleted: true`; nothing else changes. The guided setup isn't offered again |
