@@ -903,3 +903,88 @@ with `STRIPE_WEBHOOK_SECRET` or, if set, `STRIPE_CONNECT_WEBHOOK_SECRET`; event 
 `TransparencyReport.payouts` checks allocated = transferred + held against the PAYOUT rows and the payout rows.
 `FundingStatus.payouts` describes what happens to allocations (recorded only, held until payouts are enabled, or paid out
 through Stripe Connect).
+## Pack rooms, reactions and automod (D-043 to D-045)
+
+### Pack rooms (group conversations)
+A pack room is a conversation with a name, an optional icon emoji and 3 to 50 members at creation. It shares the
+conversation endpoints above (`/me/conversations/{id}`, `/messages`, `/read`, `DELETE /me/messages/{id}`, typing, the
+unread count and the participant-signed image URLs), so one-to-one conversations behave exactly as before.
+
+```ts
+ConversationSummary += { kind: "DIRECT" | "ROOM", room: RoomInfo | null }
+  // ROOM: other = null, otherLastReadMessageId = null, online = "another member is online", canMessage = true,
+  // lastMessage.excerpt is "mira_k: text" for other people's messages, the line itself for system messages
+  // (senderId null), or "Message from someone you blocked".
+RoomInfo { name, iconEmoji: string|null, memberCount, myRole: "OWNER" | "ADMIN" | "MEMBER" }
+DmMessage += { kind: "USER" | "SYSTEM", fromBlocked: boolean }
+  // SYSTEM: a membership or settings event rendered as text in body ("mira_k added dev_ostrander"); never unread.
+  // fromBlocked (rooms only): from someone you blocked; body is "" and media is [] (show it collapsed).
+RoomDetail { id, name, iconEmoji, myRole, maxMembers: 50, createdAt,
+             members: { user: UserSummary, role, joinedAt, lastReadMessageId: number|null, online }[] }
+             // owner first, then admins, then by join time; lastReadMessageId gives per-member receipts ("Seen by 3")
+```
+| Method | Path | Who | Notes |
+|---|---|---|---|
+| POST | `/me/rooms` | anyone | `{name ≤60, iconEmoji?, usernames: 2..49}` → 201 `ConversationSummary`. Each invitee must pass the first-message rule from you (blocks either way, then their `dmPolicy`); the first refusal names the person (400, field `usernames`). 10/h |
+| GET | `/me/rooms/{id}` | members | `RoomDetail`. 404 for non-members and for one-to-one conversations |
+| PATCH | `/me/rooms/{id}` | owner, admins | `{name?, iconEmoji?}` (`""` clears the icon) → `RoomDetail`; writes a system line |
+| POST | `/me/rooms/{id}/members` | owner, admins | `{usernames: 1..48}` → `RoomDetail`. Same invite rule; new members start with nothing unread |
+| DELETE | `/me/rooms/{id}/members/{userId}` | owner (anyone but themselves), admins (members only) | → `RoomDetail`. The removed person loses the whole room at once, including signed image URLs |
+| PUT | `/me/rooms/{id}/members/{userId}/role` | owner | `{role: "ADMIN" \| "MEMBER"}` → `RoomDetail` |
+| POST | `/me/rooms/{id}/transfer` | owner | `{userId}` → `RoomDetail`; the old owner becomes an admin |
+| POST | `/me/rooms/{id}/leave` | members | 204. An owner who leaves hands the room to the longest-standing admin (else member); the last one out deletes it |
+| DELETE | `/me/rooms/{id}` | owner | 204. Deletes the room and its history for everyone |
+
+Blocks inside a room: a member who blocked someone still shares the room but gets their messages as `fromBlocked`, isn't
+counted unread for them, doesn't get their typing, and can't react to them. Presence is no longer pushed between people
+with a block either way (also for one-to-one conversations).
+
+New personal events: `ROOM_UPDATED {conversationId}` (name, icon or members changed: refetch the room and summary),
+`ROOM_REMOVED {conversationId}` (you left, were removed or the room was deleted: drop it), and
+`REACTIONS {targetType: "MESSAGE", targetId, conversationId}`. `READ` receipts go to every other member.
+
+### Reactions
+A curated set (`GET /reactions/catalog` → `{key, emoji, label}[]`): `like` 👍, `heart` ❤️, `laugh` 😂, `wow` 😮,
+`sad` 😢, `fire` 🔥, `howl` 🐺, `party` 🎉, `clap` 👏, `think` 🤔. One of each kind per person per target.
+
+```ts
+TargetReactions { targetType: "POST" | "COMMENT" | "MESSAGE", targetId,
+                  reactions: { reaction, emoji, label, count, mine, sample: string[] /* ≤3 usernames, earliest first,
+                               never people you blocked */, others: number }[] /* catalog order */ }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/reactions?targetType=COMMENT&ids=1,2,3` | ≤100 ids → `TargetReactions[]` for the ids you can see (others are left out). Public for posts and comments; MESSAGE needs sign-in and membership |
+| POST | `/reactions` | `{targetType, targetId, reaction, on?: boolean}` (no `on` toggles) → `{active, summary}`. Auth, 60/min. 404 for content you can't see, removed, deleted, held or system content; 403 with a block either way or a community ban |
+
+Reacting to someone's post or comment notifies them (type `REACTION`, grouped per target; blocked and muted people never
+notify you, and your own reactions don't). Live: `/topic/post.{postId}` gains
+`{type: "REACTIONS", postId, targetType: "POST" | "COMMENT", targetId}`; message reactions arrive as the personal
+`REACTIONS` event. Both carry ids only. Deleting a message clears its reactions.
+
+### Automod (community moderators and platform admins)
+Base path `/communities/{slug}/mod/automod`.
+```ts
+AutomodRule { id, name ≤80, kind: "KEYWORD" | "REGEX" | "LINK_LIMIT" | "ACCOUNT_AGE" | "KARMA" | "DOMAIN",
+              pattern: string|null /* KEYWORD: one phrase per line, * = any letters; REGEX: one RE2 pattern ≤500;
+                                     DOMAIN: one domain per line (subdomains included) */,
+              threshold: number|null /* LINK_LIMIT 0..100 links; ACCOUNT_AGE 1..3650 days; KARMA 1..1,000,000 */,
+              appliesTo: "POSTS" | "COMMENTS" | "BOTH", action: "HOLD" | "REMOVE" | "FLAG",
+              reason ≤200 /* shown to the author */, enabled, createdBy, createdAt, updatedAt, hits30d }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/rules` | `AutomodRule[]` |
+| POST | `/rules` | rule body → 201 `AutomodRule`. Up to 50 rules; invalid patterns are 400 with field `pattern` |
+| PUT | `/rules/{id}` | partial body (left-out fields keep their values) → `AutomodRule` |
+| DELETE | `/rules/{id}` | 204 |
+| POST | `/preview` | a draft rule (not saved) → `{scannedPosts, scannedComments, matchCount, matches: {targetType, postId, commentId, author, excerpt, detail, authorExempt, createdAt}[] /* ≤50 */, timedOut}` against the latest 200 posts and 300 comments. Changes nothing. 30 per 10 min |
+| GET | `/hits?limit=50` | recent `{id, ruleId, ruleName, action, outcome, targetType, postId, commentId, author, detail, excerpt, createdAt}[]` |
+
+At write time (new posts and comments, after the global spam checks): **REMOVE** stores the item removed and logs a
+normal, appealable `REMOVE_POST`/`REMOVE_COMMENT` with no moderator and the reason `Automod: <rule>: <reason>`; the
+author gets the usual removal notification with the rule's reason. **HOLD** uses the spam hold flow (Held tab,
+`spam_flags.rules` contains `AUTOMOD`), logs `AUTOMOD_HOLD`, and sends the author an `AUTOMOD_HELD` notification with the
+reason. **FLAG** publishes normally and logs `AUTOMOD_FLAG`. The strongest outcome wins (remove > hold > flag; a spam hold
+counts as hold). Rule changes are logged as `AUTOMOD_RULE` by the moderator who made them. Moderators of the community
+and admins are exempt; automod never bans. Edits to existing content are not re-checked.

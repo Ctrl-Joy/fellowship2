@@ -52,7 +52,16 @@ export const ACTION_LABELS: Record<ModActionType, string> = {
   BAN: 'Banned user',
   UNBAN: 'Unbanned user',
   RELEASE_HELD: 'Released held content',
+  AUTOMOD_HOLD: 'Automod held',
+  AUTOMOD_FLAG: 'Automod flagged',
+  AUTOMOD_RULE: 'Changed automod rules',
 };
+
+/** Automod writes its log rows with no moderator and a reason starting "Automod:" (D-045). */
+export function isAutomodAction(a: { moderator: unknown; action: ModActionType; reason: string | null }): boolean {
+  if (a.action === 'AUTOMOD_HOLD' || a.action === 'AUTOMOD_FLAG') return true;
+  return a.moderator == null && (a.reason ?? '').startsWith('Automod:');
+}
 
 /** Headline for the affected user's page (/mod-actions/:id), in plain words. */
 export function affectedUserHeadline(action: ModActionType, slug: string): string {

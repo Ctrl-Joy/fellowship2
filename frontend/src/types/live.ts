@@ -16,4 +16,6 @@ export type PostEvent =
   /** Batched by the server, at most every ~2 s per post. */
   | { type: 'POST_STATS'; postId: ID; score: number; commentCount: number }
   /** Batched by the server, at most every ~2 s per post. Keys are comment ids. */
-  | { type: 'COMMENT_SCORES'; postId: ID; scores: Record<string, number> };
+  | { type: 'COMMENT_SCORES'; postId: ID; scores: Record<string, number> }
+  /** Reactions on the post or one of its comments changed (D-044). Ids only. */
+  | { type: 'REACTIONS'; postId: ID; targetType: 'POST' | 'COMMENT'; targetId: ID };

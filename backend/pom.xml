@@ -65,6 +65,8 @@
         <!-- QR codes for TOTP enrolment, rendered server-side as SVG (no external QR service, D-042). Pinned. -->
         <dependency><groupId>com.google.zxing</groupId><artifactId>core</artifactId><version>${zxing.version}</version></dependency>
         <dependency><groupId>com.anthropic</groupId><artifactId>anthropic-java</artifactId><version>3.12.0</version></dependency>
+        <!-- Linear-time regular expressions for community automod rules: no backtracking, so no ReDoS (D-045). -->
+        <dependency><groupId>com.google.re2j</groupId><artifactId>re2j</artifactId><version>1.8</version></dependency>
 
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
         <dependency><groupId>org.springframework.security</groupId><artifactId>spring-security-test</artifactId><scope>test</scope></dependency>

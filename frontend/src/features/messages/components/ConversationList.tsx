@@ -1,4 +1,4 @@
-import { MessagesSquare, PenSquare, Search } from 'lucide-react';
+import { MessagesSquare, PenSquare, Search, Users } from 'lucide-react';
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
@@ -9,11 +9,13 @@ import { useAuthStore } from '@/store/authStore';
 import type { ConversationSummary } from '@/types/messages';
 import { cn, displayName, timeAgo } from '@/utils/format';
 import { useConversations } from '../api';
+import { CreateRoomDialog } from './CreateRoomDialog';
 import { NewMessageDialog } from './NewMessageDialog';
-import { ConnectionHint, OnlineDot } from './bits';
+import { ConnectionHint, OnlineDot, RoomAvatar } from './bits';
 
 function Row({ c, active, meId }: { c: ConversationSummary; active: boolean; meId: number | undefined }) {
-  const name = c.other ? displayName(c.other) : 'Deleted account';
+  const room = c.kind === 'ROOM' ? c.room : null;
+  const name = room ? room.name : c.other ? displayName(c.other) : 'Deleted account';
   const last = c.lastMessage;
   const excerpt = !last ? 'No messages yet' : last.deleted ? 'Message deleted' : `${last.senderId === meId ? 'You: ' : ''}${last.excerpt}`;
   const unread = c.unreadCount > 0;
@@ -25,12 +27,17 @@ function Row({ c, active, meId }: { c: ConversationSummary; active: boolean; meI
         className={cn('flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-surface-2', active && 'bg-surface-2')}
       >
         <span className="relative shrink-0">
-          <Avatar src={c.other?.avatarUrl} name={c.other?.username ?? '?'} size="md" />
+          {room ? <RoomAvatar icon={room.iconEmoji} /> : <Avatar src={c.other?.avatarUrl} name={c.other?.username ?? '?'} size="md" />}
           {c.online && <OnlineDot className="absolute -bottom-0.5 -right-0.5" />}
         </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-2">
             <span className={cn('truncate text-sm', unread ? 'font-bold' : 'font-medium')}>{name}</span>
+            {room && (
+              <span className="shrink-0 rounded-full bg-accent/15 px-1.5 text-[10px] font-semibold text-accent" title={`Pack room with ${room.memberCount} members`}>
+                Pack · {room.memberCount}
+              </span>
+            )}
             {last && <span className="ml-auto shrink-0 text-[11px] text-faint">{timeAgo(last.createdAt)}</span>}
           </span>
           <span className="flex items-center gap-2">
@@ -51,13 +58,17 @@ export function ConversationList({ activeId, q, onQueryChange }: { activeId: num
   const list = useConversations(useDebouncedValue(q.trim(), 250));
   const meId = useAuthStore((s) => s.user?.id);
   const [composing, setComposing] = useState(false);
+  const [creatingRoom, setCreatingRoom] = useState(false);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="flex items-center gap-2 border-b border-border px-3 py-2.5">
         <h1 className="text-lg font-bold">Messages</h1>
         <ConnectionHint className="ml-1" />
-        <Button size="sm" variant="ghost" className="ml-auto text-text" onClick={() => setComposing(true)}>
+        <Button size="sm" variant="ghost" className="ml-auto text-text" onClick={() => setCreatingRoom(true)} aria-label="New pack room">
+          <Users size={16} /> Room
+        </Button>
+        <Button size="sm" variant="ghost" className="text-text" onClick={() => setComposing(true)}>
           <PenSquare size={16} /> New
         </Button>
       </div>
@@ -104,6 +115,7 @@ export function ConversationList({ activeId, q, onQueryChange }: { activeId: num
         )}
       </div>
       <NewMessageDialog open={composing} onOpenChange={setComposing} />
+      <CreateRoomDialog open={creatingRoom} onOpenChange={setCreatingRoom} />
     </div>
   );
 }

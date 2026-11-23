@@ -1,4 +1,4 @@
-import { AtSign, Award, Ban, Bell, BarChart3, CheckCheck, Gavel, MessageSquare, ShieldAlert, ShieldCheck, UserPlus, type LucideIcon } from 'lucide-react';
+import { AtSign, Award, Ban, Bell, BarChart3, CheckCheck, Gavel, Hourglass, MessageSquare, ShieldAlert, ShieldCheck, SmilePlus, UserPlus, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/Button';
@@ -24,6 +24,8 @@ const ICONS: Record<NotificationType, LucideIcon> = {
   BANNED: Ban,
   APPEAL_RESOLVED: Gavel,
   PULSE_RESULT: BarChart3,
+  REACTION: SmilePlus,
+  AUTOMOD_HELD: Hourglass,
 };
 
 export default function NotificationsPage() {

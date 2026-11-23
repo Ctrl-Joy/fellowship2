@@ -1,5 +1,6 @@
 package app.howlers.post;
 
+import app.howlers.automod.AutomodService;
 import app.howlers.common.error.ApiException;
 import app.howlers.common.ratelimit.RateLimiter;
 import app.howlers.common.security.AuthUser;
@@ -56,6 +57,9 @@ public class PostService {
     private final app.howlers.realtime.RealtimePublisher realtime;
     private final SpamGuard spam;
     private final SpamFlags spamFlags;
+    /** Field-injected to keep the constructor stable for the other modules that build on it. */
+    @org.springframework.beans.factory.annotation.Autowired
+    private AutomodService automod;
 
     public PostService(PostRepository posts, PostQueryService queries, CommunityRepository communities,
                        CommunityAccess access, MediaAssetRepository mediaAssets, HtmlSanitizer sanitizer,
@@ -149,11 +153,17 @@ public class PostService {
         int linkCount = SpamSignals.linksInPost(html, url);
         SpamGuard.Verdict verdict = spam.checkPost(user, access.canModerate(role, user),
                 new SpamGuard.PostInput(c.getId(), title, text, contentHash, linkHash, linkCount));
+        // Community automod runs after the global spam checks (D-045); the strongest outcome wins.
+        AutomodService.Verdict auto = automod.check(user, access.canModerate(role, user), new AutomodService.Input(
+                c.getId(), "POST", user.id(), title + "\n" + text, html + " " + (url == null ? "" : url), linkCount));
+        AutomodService.Action outcome = auto.outcome(verdict.held());
+        boolean held = outcome == AutomodService.Action.HOLD;
+        boolean autoRemoved = outcome == AutomodService.Action.REMOVE;
 
         Post post = posts.saveAndFlush(new Post(c.getId(), user.id(), type, title, html, text, url, flairId, tags,
                 ScoreMath.hot(0, 0, 0, Instant.now())));
         jdbc.sql("UPDATE posts SET content_hash = ?, link_hash = ?, link_count = ?, pending = ?, removed = ? WHERE id = ?")
-                .params(contentHash, linkHash, Math.min(linkCount, Short.MAX_VALUE), verdict.held(), verdict.held(), post.getId())
+                .params(contentHash, linkHash, Math.min(linkCount, Short.MAX_VALUE), held, held || autoRemoved, post.getId())
                 .update();
 
         for (int i = 0; i < media.size(); i++) {
@@ -161,11 +171,21 @@ public class PostService {
                     .params(post.getId(), media.get(i).getId(), i).update();
         }
         if (type == Post.Type.POLL) createPoll(post.getId(), req);
-        if (verdict.held()) {
+        if (outcome != null) automod.record(auto, outcome, c, user.id(), "POST", post.getId(), null, title);
+        if (held) {
             // Held: no counters, mentions or live announcement until a moderator releases it (see released()).
-            spamFlags.recordHeld(c.getId(), user.id(), "POST", post.getId(), null, String.join(",", verdict.rules()),
-                    verdict.details(), clip(title, 300));
+            List<String> rules = new java.util.ArrayList<>(verdict.rules());
+            if (auto.first(AutomodService.Action.HOLD) != null) rules.add("AUTOMOD");
+            String details = String.join("; ", java.util.stream.Stream.of(verdict.details(), AutomodService.holdDetails(auto))
+                    .filter(s -> !s.isBlank()).toList());
+            spamFlags.recordHeld(c.getId(), user.id(), "POST", post.getId(), null, String.join(",", rules),
+                    clip(details, 500), clip(title, 300));
             realtime.modQueueChanged(c.getId());
+            metrics.postCreated(type.name(), true);
+            return post.getId();
+        }
+        if (autoRemoved) {
+            // Removed by automod: stored for the author, the appeal and the mod log, but never published.
             metrics.postCreated(type.name(), true);
             return post.getId();
         }

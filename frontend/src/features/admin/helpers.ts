@@ -7,6 +7,7 @@ export const RULE_LABELS: Record<SpamRule, string> = {
   DUPLICATE: 'Same content in several communities',
   BURST: 'Posting burst from a new account',
   MENTIONS: 'Too many @mentions',
+  AUTOMOD: 'A community automod rule',
 };
 
 export function ruleLabel(rule: string): string {

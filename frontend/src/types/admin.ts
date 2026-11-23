@@ -2,7 +2,7 @@ import type { CommunityRef, CommunityStatus, ID, UserSummary, Visibility } from 
 
 /** Mirrors docs/API.md → Admin, Spam holds and Mutes (D-021). */
 
-export type SpamRule = 'LINK_VELOCITY' | 'DUPLICATE' | 'BURST' | 'MENTIONS';
+export type SpamRule = 'LINK_VELOCITY' | 'DUPLICATE' | 'BURST' | 'MENTIONS' | 'AUTOMOD';
 export type SpamFlagStatus = 'OPEN' | 'APPROVED' | 'REMOVED' | 'CLOSED';
 
 export interface SpamFlag {

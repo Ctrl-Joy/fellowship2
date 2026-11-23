@@ -11,6 +11,7 @@ import { DiscussionTabs } from '@/features/insight/components/DiscussionTabs';
 import { AboutCard, RulesCard } from '@/features/communities/components/CommunitySidebar';
 import { useCommunity } from '@/features/communities/hooks';
 import { usePostLive } from '@/features/live/usePostLive';
+import { ReactionBar } from '@/features/reactions/components/ReactionBar';
 import { EditPostDialog } from '@/features/posts/components/EditPostDialog';
 import { ActionPill } from '@/features/posts/components/ActionPill';
 import { PollView } from '@/features/posts/components/PollView';
@@ -133,8 +134,8 @@ export default function PostPage() {
             {p.pending ? (
               <p role="status" className="mt-4 rounded-md border border-warning/30 bg-warning/10 px-3 py-2 text-sm text-warning">
                 {p.viewer.canModerate
-                  ? 'Held by the automatic spam checks. Only the author and moderators can see it. Approve it from the menu or the mod queue to publish it.'
-                  : 'Your post is waiting for a moderator to review it. Automatic spam checks held it; only you and the moderators can see it for now.'}
+                  ? 'Held by the automatic spam checks or a community automod rule. Only the author and moderators can see it. Approve it from the menu or the mod queue to publish it.'
+                  : 'Your post is waiting for a moderator to review it. Automatic checks (spam or this community’s automod rules) held it; only you and the moderators can see it for now. Your notifications say why.'}
               </p>
             ) : (
               p.removed && <p className="mt-4 rounded-md border border-danger/30 bg-danger/10 px-3 py-2 text-sm text-danger">This post was removed by moderators.</p>
@@ -164,6 +165,8 @@ export default function PostPage() {
             )}
 
             {p.poll && <div className="mt-4 max-w-xl"><PollView postId={p.id} poll={p.poll} /></div>}
+
+            {!p.pending && !p.removed && <div className="mt-4"><ReactionBar type="POST" id={p.id} /></div>}
 
             <div className="mt-4 flex flex-wrap items-center gap-2">
               <VoteControl score={p.score} myVote={p.myVote} label={p.title} disabled={p.locked || p.removed} onVote={(v) => vote.mutate(v, { onError: (e) => toast.error(errorMessage(e)) })} />
