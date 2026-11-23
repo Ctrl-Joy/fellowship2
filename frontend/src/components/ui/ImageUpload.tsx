@@ -30,6 +30,9 @@ export function ImageUpload({
         accept={ACCEPT.join(',')}
         className="sr-only"
         tabIndex={-1}
+        // The visible button below is the control; this input is only its file picker.
+        aria-hidden="true"
+        aria-label={label}
         onChange={(e) => {
           const f = e.target.files?.[0];
           e.target.value = '';

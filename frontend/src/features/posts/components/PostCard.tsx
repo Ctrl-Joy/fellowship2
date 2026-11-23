@@ -6,7 +6,7 @@ import { toast } from '@/components/ui/Toast';
 import { useAuth } from '@/features/auth/hooks';
 import { errorMessage } from '@/services/apiError';
 import type { PostSummary } from '@/types/api';
-import { cn, compactNumber, timeAgo } from '@/utils/format';
+import { compactNumber, timeAgo } from '@/utils/format';
 import { usePostVote, useSavePost } from '../hooks';
 import { postPath } from '../paths';
 import { ActionPill } from './ActionPill';
@@ -161,11 +161,11 @@ export const PostCard = memo(function PostCard({ post, showCommunity = true }: {
             onClick={() => save.mutate(!post.saved, { onError: (e) => toast.error(errorMessage(e)) })}
           >
             {post.saved ? <BookmarkCheck size={15} /> : <Bookmark size={15} />}
-            <span className={cn('hidden sm:inline')}>{post.saved ? 'Saved' : 'Save'}</span>
+            <span className="sr-only sm:not-sr-only">{post.saved ? 'Saved' : 'Save'}</span>
           </ActionPill>
         )}
         <ActionPill onClick={() => copyPostLink(post)}>
-          <Share2 size={15} /> <span className="hidden sm:inline">Share</span>
+          <Share2 size={15} /> <span className="sr-only sm:not-sr-only">Share</span>
         </ActionPill>
       </div>
     </article>

@@ -1,6 +1,6 @@
 import * as RD from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { cn } from '@/utils/format';
 
 interface DialogProps {
@@ -14,11 +14,28 @@ interface DialogProps {
 }
 
 export function Dialog({ open, onOpenChange, title, description, children, footer, size = 'md' }: DialogProps) {
+  // Our dialogs open from ordinary buttons and menu items, not RD.Trigger, so Radix has no trigger to return focus to
+  // when they close. Remember what had focus when the dialog opened and give it back (WCAG 2.4.3 focus order).
+  const returnTo = useRef<HTMLElement | null>(null);
+  useLayoutEffect(() => {
+    if (open && !returnTo.current) {
+      const active = document.activeElement;
+      returnTo.current = active instanceof HTMLElement && active !== document.body ? active : null;
+    }
+  }, [open]);
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         <RD.Overlay className="fixed inset-0 z-50 bg-black/55 data-[state=open]:animate-[fadeIn_120ms_ease-out]" />
         <RD.Content
+          onCloseAutoFocus={(e) => {
+            const el = returnTo.current;
+            returnTo.current = null;
+            if (el?.isConnected) {
+              e.preventDefault();
+              el.focus();
+            }
+          }}
           className={cn(
             'fixed left-1/2 top-1/2 z-50 w-[calc(100vw-32px)] -translate-x-1/2 -translate-y-1/2',
             'max-h-[85vh] overflow-y-auto rounded-lg border border-border bg-surface shadow-float',

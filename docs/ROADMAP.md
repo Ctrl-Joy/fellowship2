@@ -64,3 +64,5 @@ feedback, explicitly not raw removal counts), periods, badges, leaderboard, prof
 ## Phase 10: Polish ☐
 Performance (Redis feed caching, image thumbnails), accessibility audit, Playwright end-to-end suite for the 23
 flows in the brief, production deployment guide (VPS + TLS), observability dashboards.
+- ✅ Playwright end-to-end suite for the 23 flows, CI job, axe accessibility gate and keyboard checks (D-027).
+- ☐ Manual screen-reader pass, triage of moderate/minor axe findings, performance, deployment guide, dashboards.

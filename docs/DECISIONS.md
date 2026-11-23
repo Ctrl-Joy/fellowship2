@@ -297,3 +297,26 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   moderator role in the page's communities, or the viewer is an admin), so feed cards show the existing
   remove/approve/lock/pin menu without per-row requests.
 - **Onboarding skip** is now persisted (`POST /onboarding/skip` marks the account as onboarded without changing anything else).
+
+**D-027 End-to-end suite, accessibility gate, and what they changed.**
+- **Playwright against a real stack, serially, with accessible locators.** The suite (`frontend/e2e/`) drives the 23
+  owner flows plus an axe-core audit and keyboard checks against a real backend and database, never mocks. It runs in one
+  worker because a user's refresh cookie rotates on every page boot and reusing an old cookie revokes the session (by
+  design), so each demo user keeps one browser context. Every test makes uniquely named data so it can run again on the
+  same database. Rate limits stay on: the suite fits inside them (one registration per run, logins reused) instead of
+  weakening them. No flow needs a verified email, so tests never read verification tokens.
+- **Test media is honest.** On a database without a podcast episode (CI), the player test publishes a 20-second WAV
+  sine tone titled as a test tone through the real studio endpoints and deletes it afterwards. The demo seed still
+  never contains invented media.
+- **Dev proxy origin.** The backend checks `Origin` (CORS, refresh/logout, WebSocket handshake) against
+  `CORS_ALLOWED_ORIGINS`. For a second dev server on another port (e2e on 5174 against a backend set up for 5173),
+  `STRATA_DEV_PROXY_ORIGIN` lets the Vite proxy present an allowed origin, but only for requests whose `Origin` is the
+  dev server's own localhost origin, so a foreign site can't borrow it. Off by default; production (nginx) is untouched.
+  CI lists the test origin in `CORS_ALLOWED_ORIGINS` instead.
+- **Accessibility is a build gate.** Serious and critical axe violations fail the suite on ten key pages in both themes
+  at desktop and 375 px. Fixing them changed several light-theme tokens and the faint text token (see DESIGN_SYSTEM v3
+  and ACCESSIBILITY.md): contrast wins over exact hue.
+- **The affected user never sees which moderator acted.** D-014 said removal notifications carry no moderator identity,
+  but `/me/mod-actions/{id}` and the appeal response still returned `action.moderator`, and the page printed
+  "by u/name". Both now return `moderator: null` to the affected user; moderators still see it in the log and appeals.
+

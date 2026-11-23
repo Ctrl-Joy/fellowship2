@@ -257,8 +257,8 @@ MyModAction { action: ModAction, community: CommunityRef, appeal: Appeal|null, c
 | POST | `/mod/appeals/{id}/resolve` | `{accept: boolean, response? (≤1000)}` → `Appeal`. Accepting reverses the action (restore content / lift ban) |
 | POST | `/mod/posts/{id}/{remove\|approve\|lock\|unlock\|pin\|unpin}` | `{reason?}` → `PostDetail`. Max 3 pinned per community. Remove/approve resolve the post's open reports |
 | POST | `/mod/comments/{id}/{remove\|approve}` | `{reason?}` → 204 |
-| GET | `/me/mod-actions/{id}` | the affected user only → `MyModAction` |
-| POST | `/me/mod-actions/{id}/appeal` | `{message (10..2000)}` → `Appeal`. One appeal per action; only REMOVE_* and BAN, not reversed |
+| GET | `/me/mod-actions/{id}` | the affected user only → `MyModAction`. `action.moderator` (and `appeal.action.moderator`) is always `null` here: decisions are the team's (D-014, D-027) |
+| POST | `/me/mod-actions/{id}/appeal` | `{message (10..2000)}` → `Appeal` (with `action.moderator: null`). One appeal per action; only REMOVE_* and BAN, not reversed |
 | GET | `/me/blocks` | `UserSummary[]` |
 | PUT / DELETE | `/users/{username}/block` | 204. Blocked users' posts disappear from your feeds/search; their comments render as `[blocked user]`; they can't notify you |
 

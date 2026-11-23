@@ -185,7 +185,7 @@ colours, `role="note"`), and every amount is rendered through `MoneyAmount`, whi
 Code in `features/reputation/` (`api.ts`, pure `logic.ts` + `logic.test.ts`, components); types in `types/recognition.ts`.
 - **Routes.** `/leaderboard` (tabs: Moderators with month and community selectors, Topics with each topic's top 3) and
   `/topics/:slug/leaders`. "Leaderboard" moved from "Coming next" into the main nav; `/soon/leaderboard` redirects.
-- **Moderator rows** expand (`<details>`) into `ScoreBreakdown`: each component's value, its renormalised weight, the
+- **Moderator rows** expand (a disclosure button with `aria-expanded`; the name links stay outside it) into `ScoreBreakdown`: each component's value, its renormalised weight, the
   points it adds and the raw rows behind it in words. `explainScore` re-derives the server's score from the components
   (tested), and the rail shows `FormulaPanel` built from the server's formula constants, so the page can't drift.
 - **Thread chips.** `ExpertiseChip` sits next to the author name in `CommentItem`; all chips on a thread read one cached
@@ -213,3 +213,47 @@ Code in `features/reputation/` (`api.ts`, pure `logic.ts` + `logic.test.ts`, com
 - **Onboarding:** "Skip for now" calls `POST /onboarding/skip` and stores the returned `Me`.
 - Pure logic: `features/admin/helpers.ts` (chart series, offered account actions, audit sentences, rule labels) and
   `features/mutes/api.ts` lookups, tested in `helpers.test.ts` and `mutes.test.ts`.
+
+## End-to-end tests (Playwright) and accessibility audit (D-027)
+`frontend/e2e/`, Chromium only, run with `npm run e2e` (`playwright.config.ts`). The suite needs a running backend with
+the demo seed and a frontend server that proxies `/api` and `/ws`. Playwright does **not** start anything by default.
+
+| Spec | Flows |
+|---|---|
+| `01-account` | 1 register (a fresh `e2e_*` user, one per run), 3 onboarding (topic, community, theme), 2 log out and log in, 4 create a community |
+| `02-posts` | 5 join (leaves first if already a member), 6 create a text post, 7 vote, 8 comment, 9 reply, 10 save, 11 new collection from the post menu, 12 search |
+| `03-knowledge` | 13 Context Mode, 14 Digest (+ refresh), 15 Community AI with one question: passes with a cited answer (live Claude or the offline engine) or the honest notice |
+| `04-pulse` | 16 create a Pulse (UI, 1 hour), 17 vote (results hidden until you vote) |
+| `05-files` | 18 upload, share link, download signed out (content compared); 18b E2EE: encrypt in the browser, check the upload never contained the name or plaintext, open the `#k=` link in a fresh context, decrypt, read the decrypted Blob inside the page |
+| `06-podcast-funding-leaderboard` | 19 play an episode (the player starts and the position advances; on a fresh database a clearly labelled 20 s WAV test tone is published through the studio API and deleted afterwards), 20 demo contribution (DEMO label asserted), 21 leaderboard (rows and breakdown, or the honest empty state) |
+| `07-moderation-messages` | 22 report → remove from the queue → the author's notification, appeal page and "removed" notice (the moderator isn't named); 23 DM between two contexts, arriving live with no reload |
+| `08-accessibility` | axe-core on 10 pages × dark/light × 1280 px/375 px; serious and critical violations fail (see `docs/ACCESSIBILITY.md`) |
+| `09-keyboard` | skip link, visible focus ring, dialog focus trap, Escape and focus return |
+
+**Repeatable on one database.** Every test creates uniquely named data (`uid()`), arranges what isn't the flow under
+test through the API (`sessions.api(user)`), and uses accessible locators only (`getByRole`, `getByLabel`). Tests run
+serially in one worker. Each demo user gets one long-lived browser context, because the refresh cookie rotates on every
+page boot and reusing an old one revokes the session; `gotoAuthed` waits for the boot refresh. Locally the latest cookie
+per user is kept in `e2e/.auth/` (git-ignored) to stay under the login rate limit (10 per account per 10 min); a stale
+cookie falls back to a fresh login. Registration is limited to 5 per IP per hour, so the suite registers once per run.
+Nothing reads email: no flow requires a verified address.
+
+**Running it locally.**
+```bash
+cd frontend
+npx playwright install chromium            # once
+# Backend on :8080 with the seed. If its CORS_ALLOWED_ORIGINS doesn't list your test server's origin, let the dev proxy
+# present an allowed one (it only rewrites requests whose Origin is the dev server's own localhost origin):
+STRATA_DEV_PROXY_ORIGIN=http://localhost:5173 npx vite --port 5174 --strictPort
+npm run e2e                                 # E2E_BASE_URL defaults to http://localhost:5174
+E2E_START_SERVER=1 npm run e2e              # or let Playwright start `vite --port 5174` itself
+AXE_ONLY="post page,files" npx playwright test 08-accessibility   # audit a subset
+npm run e2e:report                          # HTML report (CI); traces are kept for failed tests
+```
+Vitest ignores `e2e/**`; `tsc -b` type-checks the specs through `tsconfig.e2e.json`.
+
+**CI.** The `e2e` job in `.github/workflows/ci.yml` starts PostgreSQL and Redis service containers, runs the backend
+jar with the seed on, `AI_PROVIDER=offline` and an empty `ANTHROPIC_API_KEY`, serves the built frontend with
+`vite preview --port 5174` (same proxy) with `CORS_ALLOWED_ORIGINS=http://localhost:5174`, waits for readiness and runs
+the suite. It references no repository secrets (every value is a throwaway CI-only string), checks out without persisted
+credentials, and uploads the report and traces only when it fails.

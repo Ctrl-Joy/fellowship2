@@ -24,10 +24,14 @@ export function Badge({
       className={cn(
         'inline-flex h-5 items-center gap-1 rounded-sm border px-1.5 text-[11px] font-medium leading-none',
         !color && tones[tone],
+        color && 'text-text',
         className,
       )}
-      style={color ? { color, borderColor: `${color}55`, backgroundColor: `${color}1f` } : undefined}
+      // A custom colour (e.g. a community's flair) only tints the chip and its dot. The label stays in the text colour,
+      // because an arbitrary hex can't be trusted to reach 4.5:1 against both themes.
+      style={color ? { borderColor: `${color}66`, backgroundColor: `${color}1f` } : undefined}
     >
+      {color && <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />}
       {children}
     </span>
   );
@@ -67,14 +71,20 @@ export function Avatar({
     );
   }
   const initials = name.replace(/[^A-Za-z0-9]/g, '').slice(0, 2).toUpperCase() || '?';
+  // The initials are decorative (the name is always next to the avatar or in its control's label). They're drawn as
+  // generated content so they never become part of a button's visible-text label (WCAG 2.5.3 label in name).
   return (
     <span
       aria-hidden="true"
-      className={cn('inline-flex shrink-0 items-center justify-center font-semibold', shape, avatarSizes[size], className)}
+      data-initials={initials}
+      className={cn(
+        'inline-flex shrink-0 items-center justify-center font-semibold before:content-[attr(data-initials)]',
+        shape,
+        avatarSizes[size],
+        className,
+      )}
       style={{ backgroundColor: `hsl(${hueOf(name)} 28% 30%)`, color: `hsl(${hueOf(name)} 40% 88%)` }}
-    >
-      {initials}
-    </span>
+    />
   );
 }
 

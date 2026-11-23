@@ -70,7 +70,7 @@ export function AppLayout() {
           <div className="xl:hidden"><LeftNav compact /></div>
           <div className="hidden xl:block"><LeftNav /></div>
         </aside>
-        <main id="main" className={cn('min-w-0 flex-1', hasPlayer ? 'pb-40 md:pb-24' : 'pb-20 md:pb-10')}>
+        <main id="main" tabIndex={-1} className={cn('min-w-0 flex-1 focus:outline-none', hasPlayer ? 'pb-40 md:pb-24' : 'pb-20 md:pb-10')}>
           <Outlet />
         </main>
       </div>

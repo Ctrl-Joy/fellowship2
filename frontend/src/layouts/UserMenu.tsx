@@ -20,7 +20,7 @@ export function UserMenu() {
   return (
     <Menu>
       <MenuTrigger
-        aria-label="Account menu"
+        aria-label={`Account menu, ${user.username}`}
         className="inline-flex h-9 items-center gap-2 rounded-md px-1.5 hover:bg-surface-2"
       >
         <Avatar src={user.avatarUrl} name={user.username} size="sm" />

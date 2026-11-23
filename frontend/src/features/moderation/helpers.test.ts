@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildReportReasons, formatBanExpiry, timeLeft } from './helpers';
+import { affectedUserHeadline, buildReportReasons, formatBanExpiry, timeLeft } from './helpers';
 import { pulseResults, pulseStatusLabel } from '@/features/pulse/helpers';
 
 describe('buildReportReasons', () => {
@@ -12,6 +12,15 @@ describe('buildReportReasons', () => {
   });
   it('caps reasons at 100 characters', () => {
     expect(buildReportReasons(['x'.repeat(200)])[0]).toHaveLength(100);
+  });
+});
+
+describe('affectedUserHeadline', () => {
+  it('speaks to the affected user in plain words', () => {
+    expect(affectedUserHeadline('REMOVE_POST', 'books')).toBe('Your post was removed by moderators');
+    expect(affectedUserHeadline('REMOVE_COMMENT', 'books')).toBe('Your comment was removed by moderators');
+    expect(affectedUserHeadline('BAN', 'books')).toBe('You were banned from c/books');
+    expect(affectedUserHeadline('LOCK', 'books')).toBe('Locked post by moderators');
   });
 });
 

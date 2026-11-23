@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/Field';
 import { EmptyState, ErrorState } from '@/components/ui/States';
 import { toast } from '@/components/ui/Toast';
 import { modApi, modKeys, useMyModAction } from '@/features/moderation/api';
-import { ACTION_LABELS, formatBanExpiry } from '@/features/moderation/helpers';
+import { affectedUserHeadline, formatBanExpiry } from '@/features/moderation/helpers';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ApiError, errorMessage } from '@/services/apiError';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -44,12 +44,13 @@ export default function ModActionPage() {
         <span>· {timeAgo(a.createdAt)}</span>
         {a.reversed && <Badge tone="accent" className="rounded-full px-2">Reversed</Badge>}
       </div>
-      <h1 className="text-2xl font-bold">{ban ? `You were banned from c/${community.slug}` : `${ACTION_LABELS[a.action]} by moderators`}</h1>
+      <h1 className="text-2xl font-bold">{affectedUserHeadline(a.action, community.slug)}</h1>
       <div className="mt-4 space-y-2 rounded-2xl border border-border p-4 text-sm">
         {a.targetTitle && <p><span className="text-muted">Content: </span>{a.postId ? <Link to={`/c/${community.slug}/p/${a.postId}${a.commentId ? `#c-${a.commentId}` : ''}`} className="font-semibold hover:underline">{a.targetTitle}</Link> : a.targetTitle}</p>}
         <p><span className="text-muted">Reason: </span>{a.reason || 'No reason given'}</p>
         {ban && <p><span className="text-muted">Duration: </span>{formatBanExpiry(a.expiresAt)}</p>}
-        <p className="text-xs text-faint">Decided on {formatDate(a.createdAt)}{a.moderator ? ` by u/${a.moderator.username}` : ''}.</p>
+        {/* Decisions are made on behalf of the moderation team (D-014): never name the individual moderator here. */}
+        <p className="text-xs text-muted">Decided on {formatDate(a.createdAt)} by the c/{community.slug} moderators.</p>
       </div>
 
       <section className="mt-6">

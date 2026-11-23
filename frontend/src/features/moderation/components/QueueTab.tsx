@@ -24,7 +24,7 @@ function QueueCard({ slug, item }: { slug: string; item: QueueItem }) {
   const href = `/c/${slug}/p/${item.postId}${isComment ? `#c-${item.commentId}` : ''}`;
 
   return (
-    <article className="rounded-2xl border border-border p-4">
+    <article className="rounded-2xl border border-border p-4" aria-label={item.title}>
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
         <Badge tone="danger" className="rounded-full px-2"><Flag size={11} /> {item.reportCount} {item.reportCount === 1 ? 'report' : 'reports'}</Badge>
         <Badge className="rounded-full px-2">{isComment ? <><MessageSquare size={11} /> Comment</> : 'Post'}</Badge>

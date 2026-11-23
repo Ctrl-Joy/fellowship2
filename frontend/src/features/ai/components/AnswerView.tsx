@@ -79,11 +79,11 @@ export function AnswerView({ m, conversationId, onFollowUp }: { m: AiMessage; co
   const vote = (value: -1 | 0 | 1) => fb.mutate({ id: m.id, value }, { onError: (e) => toast.error(errorMessage(e)) });
 
   return (
-    <div className="flex gap-3">
+    <article className="flex gap-3" aria-label="Community AI answer">
       <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand/15 text-brand"><Sparkles size={16} /></span>
       <div className="min-w-0 flex-1">
         {m.notice && (
-          <div className="mb-2 flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-text/90">
+          <div role="note" className="mb-2 flex gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-text/90">
             <Info size={14} className="mt-0.5 shrink-0 text-warning" /> {m.notice}
           </div>
         )}
@@ -135,6 +135,6 @@ export function AnswerView({ m, conversationId, onFollowUp }: { m: AiMessage; co
           {m.engine && <span className="ml-auto truncate">{m.engine}</span>}
         </div>
       </div>
-    </div>
+    </article>
   );
 }

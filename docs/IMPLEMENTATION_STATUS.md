@@ -1,6 +1,6 @@
 # Implementation status
 
-_Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, Phases 4–6)._
+_Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, Phases 4–6; Phase 10 e2e suite and accessibility gate)._
 
 ## Implemented and verified
 | Feature | Backend | Frontend | Verified by |
@@ -44,10 +44,15 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Feed rows carry `viewer.canModerate` (one batched query per page); mod actions in feed card menus | ✅ | ✅ | TrustAndSafetyIT |
 | Onboarding skip persists | ✅ | ✅ | TrustAndSafetyIT |
 | Smart Collections: private by default, notes, tags, search, type filter, move, reorder (drag + arrows), share link / revoke, shared view | ✅ | ✅ | KnowledgeLayerIT, tags.test.ts, browser |
+| Playwright end-to-end suite (D-027): the 23 owner flows against the real stack, Chromium, repeatable on one database; `npm run e2e`; CI job with PostgreSQL/Redis services, seeded backend jar, offline AI, `vite preview` | — | ✅ | 37 tests passing against the local dev stack (5174 → 8080) |
+| Accessibility gate (D-027): axe-core on 10 pages × 2 themes × desktop/375 px, keyboard checks (skip link, focus ring, dialog trap and focus return); contrast tokens, labels, roles, target sizes fixed | — | ✅ | 08-accessibility (0 serious/critical), 09-keyboard; docs/ACCESSIBILITY.md |
+| Affected user's moderation page never names the individual moderator (D-014/D-027) | ✅ | ✅ | ModerationAndPulseIT, e2e flow 22 (frontend side; the backend change isn't deployed on the shared dev server) |
 
 ## Tests (latest run)
 - Backend `./mvnw test`: **102 passed, 0 failed** (AdminIT 3, CommunityAiIT 4, ApiSecurityIT 6, TextSafetyTest 3, DefaultFileScannerTest 4, FilesIT 4, FundingIT 6, FundingUnitTest 7, KnowledgeLayerIT 4, TextSignalsTest 3, DirectMessagesIT 4, RealtimeIT 5, ModerationAndPulseIT 4, PodcastIT 3, TranscriptParserTest 5, ModeratorScoreMathTest 5, ReputationAndRecognitionIT 4, ReputationMathTest 8, SpamSignalsTest 3, TrustAndSafetyIT 10, ScoreMathTest 6, VoteConcurrencyIT 1).
-- Frontend `npx vitest run`: **125 passed** across 18 files; `npm run build` passes with zero type errors.
+- Frontend `npx vitest run`: **126 passed** across 18 files; `npm run build` passes with zero type errors.
+- Playwright `npm run e2e` (D-027): **37 passed** (23 flows + the E2EE round trip, 10 axe page audits × 4 theme/viewport
+  combinations, 3 keyboard checks) against the local dev stack, 2026-11-23. The CI `e2e` job hasn't run yet.
 - API smoke script (47 checks across auth, communities, posts, polls, votes, comments, feeds, search,
   notifications, permissions): **47/47 after fixing the Rising-feed SQL bug it found**.
 
@@ -55,12 +60,15 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - `docker compose up` and the Dockerfiles were **not executed**: Docker isn't installed on the dev machine.
   CI builds the images.
 - Pinning and locking posts exist in the schema, but they have no endpoints yet (Phase 3 moderation).
-- No Playwright suite yet (Phase 10). No ESLint (the frontend `lint` script is a type-check only).
+- No ESLint (the frontend `lint` script is a type-check only). The Playwright suite exists (D-027); its CI job was
+  written but not executed here (no GitHub runner from this machine).
 - Email delivery is log-mode unless SMTP is configured.
 - Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
 - reddit.com could not be opened for side-by-side comparison (built-in browser blocks it; Claude in Chrome was not connected).
-- Not built yet: real payment provider for moderator funding (demo-only by design, D-022), podcast audio/video generation (no TTS provider configured), S3 storage driver, Playwright end-to-end suite.
+- Not built yet: real payment provider for moderator funding (demo-only by design, D-022), podcast audio/video generation (no TTS provider configured), S3 storage driver.
+- Accessibility: no manual screen-reader pass yet; moderate/minor axe findings not triaged; pages outside the audited ten
+  not scanned (see docs/ACCESSIBILITY.md).
 - Real-time broker and presence are in-memory, per instance (D-017): fine for one backend node, not for several.
 - DM images use the same unguessable-but-public media URLs as post images (see D-016, D-019 for the fix plan); messages are not end-to-end encrypted.
 - Files: scanning is structural (type, denylist, archive heuristics), not antivirus; legacy OLE Office files may carry macros. E2EE decryption holds the whole file in memory. Private-file pages were not exercised in a browser in this phase (tests and build only).

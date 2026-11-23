@@ -1,9 +1,38 @@
 /// <reference types="vitest" />
-import { defineConfig } from 'vitest/config';
+import { configDefaults, defineConfig } from 'vitest/config';
 import react from '@vitejs/plugin-react';
 import { fileURLToPath, URL } from 'node:url';
 
 const backend = process.env.VITE_BACKEND_URL ?? 'http://localhost:8080';
+
+/**
+ * Dev/E2E only: when this dev server runs on a port the backend's CORS_ALLOWED_ORIGINS doesn't list (e.g. a second
+ * server on 5174 for Playwright against a backend configured for 5173), set STRATA_DEV_PROXY_ORIGIN to an allowed
+ * origin. The proxy then rewrites the Origin header, but only for requests whose Origin is this dev server's own
+ * localhost origin, so a foreign site can never borrow it. Unset (the default) means headers pass through unchanged.
+ */
+const proxyOrigin = process.env.STRATA_DEV_PROXY_ORIGIN;
+
+type ProxyLike = {
+  on(event: 'proxyReq' | 'proxyReqWs', cb: (proxyReq: { getHeader(n: string): unknown; setHeader(n: string, v: string): void }, req: { headers: Record<string, string | string[] | undefined> }) => void): void;
+};
+
+function rewriteOwnOrigin(proxy: ProxyLike) {
+  if (!proxyOrigin) return;
+  const rewrite = (
+    proxyReq: { setHeader(n: string, v: string): void },
+    req: { headers: Record<string, string | string[] | undefined> },
+  ) => {
+    const origin = req.headers.origin;
+    const host = req.headers.host;
+    if (typeof origin === 'string' && typeof host === 'string' && /^(localhost|127\.0\.0\.1)(:\d+)?$/.test(host)
+      && origin === `http://${host}`) {
+      proxyReq.setHeader('origin', proxyOrigin);
+    }
+  };
+  proxy.on('proxyReq', rewrite);
+  proxy.on('proxyReqWs', rewrite);
+}
 
 export default defineConfig({
   plugins: [react()],
@@ -11,9 +40,21 @@ export default defineConfig({
   server: {
     port: 5173,
     proxy: {
-      '/api': { target: backend, changeOrigin: true },
+      '/api': { target: backend, changeOrigin: true, configure: (p) => rewriteOwnOrigin(p as unknown as ProxyLike) },
       '/swagger-ui': { target: backend, changeOrigin: true },
-      '/ws': { target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: true },
+      '/ws': {
+        target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: true,
+        configure: (p) => rewriteOwnOrigin(p as unknown as ProxyLike),
+      },
+    },
+  },
+  preview: {
+    proxy: {
+      '/api': { target: backend, changeOrigin: true, configure: (p) => rewriteOwnOrigin(p as unknown as ProxyLike) },
+      '/ws': {
+        target: backend.replace(/^http/, 'ws'), ws: true, changeOrigin: true,
+        configure: (p) => rewriteOwnOrigin(p as unknown as ProxyLike),
+      },
     },
   },
   build: {
@@ -33,5 +74,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     css: false,
+    // Playwright specs live in e2e/ and run with `npm run e2e`, not Vitest.
+    exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 });

@@ -131,7 +131,7 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                 </div>
 
                 {!editing && (
-                  <div className="-ml-1.5 mt-0.5 flex items-center gap-0.5">
+                  <div className="-ml-1.5 mt-0.5 flex flex-wrap items-center gap-0.5">
                     <VoteControl
                       orientation="horizontal"
                       size="sm"
@@ -166,7 +166,7 @@ export function CommentItem({ node, level }: { node: CommentNode; level: number 
                     )}
                     {(isOwner || (isAuthed && !gone && !node.deleted) || (t.canModerate && !node.deleted)) && (
                       <Menu>
-                        <MenuTrigger aria-label="Comment actions" className="inline-flex h-8 w-8 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text">
+                        <MenuTrigger aria-label="Comment actions" className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-muted hover:bg-surface-2 hover:text-text">
                           <MoreHorizontal size={16} />
                         </MenuTrigger>
                         <MenuContent align="start">

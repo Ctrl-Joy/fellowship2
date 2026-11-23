@@ -18,11 +18,11 @@ function StanceChip({ stance, suggested }: { stance: Stance; suggested: boolean 
   const Icon = m.icon;
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold"
-      style={{ color: m.color, backgroundColor: `${m.color}1f` }}
+      className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold text-text"
+      style={{ backgroundColor: `${m.color}26` }}
       title={suggested ? 'Suggested by rules, not yet labelled by people' : 'Labelled by readers'}
     >
-      <Icon size={11} /> {m.label}
+      <Icon size={11} style={{ color: m.color }} aria-hidden="true" /> {m.label}
       {suggested && <Sparkles size={10} className="opacity-70" aria-label="suggested" />}
     </span>
   );
