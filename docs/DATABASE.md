@@ -40,6 +40,7 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 |---|---|
 | V1 | core schema (identity, communities, posts, comments, votes, media, polls, notifications) |
 | V2 | reference topics |
+| V11 | moderator funding: `funding_policies`, `funding_pools`, `funding_subscriptions`, `funding_contributions`, `funding_allocations`, `funding_ledger` (append-only via triggers), `funding_webhook_events` (D-022) |
 
 Future phases add tables (reports, moderation_actions, collections, pulses, digests, ai_*, podcasts, files,
 funding_*) as new migrations — never by editing applied ones.

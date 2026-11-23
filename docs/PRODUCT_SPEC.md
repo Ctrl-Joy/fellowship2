@@ -38,7 +38,7 @@ and support for the moderators who keep communities healthy.
 | Community AI (RAG with citations) | 5 | ✅ |
 | Podcasts (upload-first; AI script drafting; audio generation only with a configured TTS provider) | 6 | ✅ |
 | Secure file sharing → E2EE | 7 | planned |
-| Moderator funding (demo mode until a provider is configured) | 8 | planned |
+| Moderator funding (demo mode until a provider is configured) | 8 | ✅ demo mode |
 | Moderator leaderboard | 9 | planned |
 
 See ROADMAP.md for scope per phase and IMPLEMENTATION_STATUS.md for what exists today.

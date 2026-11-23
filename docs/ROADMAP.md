@@ -49,7 +49,7 @@ Private file assets, share links (expiry, password, revocation, access log), val
 Then E2EE as a separate capability: WebCrypto AES-GCM client-side, key in the URL fragment or wrapped with
 PBKDF2/Argon2-derived keys, documented threat model and limits (no server preview or scanning).
 
-## Phase 8: Moderator funding ☐
+## Phase 8: Moderator funding ✅ (demo mode only; no real provider, see D-022)
 Funding pools, contributions (one-time and recurring), allocation policies, transparency report;
 `PaymentProvider` abstraction with webhook verification. **Demo mode only** until a provider and compliance
 review exist; demo transactions are labelled and never represent real money.

@@ -412,3 +412,50 @@ counts, so a client can't see anything it couldn't already fetch. Block filterin
 comment comes back with `blocked: true`.
 
 Presence and the simple broker are per-instance (single-node deployment). See DECISIONS for the multi-node path.
+
+## Moderator funding (Phase 8, demo mode)
+**Every amount is a `Money`**: `{ amountMinor: number /* integer minor units, never a float */, currency: "USD"|"EUR"|"GBP"|"JPY",
+demo: boolean, label: "DEMO, no real money" | null }`. Clients must show `label` (or a DEMO badge) next to every amount where `demo`.
+Only the demo provider exists (D-022): charges always succeed, are marked `demo = true` and move no money.
+
+```ts
+FundingStatus { enabled, provider: "demo"|null, demo, label|null, notice|null, currencies: { code, exponent }[] }
+Policy { policy: "EQUAL"|"ACTIVITY"|"MANUAL", activityCap, updatedBy: UserSummary|null, updatedAt|null }   // default EQUAL, cap 50
+PoolSummary { id, community: CommunityRef, title, purpose, goal: Money, raised: Money, contributorCount, periodStart, periodEnd,
+              status: "OPEN"|"AWAITING_ALLOCATION"|"CLOSED", provider, demo, createdBy: UserSummary|null,
+              closedPolicy|null, closedAt|null, createdAt }
+PoolRef { id, title, community: CommunityRef, status }
+Contribution { id, pool: PoolRef, kind: "ONE_TIME"|"RECURRING", amount: Money, showName, subscriptionId|null, cycle|null, chargeId, createdAt }
+Subscription { id, pool: PoolRef, amount: Money, showName, status: "ACTIVE"|"CANCELLED"|"ENDED", cyclesCharged, nextChargeAt|null,
+               createdAt, cancelledAt|null, cancelledBy: "USER"|"PROVIDER"|"SYSTEM"|null }
+Allocation { moderator: UserSummary|null, policy, amount: Money, activityScore|null, reportsResolved|null, appealsHandled|null,
+             note|null, createdAt|null }
+LedgerEntry { id, entryType: "CONTRIBUTION"|"ALLOCATION", debitAccount, debitLabel, creditAccount, creditLabel, amount: Money, createdAt }
+  // accounts: "contributors" -> "pool:{id}" -> "moderator:{userId}". debitLabel names a contributor only if they opted in.
+TransparencyReport { pool: PoolSummary, raised, contributionCount, contributorCount, anonymousContributors,
+                     namedContributors: UserSummary[], allocated, allocations: Allocation[], ledger: LedgerEntry[] /* <= 1000 */,
+                     ledgerTruncated, closedNote|null,
+                     reconciliation: { contributionsTotal, ledgerIn, ledgerOut, allocationsTotal, poolBalance, reconciles } }
+```
+
+| Method | Path | Who | Body / notes | Returns |
+|---|---|---|---|---|
+| GET | `/funding/status` | anyone | | `FundingStatus` |
+| GET | `/communities/{slug}/funding` | viewers | pools (open first, ≤50), policy, viewer flags | `{status, policy, pools, viewer: {canContribute, canCreatePool, canSetPolicy, canClose}}` |
+| POST | `/communities/{slug}/funding/pools` | moderators | `{title ≤120, purpose 10–2000, currency, goalMinor, periodStart?, periodEnd}`; period 1–366 days; ≤3 open pools | 201 `PoolSummary` |
+| PUT | `/communities/{slug}/funding/policy` | owner (or platform admin) | `{policy, activityCap? 1–1000}` | `Policy` |
+| POST | `/funding/pools/{id}/contributions` | members who aren't banned | `{amountMinor, recurring, showName}`; 1–10,000 major units; recurring charges the first month now | 201 `{contribution, subscription\|null}` |
+| GET | `/funding/pools/{id}/report` | viewers | | `TransparencyReport` |
+| GET | `/funding/pools/{id}/allocation-preview` | moderators | what closing now would allocate; nothing is written | `{policy, total, allocations, note, windowStart, windowEnd}` |
+| POST | `/funding/pools/{id}/close` | owner | `{allocations?: {username, amountMinor}[], note?}`; MANUAL requires amounts to moderators summing exactly to `raised` and a note of ≥10 chars | `TransparencyReport` |
+| GET | `/me/funding` | signed in | my contributions (≤100), subscriptions, open pools in my communities | `{status, contributions, subscriptions, openPools}` |
+| POST | `/me/funding/subscriptions/{id}/cancel` | the contributor | idempotent; past charges stay | `Subscription` |
+| POST | `/funding/webhooks/{provider}` | provider (no JWT) | raw JSON `{id, type, data}` + header `Strata-Demo-Signature: t=<unix>,v1=<hex HMAC-SHA256(secret, t + "." + body)>` | `{status: "processed"\|"duplicate", eventId}` |
+
+- **Jobs** (every 60 s; `FUNDING_JOBS_ENABLED`): charge subscriptions whose `nextChargeAt` passed (one cycle per run;
+  `(subscription, cycle)` is unique; missed months are skipped, never back-charged) and close pools whose period ended
+  (MANUAL pools move to `AWAITING_ALLOCATION` for the owner).
+- **Webhooks**: the signature is compared in constant time, the timestamp must be within 300 s, and each event id is applied once
+  (`funding_webhook_events`); a replay returns 200 `duplicate`. Handled types: `subscription.cancelled {subscriptionRef}` and
+  `charge.succeeded {chargeId}` (acknowledged). Other types are recorded and ignored. Bad signature → 400, unknown provider → 404.
+- **Disabled** (`FUNDING_ENABLED=false`): reads work and report `enabled: false`; writes return 503 with code `FUNDING_DISABLED`.

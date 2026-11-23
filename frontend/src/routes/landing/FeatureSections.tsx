@@ -42,7 +42,7 @@ const FEATURES: Feature[] = [
     kicker: 'Moderator support',
     title: 'The people who keep communities healthy deserve recognition.',
     body: 'Voluntary, transparent contributions to a community’s moderator pool, plus a leaderboard that rewards consistency and care — never raw ban counts.',
-    points: ['Public allocation rules', 'Quality-weighted recognition', 'Disabled until payments are compliant'],
+    points: ['Public allocation rules', 'Quality-weighted recognition', 'Demo mode only until payments are compliant'],
   },
 ];
 

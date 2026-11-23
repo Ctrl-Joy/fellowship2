@@ -127,3 +127,46 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   thread costs one small query and one frame per interval, not one per vote.
 - **Subscriptions.** Community and post topics are checked with the same `CommunityAccess` rules as REST, so members-only
   content never reaches non-members over the socket.
+
+**D-022 Moderator funding runs in demo mode behind a `PaymentProvider` abstraction; no real money until a compliance review.**
+- **Demo only.** `DemoPaymentProvider` is the only provider. Charges succeed instantly and carry `demo = true` on every row (pool,
+  contribution, subscription, allocation, ledger). Every API amount is a `Money` with the label "DEMO, no real money". The UI shows a
+  banner on every funding view and a DEMO badge next to every amount. If `FUNDING_PROVIDER` is anything other than `demo`, the
+  application **refuses to start** (there's no silent fallback). `FUNDING_ENABLED=false` turns the feature off: reads still work, and
+  writes return 503.
+- **Money.** Amounts are integer minor units plus an ISO currency (USD, EUR, GBP, JPY): `BIGINT` columns, `long` in Java and safe
+  integers in TypeScript. The frontend parses and formats amounts with string and integer operations only. Limits keep every sum far
+  below 2^53.
+- **Ledger.** `funding_ledger` is double-entry style: each row moves an amount from one account to another (`contributors → pool:{id}`
+  for a contribution, `pool:{id} → moderator:{userId}` for an allocation). Database triggers make contributions, allocations and ledger
+  rows append-only. The transparency report recomputes contributions, allocations, ledger in and out, and the pool balance with
+  independent sums, then says whether they reconcile. `FundingIT` asserts this after every flow. Splits use largest-remainder rounding,
+  so a closed pool always allocates exactly what it raised and ends with a zero balance.
+- **Policies.** Only the owner sets the policy. It's applied when the pool closes and recorded on the pool and on each allocation.
+  *EQUAL* splits among current moderators who took at least one moderation action in the period (or among all current moderators if
+  none did, with a note saying so). *ACTIVITY* weights by `min(reportTargetsResolved, cap) + min(2 × appealsHandled, cap)`. A reported
+  post or comment counts once, whether it was removed or approved. Reports that moderators filed themselves don't count, and removals
+  without a report earn nothing, so the score never rewards removing more. *MANUAL* needs per-moderator amounts from the owner that add
+  up exactly to the total, plus a public note of at least 10 characters. The close job can't decide for the owner, so the pool waits in
+  `AWAITING_ALLOCATION`.
+- **Recurring.** A monthly contribution is a subscription to one pool. The first month is charged straight away, then `FundingJobs`
+  charges each cycle as it falls due. `(subscription_id, cycle)` is unique and rows are locked, so a cycle is never charged twice, even
+  with several nodes. Subscriptions end with the pool's period. Cancelling stops future charges and keeps past ones.
+- **Privacy.** Contributors are anonymous by default. If they opt in, their name appears in the report's contributor list and ledger,
+  but the contributor list never puts an amount next to a name. Reports are as visible as the community.
+- **Webhooks.** `verifyWebhook(payload, signatureHeader)` checks an HMAC-SHA256 over `t.payload` made with a configured secret
+  (`FUNDING_DEMO_WEBHOOK_SECRET`, at least 16 characters). It compares with `MessageDigest.isEqual` and accepts timestamps within
+  300 s. Event ids are de-duplicated in `funding_webhook_events`, written in the same transaction as the event's effect.
+- **Plugging in a real provider (not done).** Implement `PaymentProvider` (for example Stripe PaymentIntents plus Billing for
+  subscriptions, verifying `Stripe-Signature`) and register it in `PaymentProviderConfig.select`. Then move charge confirmation to
+  the webhook: record contributions as pending until `charge.succeeded`, and add refunds and chargebacks as reversing ledger rows,
+  never edits. Pay moderators through the provider's connected-account payouts instead of holding funds. Before any real money moves,
+  this needs a compliance review covering:
+  - **KYC** and identity verification of every recipient, plus sanctions screening.
+  - **Payouts**: connected accounts, payout schedules, failed payouts.
+  - **Tax**: 1099-K and DAC7 reporting, VAT/GST on any platform fee, and whether moderator payments count as income.
+  - **Money transmission and e-money rules**: never hold funds; use the provider as merchant of record or a licensed platform model.
+  - Refund and dispute policy, updated terms of service and privacy policy, PCI scope (hosted card fields only), fraud limits, and a
+    legal review for each country.
+
+  The demo labels stay until that review signs off.
