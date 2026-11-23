@@ -7,6 +7,9 @@ strata:
     enabled: false
   storage:
     local-dir: ./target/test-uploads
+  funding:
+    # Tests drive the recurring-charge and close jobs directly, with explicit timestamps.
+    jobs-enabled: false
 management:
   health:
     redis:

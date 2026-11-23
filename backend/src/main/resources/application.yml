@@ -111,6 +111,14 @@ strata:
     model: ${AI_MODEL:claude-opus-5-5}
     effort: ${AI_EFFORT:medium}
     max-tokens: ${AI_MAX_TOKENS:16000}
+  # Moderator funding (D-022). Only the demo provider exists; any other value refuses to start.
+  funding:
+    enabled: ${FUNDING_ENABLED:true}
+    provider: ${FUNDING_PROVIDER:demo}
+    # Demo webhooks are HMAC-SHA256 signed with this secret. Set your own outside local development.
+    demo-webhook-secret: ${FUNDING_DEMO_WEBHOOK_SECRET:dev-only-demo-webhook-secret-change-me}
+    webhook-tolerance-seconds: 300
+    jobs-enabled: ${FUNDING_JOBS_ENABLED:true}
 
 ---
 spring:

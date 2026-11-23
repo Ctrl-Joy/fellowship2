@@ -57,6 +57,8 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, AUTHENTICATED_GETS).authenticated()
                         .requestMatchers(HttpMethod.POST, "/api/v1/auth/resend-verification").authenticated()
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/auth/sessions/**").authenticated()
+                        // Payment provider webhooks authenticate with a signed body (FundingService.webhook), not a JWT.
+                        .requestMatchers(HttpMethod.POST, "/api/v1/funding/webhooks/*").permitAll()
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/**").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasRole("ADMIN")
