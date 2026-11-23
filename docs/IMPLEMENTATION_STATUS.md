@@ -1,6 +1,6 @@
 # Implementation status
 
-_Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, Phases 4–6; Phase 10 e2e suite and accessibility gate)._
+_Last updated: 2026-11-24 (Phases 0–2, layout pass, Phase 3 moderation core, Phases 4–6; Phase 10 e2e suite and accessibility gate; privacy and safety hardening D-028 to D-030)._
 
 ## Implemented and verified
 | Feature | Backend | Frontend | Verified by |
@@ -53,12 +53,19 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Richer demo seed: moderator teams in 3 communities with reports, removals, approvals and two appeals (one overturned) written through the moderation service, recomputed leaderboard, two shared collections, a demo funding pool with 5 demo contributions; idempotent, `strata.seed.activity`; dismissible "Demo data" notice from `GET /demo/status` | ✅ | ✅ | DemoSeedIT (own embedded PostgreSQL), demo api.test.ts |
 
 ## Tests (latest run)
+- Privacy hardening (2026-11-24): backend `./mvnw test` **145 passed, 0 failed, 1 skipped** (ClamAvLiveTest, which runs only with `-Dclamav.live.port`; it passed against real clamd in Docker). Added ImageMetadataTest 8, ClamAvClientTest 9, AntivirusUploadIT 3, PrivacyHardeningIT 3, SessionRevocationIT 2, ClamAvLiveTest 1. Frontend: `npm run lint` (tsc + ESLint) clean, `npx vitest run` **142 passed** across 21 files, `npm run build` passes.
 - Backend `./mvnw test`: **120 passed, 0 failed** (Phase 10 added ProductionSafetyCheckTest 3, FeedCacheIT 3, DmMediaIT 1,
   DemoSeedIT 1, ImageVariantsIT 1, ImageVariantsTest 3, S3StorageServiceTest 6; previously: AdminIT 3, CommunityAiIT 4, ApiSecurityIT 6, TextSafetyTest 3, DefaultFileScannerTest 4, FilesIT 4, FundingIT 6, FundingUnitTest 7, KnowledgeLayerIT 4, TextSignalsTest 3, DirectMessagesIT 4, RealtimeIT 5, ModerationAndPulseIT 4, PodcastIT 3, TranscriptParserTest 5, ModeratorScoreMathTest 5, ReputationAndRecognitionIT 4, ReputationMathTest 8, SpamSignalsTest 3, TrustAndSafetyIT 10, ScoreMathTest 6, VoteConcurrencyIT 1).
 - Frontend `npx vitest run`: **132 passed** across 20 files (Phase 10 added images.test.ts and demo/api.test.ts); `npm run build` passes with zero type errors.
 | Playwright end-to-end suite (D-027): the 23 owner flows against the real stack, Chromium, repeatable on one database; `npm run e2e`; CI job with PostgreSQL/Redis services, seeded backend jar, offline AI, `vite preview` | — | ✅ | 37 tests passing against the local dev stack (5174 → 8080) |
 | Accessibility gate (D-027): axe-core on 10 pages × 2 themes × desktop/375 px, keyboard checks (skip link, focus ring, dialog trap and focus return); contrast tokens, labels, roles, target sizes fixed | — | ✅ | 08-accessibility (0 serious/critical), 09-keyboard; docs/ACCESSIBILITY.md |
 | Affected user's moderation page never names the individual moderator (D-014/D-027) | ✅ | ✅ | ModerationAndPulseIT, e2e flow 22 (frontend side; the backend change isn't deployed on the shared dev server) |
+| Image originals stripped of EXIF/GPS/XMP/IPTC/comments/text chunks/trailing data, losslessly (JPEG segments, PNG chunk whitelist, GIF extensions, WebP chunks); orientation kept as an orientation-only EXIF; ICC kept; malformed containers refused; private files byte-identical (D-028) | ✅ | — | ImageMetadataTest (8, spec-built fixtures with a GPS IFD), PrivacyHardeningIT |
+| ClamAV scanning (`strata.files.antivirus=clamav`): INSTREAM client with timeouts, structural checks first, private files + podcast media + images, fail open/closed (`antivirus-required`, true in prod), `scanEngine` + honest "Scanned by ClamAV" vs "Checked, not an antivirus scan" labels; `clamav` service in both compose files (profile `antivirus` locally) with raised size limits (D-029) | ✅ | ✅ | ClamAvClientTest (9, fake clamd), AntivirusUploadIT (3), ClamAvLiveTest against real `clamav/clamav:1.4.3` in Docker (EICAR found, clean and 40 MiB files OK), helpers.test.ts |
+| Legacy public DM images moved to `private/` by an idempotent, recorded job (startup + `POST /admin/maintenance/legacy-dm-media`); post images and publicly linked keys untouched; old URL 404; send path privatizes public DM-only uploads (D-030) | ✅ | — | PrivacyHardeningIT (3) |
+| Suspension, deactivation, deletion and role change close the user's WebSockets at once (1008); STOMP CONNECT requires an ACTIVE account and takes the role from it (D-030) | ✅ | — | SessionRevocationIT (2, real STOMP clients) |
+| Streaming E2EE decryption to disk (`showSaveFilePicker`) for files ≥ 64 MB, in-memory fallback with a > 500 MB warning; container format unchanged (D-030) | — | ✅ | streamDecrypt.test.ts (6); **not exercised in a browser** (no dev server in this task) |
+| ESLint flat config (typescript-eslint, react-hooks, jsx-a11y) in `npm run lint`; findings fixed or justified inline | — | ✅ | `npm run lint` clean |
 
 ## Tests (latest run)
 - Backend `./mvnw test`: **102 passed, 0 failed** (AdminIT 3, CommunityAiIT 4, ApiSecurityIT 6, TextSafetyTest 3, DefaultFileScannerTest 4, FilesIT 4, FundingIT 6, FundingUnitTest 7, KnowledgeLayerIT 4, TextSignalsTest 3, DirectMessagesIT 4, RealtimeIT 5, ModerationAndPulseIT 4, PodcastIT 3, TranscriptParserTest 5, ModeratorScoreMathTest 5, ReputationAndRecognitionIT 4, ReputationMathTest 8, SpamSignalsTest 3, TrustAndSafetyIT 10, ScoreMathTest 6, VoteConcurrencyIT 1).
@@ -70,9 +77,6 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 
 ## Known gaps / not yet verified
 - `deploy/docker-compose.prod.yml`, the Caddyfile, Prometheus and Grafana were validated and reviewed but not run (no public domain/TLS on the dev machine).
-- Pinning and locking posts exist in the schema, but they have no endpoints yet (Phase 3 moderation).
-- No ESLint (the frontend `lint` script is a type-check only). The Playwright suite exists (D-027); its CI job was
-  written but not executed here (no GitHub runner from this machine).
 - Email delivery is log-mode unless SMTP is configured.
 - Digest/Context Mode use the offline extractive engine and rule-based stance suggestions; no LLM provider is wired yet (Phase 5).
   On the seeded threads most comments are "neutral" until readers label them, which is expected and honest.
@@ -82,14 +86,15 @@ _Last updated: 2026-11-23 (Phases 0–2, layout pass, Phase 3 moderation core, P
 - Accessibility: no manual screen-reader pass yet; moderate/minor axe findings not triaged; pages outside the audited ten
   not scanned (see docs/ACCESSIBILITY.md).
 - Real-time broker and presence are in-memory, per instance (D-017): fine for one backend node, not for several.
-- DM images sent since Phase 10 are private (participant-signed URLs, D-024). Images sent earlier keep their
-  unguessable-but-public `/files/media/...` URLs (no data migration). Messages are not end-to-end encrypted.
-- Image originals keep their EXIF metadata (only the 320/960 variants are stripped); WebP and GIF get no variants.
+- DM images are private, including ones sent before D-024 (moved by the D-030 job), except a legacy image whose URL was
+  also published in a post, comment or profile (kept public, counted as skipped). Messages are not end-to-end encrypted.
+- WebP and GIF get no resized variants (their originals are metadata-stripped like the others, D-028).
 - Feed first pages can be up to 30 s old in order (new posts); counts, votes and removals are always fresh (D-025).
-- Files: scanning is structural (type, denylist, archive heuristics), not antivirus; legacy OLE Office files may carry macros. E2EE decryption holds the whole file in memory. Private-file pages were not exercised in a browser in this phase (tests and build only).
-- Mod tools on individual posts and comments appear on the post page only. Feed rows don't carry moderator rights, so feeds don't show them; the mod queue covers them. The UI lists them under "Coming next" and routes them to one
-  informational page, with no non-functional controls.
-- Spam heuristics are rate and repetition rules only (no content judgement): see D-021 for what they don't catch. A
-  suspended user's open WebSocket isn't closed until it reconnects (REST calls fail at once). The account-status cache is
-  per node (up to 30 s delay across several nodes).
-- Admin dashboard, mutes and holds were verified by integration tests and builds only; not exercised in a browser.
+- Files: antivirus scanning is optional (ClamAV, D-029) and off unless configured; without it, checks are structural and labelled so. Files aren't rescanned when signatures update. Legacy OLE Office files may carry macros. Streaming E2EE decryption (D-030) needs the File System Access API (Chromium desktop); other browsers still decrypt in memory and warn above 500 MB. The streaming save path was not exercised in a browser (unit tests and build only).
+- Spam heuristics are rate and repetition rules only (no content judgement): see D-021 for what they don't catch. The
+  account-status cache and the WebSocket close on suspension are per node (other nodes refuse the next CONNECT; REST
+  within 30 s).
+- Admin dashboard and Settings (with Muted) load and pass the axe audit in the e2e suite (`08-accessibility`, admin as
+  `admin_demo`); suspend/mute/hold actions are covered by AdminIT and TrustAndSafetyIT but aren't clicked in a browser.
+- The Playwright `e2e` CI job has run green on GitHub (CI run 45235872610 on `main`: backend, frontend, e2e and images
+  jobs all successful).

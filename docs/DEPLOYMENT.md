@@ -5,7 +5,7 @@ uses files in `deploy/`. Decisions behind it: D-023 (storage), D-025 (feed cache
 
 > **Verification status.** The compose files, Caddyfile, Prometheus and Grafana files were validated as YAML/JSON and
 > reviewed, but **not executed**: Docker isn't installed on the development machine. The backend, its tests and the
-> frontend build were run. Treat the first deploy as a rehearsal on a staging host.
+> frontend build were run. Treat the first deploy as a rehearsal on a staging host. Update (D-029): both compose files pass `docker compose config`, and the `clamav` service definition was run in a throwaway compose project (healthy, EICAR detected, see section 10).
 
 ## 1. What runs
 
@@ -17,6 +17,7 @@ uses files in `deploy/`. Decisions behind it: D-023 (storage), D-025 (feed cache
 | `postgres` | `postgres:17-alpine` | primary database (`pgdata` volume) | internal |
 | `pgbackup` | `postgres:17-alpine` | nightly `pg_dump` to `./backups` | internal |
 | `redis` | `redis:7-alpine` | rate limits, feed cache (no persistence, password) | internal |
+| `clamav` | `clamav/clamav:1.4.3` | antivirus for uploads (clamd INSTREAM, D-029); ~1 GB RAM, see section 10 | internal |
 | `s3` | `chrislusf/seaweedfs:4.55` | S3-compatible object storage for uploads; one access identity, anonymous access refused; the backend creates the private bucket at start | internal |
 
 > **Why SeaweedFS and not MinIO:** MinIO stopped publishing public images (Docker Hub reports the repository missing and
@@ -201,3 +202,32 @@ WebSocket clients reconnect with backoff and refetch.
 - The SPA's CSP (in `frontend/nginx.conf`) allows scripts only from the same origin, WebSockets to the same host, and
   inline styles (Recharts/Radix); see D-026.
 - Keep images patched: rebuild monthly (`docker compose ... build --pull`).
+
+## 10. Antivirus (ClamAV) and privacy jobs (D-029, D-030)
+
+- **Prod.** `deploy/docker-compose.prod.yml` runs `clamav` (`clamav/clamav:1.4.3`) on the internal network with
+  signatures in the `clamav-db` volume. The image's freshclam keeps them up to date, and the health check is
+  `clamdscan --ping 1`. The backend starts once clamd is healthy and runs with `ANTIVIRUS=clamav` and
+  `ANTIVIRUS_REQUIRED=true`: while clamd is unreachable, uploads are refused instead of being accepted unscanned. Set
+  `ANTIVIRUS_REQUIRED=false` to fail open (uploads are then labelled "Checked, not an antivirus scan").
+- **Memory.** clamd holds the signature database in RAM: about 1 GB in steady state (972 MiB measured with 3.6 million
+  signatures), with a short peak during reloads. Together with the JVM, plan for at least 4 GB on the host (6 GB is
+  comfortable). The first start downloads about 300 MB of signatures and takes a few minutes, during which the
+  backend waits (start period 300 s).
+- **Limits.** `deploy/clamav/clamd.conf` is mounted over the image's config. It raises `StreamMaxLength`/`MaxFileSize`
+  to 600 MB and `MaxScanSize` to 1200 MB, above the 500 MB upload limits. With clamd's defaults, files over 25 MB would
+  be refused (fail closed), or silently skipped if only `MaxFileSize` were low. If you raise `MAX_FILE_MB` or
+  `MAX_MEDIA_MB`, raise these too.
+- **Local.** In `docker-compose.yml` the service sits behind a profile because it is heavy:
+  `ANTIVIRUS=clamav docker compose --profile antivirus up --build`. Locally, scanning isn't required, so uploads made
+  before clamd is ready fall back to structural checks.
+- **Check it.** `GET /api/v1/admin/maintenance` (as an admin) shows the engine, whether it's required and clamd's version
+  when reachable. The EICAR test string is the standard harmless way to see a rejection.
+  `./mvnw test -Dtest=ClamAvLiveTest -Dclamav.live.port=<port>` runs the client against a real clamd (EICAR found, clean
+  files OK, a 40 MiB file accepted thanks to the raised limits).
+- **Variables.** `ANTIVIRUS` (`none`|`clamav`), `ANTIVIRUS_REQUIRED`, `CLAMAV_HOST`, `CLAMAV_PORT` (3310),
+  `CLAMAV_CONNECT_TIMEOUT` (PT2S), `CLAMAV_READ_TIMEOUT` (PT120S).
+- **Legacy DM images.** At startup the backend moves DM images sent before D-024 from `media/` to `private/`, only when
+  something is pending (`MIGRATE_LEGACY_DM_MEDIA=true` by default). It is idempotent and safe on several nodes, and
+  every run is recorded in `maintenance_runs`. Admins can rerun it with `POST /api/v1/admin/maintenance/legacy-dm-media`.
+  Take a storage backup first if your bucket has no versioning: the public copies are deleted once the move commits.

@@ -75,3 +75,12 @@ Still open: accessibility audit, Playwright suite, presigned media URLs (only if
 migrating legacy public DM image URLs.
 - ✅ Playwright end-to-end suite for the 23 flows, CI job, axe accessibility gate and keyboard checks (D-027).
 - ☐ Manual screen-reader pass, triage of moderate/minor axe findings, load testing, and running the production compose file behind a real domain.
+
+## Privacy and safety hardening (D-028 to D-030) - done
+- Image originals stripped of GPS/EXIF/XMP/IPTC losslessly (orientation kept); private files stay byte-identical.
+- Optional ClamAV (clamd INSTREAM) after the structural checks, fail open or closed by config, honest UI labels; compose services.
+- Legacy public DM images moved to private storage by an idempotent, recorded job; the compatibility send path can't create new ones.
+- WebSockets closed on suspension, deactivation, deletion and role change; CONNECT checks the account status.
+- Streaming E2EE decryption to disk (File System Access API) with an in-memory fallback and a large-file warning.
+- Real ESLint (typescript-eslint, react-hooks, jsx-a11y) in `npm run lint`.
+- Next: rescan stored files when signatures update; broadcast account revocations across nodes (Redis pub/sub or the broker relay).

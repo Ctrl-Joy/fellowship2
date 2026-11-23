@@ -420,3 +420,97 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   but `/me/mod-actions/{id}` and the appeal response still returned `action.moderator`, and the page printed
   "by u/name". Both now return `moderator: null` to the affected user; moderators still see it in the log and appeals.
 
+
+**D-028 Image originals lose identifying metadata; private files stay byte-identical.**
+- **What.** Every image upload that goes through `MediaService.storeImage` (post images, avatars, banners, community icons,
+  podcast covers, DM images) is stripped by `ImageMetadata` before it is stored. Segments and chunks are removed
+  losslessly; nothing is re-encoded, so the pixels (and the JPEG entropy-coded data) are byte-identical.
+  - **JPEG:** drops every APP1 (EXIF with GPS, make/model/serial, dates, the embedded thumbnail; XMP), APP13
+    (Photoshop/IPTC), COM, APP2 other than `ICC_PROFILE` (MPF/FPXR), JFXX thumbnails, the other vendor APPn segments
+    (APP3-APP12, APP15, including C2PA/JUMBF in APP11), and anything after EOI (phones append secondary images with their
+    own EXIF there). Keeps JFIF, the ICC profile and Adobe APP14 (needed to decode CMYK/YCCK).
+  - **PNG:** whitelist of rendering chunks (IHDR, PLTE, IDAT, IEND, tRNS, iCCP, sRGB, gAMA, cHRM, cICP, mDCV, cLLI, sBIT,
+    bKGD, hIST, pHYs, sPLT, and the APNG chunks). tEXt, zTXt, iTXt (XMP), eXIf, tIME and private chunks are dropped,
+    as are bytes after IEND.
+  - **GIF:** drops comment extensions and application extensions other than the NETSCAPE2.0/ANIMEXTS1.0 loop
+    block (XMP and ICC live there), and bytes after the trailer. Frames, timing and transparency are untouched.
+  - **WebP:** drops EXIF, `XMP ` and unknown chunks, clears their VP8X flags and rewrites the RIFF size. ICCP and the
+    image and animation chunks stay.
+- **Orientation.** When the original had a non-default EXIF orientation, a new minimal EXIF block holding *only* the
+  Orientation tag (one IFD entry, no GPS IFD) is written: an APP1 for JPEG, `eXIf` for PNG, an `EXIF` chunk (and its
+  VP8X flag) for WebP. Browsers keep showing the photo upright, and the resized variants (D-024) still apply it.
+  Rotating the pixels instead would have meant re-encoding JPEGs, which loses quality.
+- **Colour.** ICC profiles are kept (lossless and easy). A profile can carry a description string, which in practice
+  names a colour space ("Display P3"), not a person or a device serial.
+- **Malformed files are refused.** If the container can't be walked, the upload fails with "The image could not be read"
+  rather than being stored with its metadata.
+- **Private files are not stripped.** Files in the private library (D-019) are the user's own documents, kept exactly
+  as uploaded (the SHA-256 shown to the owner must match their file, and E2EE files are opaque anyway). Nothing is
+  shown publicly unless the owner creates a share link, and the share recipient gets the owner's file as is.
+- **Tests.** `ImageMetadataTest` builds real image bytes to the EXIF 2.3/PNG/GIF89a/WebP specs, with a GPS IFD
+  (latitude/longitude rationals), make/model, XMP, IPTC, comments and trailing data. It checks that none of it survives,
+  the orientation does, chunk CRCs are valid, and the images decode with the same dimensions and identical pixels.
+  `PrivacyHardeningIT` checks the stored and served bytes of a post image and an avatar, and that a private file is
+  stored byte for byte.
+
+**D-029 Optional ClamAV scanning behind the existing `FileScanner`, failing open or closed by configuration.**
+- **Client.** `ClamAvClient` speaks clamd's `zINSTREAM` over TCP: 64 KiB chunks with 4-byte big-endian lengths, a
+  zero-length terminator and a NUL-terminated reply (`stream: OK`, `stream: <sig> FOUND`, `... ERROR`). It has a
+  connect timeout (2 s) and a read timeout (120 s, which also covers the verdict after the last chunk). A refusal
+  mid-stream (size limit) is read back and reported. No library: the protocol is about 40 lines.
+- **Composition.** `LayeredFileScanner` (the primary `FileScanner`) runs the structural checks first: they're cheap
+  and catch renamed executables, scripts and archive bombs without a network round trip. It then streams the stored
+  object to clamd. E2EE ciphertext is never sent (it stays UNSCANNED). Images (after metadata stripping) and podcast
+  media go through the same `Antivirus.check`, and refused podcast media is deleted again.
+- **Config.** `strata.files.antivirus` = `none` (default) or `clamav`, with `CLAMAV_HOST`/`CLAMAV_PORT`.
+  `strata.files.antivirus-required` decides what happens while clamd can't be reached: `false` (default outside prod)
+  accepts the upload as structurally checked only, and `true` (prod profile default) refuses it. Private files are
+  refused with a field error; images and media get a 503 `ANTIVIRUS_UNAVAILABLE`.
+- **Honest labels.** `user_files.scan_engine` (V13) records `STRUCTURAL` or `CLAMAV`. The file list, share dialog and
+  share page say "Scanned by ClamAV: no known malware found" only when ClamAV actually returned OK, and otherwise
+  "Checked: passed type and structure checks. Not an antivirus scan". A fail-open upload says that the scanner was
+  unavailable in its `scanDetail`. Rows from before V13 are `STRUCTURAL`, which is true.
+- **Size limits matter.** clamd's defaults (`StreamMaxLength` 25 MB) would refuse larger uploads. Worse, `MaxFileSize`
+  makes clamd skip larger files and still answer OK, which would be a silent pass. `deploy/clamav/clamd.conf` raises
+  `StreamMaxLength`/`MaxFileSize` to 600 MB and `MaxScanSize` to 1200 MB, above the backend's 500 MB upload limits.
+- **Deployment.** Prod compose runs `clamav/clamav:1.4.3` (signatures in a volume, kept fresh by the image's
+  freshclam, health check `clamdscan --ping 1`), and the backend waits for it to be healthy. The local compose puts it
+  behind the `antivirus` profile, because it needs about 1 GB of RAM with signatures loaded (972 MiB measured) and
+  downloads them on first start.
+- **What it doesn't do.** Signature scanning finds known malware, not targeted or novel payloads. Legacy OLE macros
+  are still allowed (D-019), unless ClamAV's macro signatures flag them. Scans happen once at upload; files aren't
+  rescanned when signatures update.
+- **Verified.** `ClamAvClientTest` runs the client against a fake clamd socket server (OK, FOUND, chunking, timeouts,
+  size-limit errors, connection drops) plus fail-open/fail-closed behaviour. `AntivirusUploadIT` covers uploads end to
+  end against it. `ClamAvLiveTest` ran against the real `clamav/clamav:1.4.3` in a throwaway compose project:
+  EICAR → `stream: Eicar-Test-Signature FOUND`; 3 MiB, 40 MiB (above the default limit) and text files → `stream: OK`.
+
+**D-030 Closing the remaining access gaps (legacy DM images, live sockets after suspension), and streaming E2EE decryption.**
+- **Legacy DM images.** `LegacyDmMedia` moves `media/` assets that are attached to a DM and not in any post gallery to
+  `private/<same name>` (original and variants). It copies first, switches `media_assets.storage_key` in a transaction,
+  and deletes the public objects after commit, so the old `/files/media/...` URL answers 404 and `DmMediaUrls` issues
+  participant-signed URLs, because the key prefix is the marker. An asset whose key also appears in a link post URL,
+  a post or comment body, an avatar, a banner or a community icon was already published by someone, so it stays public
+  and is counted as `skipped`. The job is idempotent: the target key is derived from the old one, moved rows no longer
+  match, rows are taken with `FOR UPDATE SKIP LOCKED` (safe with several nodes), and a failed copy leaves the row
+  unchanged for the next run. It runs at startup when anything is pending (`MIGRATE_LEGACY_DM_MEDIA`, on by default)
+  and on demand (`POST /admin/maintenance/legacy-dm-media`). Each run is recorded in `maintenance_runs` (V13). The
+  compatibility send path, which still accepts the sender's public uploads, now moves DM-only ones to private storage
+  in the same transaction, so new public DM images can't appear (if a copy fails, sending still succeeds, the image stays where it was, and the job retries it).
+- **Live sockets.** Suspension, a role change, deactivation and deletion publish `AccountAccessRevoked`. After commit,
+  the status cache evicts the account again (a request could have re-cached the old row between the in-transaction
+  evict and the commit), and `SessionRegistry` closes every WebSocket of that user on this node with 1008 "Account access
+  revoked". STOMP CONNECT now also requires an ACTIVE account and takes the role from the account, not the token, like
+  REST. The session is bound before the status check, so a suspension that commits during a CONNECT still closes it.
+  On several nodes, each node only closes its own sockets; until the broker relay and a shared status channel exist
+  (D-017), other nodes refuse the next CONNECT, and REST fails within the cache TTL.
+- **Tests.** `PrivacyHardeningIT` (move, 404 on the old URL, signed URL works, post images and published links untouched,
+  idempotent rerun, admin-only trigger, send path) and `SessionRevocationIT` (real STOMP clients: two tabs closed on
+  suspension, reconnect refused with the still-valid access token, unsuspend allows it again, deactivation and deletion
+  close sockets too).
+- **Streaming E2EE decryption.** Large E2EE downloads (≥ 64 MB) in browsers with the File System Access API are
+  decrypted as they arrive and written chunk by chunk to a file the user picks (`showSaveFilePicker`), about 2 MiB in
+  memory whatever the size. The container format is unchanged. The last chunk is found by reading one frame ahead,
+  so the "last chunk" AAD flag still catches truncation. A failure aborts the writable, which discards the partial file.
+  The save dialog needs a user gesture, so it comes after a second click ("Choose where to save"), once the key and
+  metadata are verified. Other browsers use the in-memory path, and above 500 MB they show a warning first.

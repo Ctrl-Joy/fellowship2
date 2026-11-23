@@ -44,6 +44,7 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 | V9 | topic reputation (`topic_reputation`, `reputation_dirty`, `reputation_runs`) and moderator recognition (`moderator_settings`, `moderator_endorsements`, `moderator_scores`) |
 | V10 | admin, mutes, spam: `communities.status`/`status_reason`, `users.suspended_reason`/`suspended_at`, `posts`/`comments` `pending` + `link_count`, `posts.content_hash`/`link_hash`, `spam_flags`, `user_mutes`, `community_mutes`, append-only `admin_actions` (trigger) |
 | V11 | moderator funding: `funding_policies`, `funding_pools`, `funding_subscriptions`, `funding_contributions`, `funding_allocations`, `funding_ledger` (append-only via triggers), `funding_webhook_events` (D-022) |
+| V13 | privacy hardening: `user_files.scan_engine` (STRUCTURAL / CLAMAV), `maintenance_runs` (one row per run of a one-time job such as the legacy DM image move) (D-029, D-030) |
 | V12 | infrastructure: `media_assets.variant_widths` (image variants), index `dm_message_media (media_id)` for private DM image grants (D-023, D-024) |
 
 Future phases add tables (reports, moderation_actions, collections, pulses, digests, ai_*, podcasts, files,
@@ -57,3 +58,12 @@ funding_*) as new migrations — never by editing applied ones.
 - Storage bytes live in the configured driver (local directory or an S3 bucket); keys are identical in both, so moving
   between drivers is a copy (`mc mirror ./data/uploads local/strata`), not a migration.
 - The feed cache (D-025) lives only in Redis (`feed:v1:*`, 30 s TTL) and holds post ids and a cursor, nothing else.
+
+## Privacy hardening (V13, D-028 to D-030)
+- `user_files.scan_engine VARCHAR(12)`: `STRUCTURAL` (type and structure checks only, not an antivirus scan) or `CLAMAV`
+  (ClamAV also scanned it and found nothing). Existing rows are `STRUCTURAL`.
+- `maintenance_runs`: `job`, `triggered_by` (admin, NULL at startup), `started_at`/`finished_at`, `candidates`, `moved`,
+  `skipped`, `failed`, `detail`. Written by the legacy DM image move (`legacy-dm-media-private`).
+- Legacy DM images are marked private the same way new ones are: their `media_assets.storage_key` moves from `media/` to
+  `private/<same name>` (variants follow the key).
+- Image originals in storage carry no EXIF/XMP/IPTC/text metadata (stripped before storing). Private files are byte-exact.
