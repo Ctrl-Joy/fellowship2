@@ -6,6 +6,9 @@ import { BrandMark } from '@/design-system/BrandMark';
 import { SearchBox } from '@/features/search/components/SearchBox';
 import { LeftNav } from './LeftNav';
 import { MobileTabBar } from './MobileTabBar';
+import { MiniPlayer } from '@/features/podcasts/components/MiniPlayer';
+import { usePlayer } from '@/store/player';
+import { cn } from '@/utils/format';
 import { TopBar } from './TopBar';
 
 function Drawer({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
@@ -54,6 +57,8 @@ export function AppLayout() {
     setSearch(false);
   }, [pathname]);
 
+  const hasPlayer = usePlayer((s) => s.current != null);
+
   return (
     <div className="min-h-screen">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-3 focus:z-50 focus:rounded-md focus:bg-surface focus:px-3 focus:py-2">
@@ -65,10 +70,11 @@ export function AppLayout() {
           <div className="xl:hidden"><LeftNav compact /></div>
           <div className="hidden xl:block"><LeftNav /></div>
         </aside>
-        <main id="main" className="min-w-0 flex-1 pb-20 md:pb-10">
+        <main id="main" className={cn('min-w-0 flex-1', hasPlayer ? 'pb-40 md:pb-24' : 'pb-20 md:pb-10')}>
           <Outlet />
         </main>
       </div>
+      <MiniPlayer />
       <MobileTabBar />
       <Drawer open={drawer} onOpenChange={setDrawer} />
       <MobileSearch open={search} onOpenChange={setSearch} />

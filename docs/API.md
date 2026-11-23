@@ -290,3 +290,54 @@ PulseReason { author: UserSummary|null /* null when anonymous */, optionId, text
 | DELETE | `/pulses/{id}` | mods → 204 |
 
 Pulses close automatically at `closesAt` (status is computed on read). Live results: the UI refetches open pulses every 15 s.
+
+## Podcasts (Phase 6)
+Episodes belong to a community. Moderators of that community manage them in the studio. Only `PUBLISHED`
+episodes are listed publicly, and drafts are visible to managers only. Media is **uploaded**, never fabricated: AI can
+draft a cited script when `ANTHROPIC_API_KEY` is set, but audio/video generation is not configured
+(`capabilities.audioGeneration=false`).
+
+```ts
+EpisodeType = "WEEKLY_ROUNDUP"|"DEEP_DIVE"|"DEBATE"|"INTERVIEW"|"BEGINNER_GUIDE"|"MONTHLY_REPORT"|"COMPARISON"|"HIGHLIGHTS"|"MULTI_PERSPECTIVE"
+EpisodeStatus = "DRAFT"|"IN_REVIEW"|"PUBLISHED"|"ARCHIVED"
+EpisodeSummary { id, community: CommunityRef, title, summary, type: EpisodeType, mediaKind: "AUDIO"|"VIDEO"|null,
+                 durationSeconds|null, thumbnailUrl|null, status: EpisodeStatus, publishedAt|null, createdAt, playCount,
+                 saved: boolean, progress: { positionSeconds, completed } | null, chapterCount }
+EpisodeDetail = EpisodeSummary & {
+  mediaUrl|null, mediaContentType|null, allowDownload: boolean,
+  chapters: { id, startSeconds, title }[],
+  sources: { position, postId, commentId|null, title, communitySlug, excerpt, link }[],
+  hasTranscript: boolean, transcriptVttUrl: string|null /* for <track kind="subtitles"> */,
+  script: string|null /* markdown; managers only */, scriptStatus: "NONE"|"GENERATING"|"READY"|"FAILED",
+  scriptSource: "HUMAN"|"AI_DRAFT"|null, scriptError: string|null,
+  createdBy: UserSummary|null, publishedBy: UserSummary|null,
+  viewer: { canManage: boolean } }
+TranscriptSegment { id, startSeconds: number, endSeconds: number, speaker: string|null, text }
+Capabilities { aiScriptDrafting: boolean, audioGeneration: false, videoGeneration: false, maxUploadMb: number,
+               audioTypes: string[], videoTypes: string[] }
+```
+| Method | Path | Notes |
+|---|---|---|
+| GET | `/podcasts/capabilities` | `Capabilities` |
+| GET | `/podcasts?type=&community=<slug>&sort=recent\|popular&cursor` | cursor page of published `EpisodeSummary` |
+| GET | `/podcasts/home` | `{ featured: EpisodeSummary[] (≤3, most played last 30 days), continueListening: EpisodeSummary[] (auth, in progress), recent: EpisodeSummary[] (≤12), saved: EpisodeSummary[] (auth, ≤12) }` |
+| GET | `/me/podcasts/history?cursor` | episodes you've played, most recent first |
+| GET | `/podcasts/episodes/{id}` | `EpisodeDetail` |
+| GET | `/podcasts/episodes/{id}/transcript?q=` | `TranscriptSegment[]`; `q` filters case-insensitively |
+| GET | `/podcasts/episodes/{id}/transcript.vtt` | `text/vtt` subtitles |
+| PUT | `/podcasts/episodes/{id}/progress` | auth `{positionSeconds, completed?}` → 204. The first play by a user counts once in `playCount` |
+| PUT / DELETE | `/podcasts/episodes/{id}/save` | 204 |
+| GET | `/communities/{slug}/podcasts/studio` | managers: all episodes of the community, any status |
+| POST | `/communities/{slug}/podcasts/episodes` | managers `{title (≤200), summary? (≤2000), type}` → `EpisodeDetail` (DRAFT) |
+| PATCH | `/podcasts/episodes/{id}` | managers `{title?, summary?, type?, allowDownload?, script? (≤200k), chapters?: {startSeconds, title}[] (≤100), sources?: {postId, commentId?}[] (≤50)}` → `EpisodeDetail`. Editing a PUBLISHED episode's media/transcript is blocked; unpublish first |
+| POST | `/podcasts/episodes/{id}/media` | managers, multipart `file` + `durationSeconds` (client-measured) → `EpisodeDetail`. Audio: mp3/m4a/ogg/wav; video: mp4/webm; validated by magic bytes; ≤ `maxUploadMb` |
+| POST | `/podcasts/episodes/{id}/thumbnail` | managers, multipart image → `EpisodeDetail` |
+| PUT | `/podcasts/episodes/{id}/transcript` | managers `{format: "vtt"\|"srt"\|"timestamped", content}` → `{segments: number}`. `timestamped` = lines like `[00:01:23] Speaker: text` |
+| POST | `/podcasts/episodes/{id}/submit` | DRAFT → IN_REVIEW |
+| POST | `/podcasts/episodes/{id}/publish` | managers; requires IN_REVIEW, media and transcript → PUBLISHED (records `publishedBy`) |
+| POST | `/podcasts/episodes/{id}/unpublish` | PUBLISHED → ARCHIVED (hidden; can be resubmitted) |
+| DELETE | `/podcasts/episodes/{id}` | managers; deletes episode and its media |
+| POST | `/podcasts/episodes/{id}/draft-script` | managers `{topic (≤300), targetMinutes: 10..90}` → 202 `EpisodeDetail` with `scriptStatus: "GENERATING"`. Runs in the background; poll the episode. 400 when AI isn't configured. 5/day/user |
+
+Media files are served from `/api/v1/files/**` with HTTP Range support (seeking). Their URLs are unguessable, but they are
+not access-controlled, so episodes in private communities have the same limit as images (see DECISIONS).

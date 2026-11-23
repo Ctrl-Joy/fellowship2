@@ -35,7 +35,7 @@ and support for the moderators who keep communities healthy.
 | Smart Collections, Context Mode, Thread Digest | 4 | ✅ |
 | Community Pulse | 4 | ✅ |
 | Community AI (RAG with citations) | 5 | ✅ |
-| Podcasts (upload-first; generation only with configured providers) | 6 | planned |
+| Podcasts (upload-first; AI script drafting; audio generation only with a configured TTS provider) | 6 | ✅ |
 | Secure file sharing → E2EE | 7 | planned |
 | Moderator funding (demo mode until a provider is configured) | 8 | planned |
 | Moderator leaderboard | 9 | planned |

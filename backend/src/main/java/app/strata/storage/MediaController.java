@@ -6,7 +6,7 @@ import app.strata.storage.MediaService.MediaDto;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Duration;
-import org.springframework.core.io.InputStreamResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -39,19 +39,22 @@ public class MediaController {
         return media.uploadPostImage(user.id(), file);
     }
 
-    /** Public, immutable media. Keys are random, so URLs are unguessable but not access-controlled. */
+    /**
+     * Public, immutable media. Keys are random, so URLs are unguessable but not access-controlled.
+     * Returning a seekable Resource lets Spring answer Range requests (206 Partial Content) for audio/video seeking.
+     */
     @GetMapping("/api/v1/files/**")
-    public ResponseEntity<InputStreamResource> file(HttpServletRequest req) {
+    public ResponseEntity<Resource> file(HttpServletRequest req) {
         String path = req.getRequestURI().substring(req.getContextPath().length());
         String key = path.substring("/api/v1/files/".length());
-        return storage.get(key)
-                .map(o -> ResponseEntity.ok()
-                        .contentType(MediaType.parseMediaType(o.contentType()))
-                        .contentLength(o.size())
+        return storage.resource(key)
+                .map(r -> ResponseEntity.ok()
+                        .contentType(MediaType.parseMediaType(StorageService.contentTypeFor(key)))
                         .cacheControl(CacheControl.maxAge(Duration.ofDays(365)).cachePublic().immutable())
                         .header("X-Content-Type-Options", "nosniff")
                         .header("Content-Security-Policy", "default-src 'none'")
-                        .body(new InputStreamResource(o.stream())))
+                        .header("Accept-Ranges", "bytes")
+                        .body(r))
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 }

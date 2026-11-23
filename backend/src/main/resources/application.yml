@@ -29,8 +29,10 @@ spring:
       timeout: 500ms
   servlet:
     multipart:
-      max-file-size: 12MB
-      max-request-size: 12MB
+      # Per-endpoint limits are enforced in code (images 10 MB, podcast media strata.storage.max-media-mb).
+      max-file-size: 600MB
+      max-request-size: 610MB
+      file-size-threshold: 1MB
   mail:
     host: ${SMTP_HOST:localhost}
     port: ${SMTP_PORT:1025}
@@ -98,6 +100,7 @@ strata:
     driver: local
     local-dir: ${STORAGE_LOCAL_DIR:./data/uploads}
     max-image-bytes: 10485760
+    max-media-mb: ${MAX_MEDIA_MB:500}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
   seed:

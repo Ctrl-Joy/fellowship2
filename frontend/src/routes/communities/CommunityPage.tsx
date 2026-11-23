@@ -16,6 +16,7 @@ import { CommunityPulseRail, PulseSection } from '@/features/pulse/components/Pu
 import { useCommunity } from '@/features/communities/hooks';
 import { FeedControls, SortMenu } from '@/features/posts/components/FeedControls';
 import { PostList } from '@/features/posts/components/PostList';
+import { CommunityPodcasts } from '@/features/podcasts/components/CommunityPodcasts';
 import { useUiPrefs } from '@/store/uiPrefs';
 import { useCommunityPosts } from '@/features/posts/hooks';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
@@ -23,7 +24,7 @@ import { PageColumns } from '@/layouts/PageColumns';
 import { ApiError } from '@/services/apiError';
 import type { CommunityDetail, CommunitySort, TimeRange } from '@/types/api';
 
-type View = 'posts' | 'about' | 'members' | 'pulse';
+type View = 'posts' | 'about' | 'members' | 'pulse' | 'podcasts';
 
 function Header({ c }: { c: CommunityDetail }) {
   const { isAuthed } = useAuth();
@@ -204,6 +205,7 @@ export default function CommunityPage() {
               options={[
                 { value: 'posts', label: 'Posts' },
                 { value: 'pulse', label: 'Pulse' },
+                { value: 'podcasts', label: 'Podcasts' },
                 { value: 'about', label: 'About' },
                 { value: 'members', label: 'Members' },
               ]}
@@ -221,10 +223,12 @@ export default function CommunityPage() {
               options={[
                 { value: 'posts', label: 'Posts' },
                 { value: 'pulse', label: 'Pulse' },
+                { value: 'podcasts', label: 'Podcasts' },
                 { value: 'members', label: 'Members' },
               ]}
             />
           </div>
+          {view === 'podcasts' && <CommunityPodcasts c={c} />}
           {view === 'posts' && <Posts c={c} />}
           {view === 'pulse' && <PulseSection c={c} />}
           {view === 'about' && <div className="space-y-4 px-4 sm:px-0 lg:hidden">{rail}</div>}

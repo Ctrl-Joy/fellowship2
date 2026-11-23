@@ -33,7 +33,7 @@ runs with no paid API. Ingestion and chunking of posts/comments, FTS + pgvector 
 filtering *before* retrieval (private communities, deleted content), answer + citations to real post/comment
 ids, conversations, feedback.
 
-## Phase 6: Media ☐
+## Phase 6: Media ✅ (upload-first podcasts, range-served media, transcripts, chapters, global player, AI script drafting; TTS/video generation and S3 driver deferred)
 S3/MinIO storage driver and presigned uploads, podcast shows/episodes/chapters/transcripts/sources, audio and
 video player (speed, chapters, resume, queue), discovery. Upload-first publishing; AI script/TTS generation only
 when providers are configured, otherwise marked unavailable.

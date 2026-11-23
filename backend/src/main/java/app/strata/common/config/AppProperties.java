@@ -22,7 +22,7 @@ public record AppProperties(Jwt jwt, Cookie cookie, Cors cors, App app, Mail mai
     public record Mail(String mode, String from) {}
 
     /** driver: "local" (filesystem). Object-storage driver is planned, see docs/DECISIONS.md. */
-    public record Storage(String driver, String localDir, long maxImageBytes) {}
+    public record Storage(String driver, String localDir, long maxImageBytes, long maxMediaMb) {}
 
     public record RateLimit(boolean enabled) {}
 

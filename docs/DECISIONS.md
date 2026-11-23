@@ -81,3 +81,20 @@ derived on read (closes_at / closed early / resolved), so no scheduler is needed
 pulse closes, so early results don't anchor later voters. Votes reuse the same advisory-lock and relative-counter pattern as
 post votes. Predictions record accuracy only, never money or points (per the brief). Live results refetch every 15 s; a
 WebSocket push is deferred until messaging adds STOMP.
+
+**D-016 Podcasts are upload-first, with AI writing scripts and never audio.** Following the brief's "do not fake generated media":
+- **Media.** An episode needs real uploaded audio or video. Uploads are validated by magic bytes and streamed to storage
+  without being buffered in memory, and the client reports the measured duration. Files are served as a seekable
+  `Resource`, so Spring answers HTTP Range requests (206) for scrubbing.
+- **Transcripts.** These are imported from WebVTT, SRT or timestamped text, and the timing always comes from the input. Search runs
+  in SQL, and `/transcript.vtt` feeds the video subtitle track.
+- **Publishing workflow.** DRAFT → IN_REVIEW → PUBLISHED / ARCHIVED, by community moderators only. Publishing requires media and a
+  transcript, and records who published. Media and transcript can't change while published.
+- **AI scripts.** `ScriptDrafter` retrieves permission-filtered sources for a topic and streams a two-host script from Claude
+  (`createStreaming` + `BetaMessageAccumulator`, since long outputs need streaming). It strips citations that don't map to a source,
+  attaches the cited threads as episode sources and stores the result as an *AI draft*. It runs on a small background executor, and
+  restarts mark in-flight drafts as failed. The prompt tells the model to write a shorter episode rather than pad to the target length,
+  and in testing it did exactly that when the sources were thin.
+- **Listening state.** One row per user and episode holds resume position, completion and history. Play count increments on a
+  user's first play only. The player is a single app-wide `<audio>` element, so listening continues across navigation.
+- **Known limit.** Media URLs are unguessable but not access-controlled, the same as images. Private file access arrives with Phase 7.

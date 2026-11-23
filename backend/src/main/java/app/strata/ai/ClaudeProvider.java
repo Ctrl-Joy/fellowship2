@@ -3,6 +3,9 @@ package app.strata.ai;
 import app.strata.common.config.AppProperties;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
+import com.anthropic.core.http.StreamResponse;
+import com.anthropic.helpers.BetaMessageAccumulator;
+import com.anthropic.models.beta.messages.BetaRawMessageStreamEvent;
 import com.anthropic.models.beta.AnthropicBeta;
 import com.anthropic.models.beta.messages.BetaCacheControlEphemeral;
 import com.anthropic.models.beta.messages.BetaFallbacksParam;
@@ -92,6 +95,38 @@ public class ClaudeProvider implements AiProvider {
                 ? "The answer was cut off at the length limit." : null;
         String[] parts = AnswerPrompt.split(text);
         return new Answer(parts[0], AnswerPrompt.followUps(parts[1]), notice, in, out);
+    }
+
+    /** Result of a long generation: text plus whether it was cut short or declined. */
+    public record LongText(String text, boolean truncated, boolean refused, long inputTokens, long outputTokens) {}
+
+    /**
+     * Long-form generation (e.g. a 45–90 minute podcast script). Streams the response, as recommended for large
+     * max_tokens to avoid HTTP timeouts, and accumulates it into the final message.
+     */
+    public LongText generateLong(String system, String userTurn, long maxTokens) {
+        if (client == null) throw new IllegalStateException("Claude is not configured");
+        MessageCreateParams params = MessageCreateParams.builder()
+                .model(cfg.model())
+                .maxTokens(maxTokens)
+                .systemOfBetaTextBlockParams(List.of(BetaTextBlockParam.builder()
+                        .text(system)
+                        .cacheControl(BetaCacheControlEphemeral.builder().build())
+                        .build()))
+                .outputConfig(BetaOutputConfig.builder().effort(BetaOutputConfig.Effort.of(cfg.effort())).build())
+                .addBeta(AnthropicBeta.SERVER_SIDE_FALLBACK_2026_07_01)
+                .fallbacks(BetaFallbacksParam.ofDefault())
+                .addUserMessage(userTurn)
+                .build();
+        BetaMessageAccumulator acc = BetaMessageAccumulator.create();
+        try (StreamResponse<BetaRawMessageStreamEvent> stream = client.beta().messages().createStreaming(params)) {
+            stream.stream().forEach(acc::accumulate);
+        }
+        BetaMessage msg = acc.message();
+        Optional<BetaStopReason> stop = msg.stopReason();
+        String text = msg.content().stream().flatMap(b -> b.text().stream()).map(t -> t.text()).collect(Collectors.joining("\n\n"));
+        return new LongText(text, stop.isPresent() && stop.get().equals(BetaStopReason.MAX_TOKENS),
+                stop.isPresent() && stop.get().equals(BetaStopReason.REFUSAL), msg.usage().inputTokens(), msg.usage().outputTokens());
     }
 
     @PreDestroy
