@@ -3,7 +3,9 @@ import type { ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import type { TransparencyReport } from '@/types/funding';
 import { formatDate, pluralize } from '@/utils/format';
+import { Badge } from '@/components/ui/Display';
 import { POLICY_LABELS } from '../money';
+import { payoutTone } from '../payouts';
 import { MoneyAmount } from './Mode';
 
 function Tile({ label, children }: { label: string; children: ReactNode }) {
@@ -18,11 +20,13 @@ function Tile({ label, children }: { label: string; children: ReactNode }) {
 /** Totals, contributors, allocations and the full ledger for one pool and period. Everything is public to viewers. */
 export function TransparencyReportView({ r }: { r: TransparencyReport }) {
   const rec = r.reconciliation;
+  const pay = r.payouts?.applicable ? r.payouts : null;
+  const testMode = r.pool.mode !== 'live';
   return (
     <div className="space-y-5">
       <section aria-label="Totals" className="grid grid-cols-2 gap-2 sm:grid-cols-4">
         <Tile label="Raised"><MoneyAmount m={r.raised} /></Tile>
-        <Tile label="Allocated, not paid out"><MoneyAmount m={r.allocated} /></Tile>
+        <Tile label={pay ? 'Allocated' : 'Allocated, not paid out'}><MoneyAmount m={r.allocated} /></Tile>
         <Tile label="Held in pool"><MoneyAmount m={rec.poolBalance} /></Tile>
         <Tile label={`${pluralize(r.contributionCount, 'contribution')} · ${pluralize(r.contributorCount, 'contributor')}`}>
           <span className="font-semibold tabular-nums">{r.contributionCount} · {r.contributorCount}</span>
@@ -68,7 +72,22 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
 
       <section aria-labelledby="alloc-h">
         <h3 id="alloc-h" className="mb-1 text-xs font-bold uppercase tracking-wider text-muted">Allocations</h3>
-        <p className="mb-2 text-xs text-faint">Allocated, not paid out: each row is a recorded obligation to a moderator. No money is sent to moderators by this site.</p>
+        {pay ? (
+          <div className="mb-2 space-y-1 text-xs text-faint">
+            <p>
+              Each share is sent to the moderator’s connected Stripe account{testMode ? ' in Stripe test mode (no real money)' : ''}. A moderator
+              without one has their share held until they connect it.
+            </p>
+            <p className={pay.reconciles ? 'flex flex-wrap items-center gap-1 text-muted' : 'flex flex-wrap items-center gap-1 text-danger'}>
+              {pay.reconciles ? <CheckCircle2 size={13} className="text-accent" aria-hidden="true" /> : <AlertTriangle size={13} aria-hidden="true" />}
+              <span>{pay.reconciles ? 'Payouts reconcile:' : 'Payouts do not reconcile:'} allocated</span> <MoneyAmount m={pay.allocated} />
+              <span>= {testMode ? 'paid out (test mode)' : 'paid out'}</span> <MoneyAmount m={pay.transferred} />
+              <span>+ held</span> <MoneyAmount m={pay.held} />
+            </p>
+          </div>
+        ) : (
+          <p className="mb-2 text-xs text-faint">Allocated, not paid out: each row is a recorded obligation to a moderator. No money is sent to moderators by this site.</p>
+        )}
         {r.allocations.length === 0 ? (
           <p className="text-sm text-muted">
             {r.pool.status === 'OPEN' ? 'Allocated when the period ends on ' + formatDate(r.pool.periodEnd) + '.' : r.pool.status === 'AWAITING_ALLOCATION' ? 'The period has ended; waiting for the owner’s manual allocation.' : 'Nothing was allocated.'}
@@ -93,7 +112,10 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
                     <td className="py-2 tabular-nums text-muted">
                       {a.activityScore != null ? `${a.reportsResolved ?? 0} reports · ${a.appealsHandled ?? 0} appeals · ${a.activityScore} pts` : '–'}
                     </td>
-                    <td className="py-2 text-right"><MoneyAmount m={a.amount} className="justify-end" /></td>
+                    <td className="py-2 text-right">
+                      <MoneyAmount m={a.amount} className="justify-end" />
+                      {a.payout && <div className="mt-1"><Badge tone={payoutTone(a.payout.status)}>{a.payout.label}</Badge></div>}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -127,7 +149,11 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
                     <td className="py-1.5 tabular-nums text-faint">{l.id}</td>
                     <td className="py-1.5 whitespace-nowrap text-muted">{formatDate(l.createdAt)}</td>
                     <td className="py-1.5">{l.entryType === 'REFUND' ? <>{l.debitLabel} <span className="text-xs text-muted">(refund)</span></> : l.debitLabel}</td>
-                    <td className="py-1.5">{l.creditLabel}</td>
+                    <td className="py-1.5">
+                      {l.creditLabel}
+                      {l.entryType === 'PAYOUT' && <span className="text-xs text-muted"> (payout)</span>}
+                      {l.entryType === 'PAYOUT_REVERSAL' && <span className="text-xs text-muted"> (reversed transfer)</span>}
+                    </td>
                     <td className="py-1.5 text-right"><MoneyAmount m={l.amount} className="justify-end" /></td>
                   </tr>
                 ))}

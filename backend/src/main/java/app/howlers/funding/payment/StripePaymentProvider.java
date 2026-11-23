@@ -24,15 +24,26 @@ public class StripePaymentProvider implements PaymentProvider {
     private final StripeGateway gateway;
     private final String mode;
     private final String webhookSecret;
+    private final String connectWebhookSecret;
     private final long toleranceSeconds;
     private final ObjectMapper mapper;
     private final Clock clock;
 
     public StripePaymentProvider(StripeGateway gateway, String mode, String webhookSecret, long toleranceSeconds, ObjectMapper mapper, Clock clock) {
+        this(gateway, mode, webhookSecret, null, toleranceSeconds, mapper, clock);
+    }
+
+    /**
+     * @param connectWebhookSecret the signing secret of a separate dashboard endpoint for connected-account events
+     *                             (optional; a signature valid for either secret is accepted)
+     */
+    public StripePaymentProvider(StripeGateway gateway, String mode, String webhookSecret, String connectWebhookSecret, long toleranceSeconds,
+                                 ObjectMapper mapper, Clock clock) {
         if (!Money.MODE_TEST.equals(mode) && !Money.MODE_LIVE.equals(mode)) throw new IllegalArgumentException("mode must be test or live");
         this.gateway = gateway;
         this.mode = mode;
         this.webhookSecret = webhookSecret == null ? "" : webhookSecret.strip();
+        this.connectWebhookSecret = connectWebhookSecret == null ? "" : connectWebhookSecret.strip();
         this.toleranceSeconds = toleranceSeconds;
         this.mapper = mapper;
         this.clock = clock;
@@ -55,6 +66,10 @@ public class StripePaymentProvider implements PaymentProvider {
         return !webhookSecret.isEmpty();
     }
 
+    public boolean connectWebhooksConfigured() {
+        return !connectWebhookSecret.isEmpty();
+    }
+
     public StripeGateway gateway() {
         return gateway;
     }
@@ -72,10 +87,8 @@ public class StripePaymentProvider implements PaymentProvider {
     @Override
     public String notice() {
         return Money.MODE_TEST.equals(mode)
-                ? "Stripe test mode: payments go through Stripe's hosted checkout with test cards only, and no real money moves. "
-                + "Allocations to moderators are recorded, not paid out."
-                : "Payments go through Stripe's hosted checkout; Howlers never sees card details. Allocations to moderators are recorded "
-                + "obligations and are not paid out by Howlers.";
+                ? "Stripe test mode: payments go through Stripe's hosted checkout with test cards only, and no real money moves."
+                : "Payments go through Stripe's hosted checkout; Howlers never sees card details.";
     }
 
     @Override
@@ -116,15 +129,25 @@ public class StripePaymentProvider implements PaymentProvider {
 
     @Override
     public WebhookEvent verifyWebhook(String payload, String signatureHeader) {
-        if (webhookSecret.isEmpty()) throw new WebhookVerificationException("Stripe webhooks aren't configured on this server (STRIPE_WEBHOOK_SECRET)");
-        if (payload == null || signatureHeader == null || signatureHeader.isBlank()) throw new WebhookVerificationException("Missing signature");
-        try {
-            Webhook.constructEvent(payload, signatureHeader, webhookSecret, toleranceSeconds, clock);
-        } catch (SignatureVerificationException e) {
-            throw new WebhookVerificationException(e.getMessage());
-        } catch (RuntimeException e) {
-            throw new WebhookVerificationException("Payload is not a Stripe event");
+        if (webhookSecret.isEmpty() && connectWebhookSecret.isEmpty()) {
+            throw new WebhookVerificationException("Stripe webhooks aren't configured on this server (STRIPE_WEBHOOK_SECRET)");
         }
+        if (payload == null || signatureHeader == null || signatureHeader.isBlank()) throw new WebhookVerificationException("Missing signature");
+        // The platform endpoint and an optional connected-accounts endpoint have their own secrets; either may have signed it.
+        String failure = null;
+        boolean verified = false;
+        for (String secret : new String[] {webhookSecret, connectWebhookSecret}) {
+            if (secret.isEmpty() || verified) continue;
+            try {
+                Webhook.constructEvent(payload, signatureHeader, secret, toleranceSeconds, clock);
+                verified = true;
+            } catch (SignatureVerificationException e) {
+                failure = e.getMessage();
+            } catch (RuntimeException e) {
+                throw new WebhookVerificationException("Payload is not a Stripe event");
+            }
+        }
+        if (!verified) throw new WebhookVerificationException(failure == null ? "Invalid signature" : failure);
         Map<String, Object> body;
         try {
             body = mapper.readValue(payload, new TypeReference<Map<String, Object>>() {});
@@ -140,7 +163,7 @@ public class StripePaymentProvider implements PaymentProvider {
             throw new WebhookVerificationException(live ? "Live-mode event sent to a test-mode server" : "Test-mode event sent to a live server");
         }
         Map<String, Object> object = map(map(body.get("data")).get("object"));
-        return new WebhookEvent(sid, st, object);
+        return new WebhookEvent(sid, st, object, str(body.get("account")));
     }
 
     // ------------------------------------------------------------------ reading event objects (plain JSON maps)

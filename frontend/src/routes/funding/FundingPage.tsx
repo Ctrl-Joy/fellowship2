@@ -25,6 +25,9 @@ export default function FundingPage() {
         <header>
           <h1 className="text-2xl font-bold">Moderator funding</h1>
           <p className="text-sm text-muted">Support the moderators of communities you belong to. Every pool publishes who received what, and why.</p>
+          <Link to="/funding/payouts" className="mt-1 inline-block text-sm font-semibold text-brand hover:underline">
+            Moderating? See your payouts and payout account
+          </Link>
         </header>
         <ModeBanner status={q.data?.status} />
         {q.isPending && <><Skeleton className="h-40 rounded-2xl" /><Skeleton className="h-24 rounded-2xl" /></>}

@@ -227,6 +227,14 @@ howlers:
     demo-webhook-secret: ${FUNDING_DEMO_WEBHOOK_SECRET:dev-only-demo-webhook-secret-change-me}
     webhook-tolerance-seconds: 300
     jobs-enabled: ${FUNDING_JOBS_ENABLED:true}
+    # Stripe Connect payouts to moderators (D-046, D-047). Off by default; needs FUNDING_PROVIDER=stripe and Connect
+    # activated in the Stripe dashboard. A live key also needs connect.live-mode=true (on top of D-034's acknowledgement).
+    connect:
+      enabled: ${STRIPE_CONNECT_ENABLED:false}
+      live-mode: ${STRIPE_CONNECT_LIVE:false}
+      country: ${STRIPE_CONNECT_COUNTRY:US}
+      # Only when the dashboard has a separate "connected accounts" endpoint with its own secret.
+      webhook-secret: ${STRIPE_CONNECT_WEBHOOK_SECRET:}
   # Write-time spam heuristics (D-021). Held content goes to the mod queue; "reject" thresholds refuse outright.
   spam:
     enabled: ${SPAM_HEURISTICS_ENABLED:true}

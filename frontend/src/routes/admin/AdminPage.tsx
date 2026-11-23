@@ -7,11 +7,12 @@ import { AuditTab } from '@/features/admin/components/AuditTab';
 import { CommunitiesTab } from '@/features/admin/components/CommunitiesTab';
 import { FlagsTab } from '@/features/admin/components/FlagsTab';
 import { OverviewTab } from '@/features/admin/components/OverviewTab';
+import { PaymentsTab } from '@/features/admin/components/PaymentsTab';
 import { UsersTab } from '@/features/admin/components/UsersTab';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { cn } from '@/utils/format';
 
-type Tab = 'overview' | 'users' | 'communities' | 'flags' | 'audit';
+type Tab = 'overview' | 'users' | 'communities' | 'flags' | 'audit' | 'payments';
 
 const TABS: { v: Tab; label: string }[] = [
   { v: 'overview', label: 'Overview' },
@@ -19,6 +20,7 @@ const TABS: { v: Tab; label: string }[] = [
   { v: 'communities', label: 'Communities' },
   { v: 'flags', label: 'Flags' },
   { v: 'audit', label: 'Audit log' },
+  { v: 'payments', label: 'Payments' },
 ];
 
 /** Platform admin dashboard. The server enforces the ADMIN role on every call; this check only avoids a dead page. */
@@ -61,6 +63,7 @@ export default function AdminPage() {
         {tab === 'communities' && <CommunitiesTab />}
         {tab === 'flags' && <FlagsTab />}
         {tab === 'audit' && <AuditTab />}
+        {tab === 'payments' && <PaymentsTab />}
       </div>
     </div>
   );

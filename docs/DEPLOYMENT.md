@@ -360,3 +360,47 @@ UPDATE account_security SET totp_secret_enc = NULL, totp_enabled_at = NULL, totp
   WHERE user_id = (SELECT id FROM users WHERE username = 'their_name');
 DELETE FROM totp_recovery_codes WHERE user_id = (SELECT id FROM users WHERE username = 'their_name');
 ```
+## 14. Stripe webhooks and Connect payouts to moderators (D-046, D-047)
+Test mode only unless you deliberately go live. With Connect on, a closed Stripe pool pays each moderator's share as a Stripe
+**Transfer** from the platform balance to the moderator's **Express** connected account. A moderator without a ready account
+has their share held ("Held: connect your account") until they finish onboarding. Howlers stores only the account id and
+Stripe's status flags; Stripe's hosted onboarding collects identity and bank details. **Admin → Payments** shows the mode,
+which secrets are set (never their values), the last webhook received, Connect on/off, and the exact endpoint and events.
+
+1. **Activate Connect (owner, once).** Stripe dashboard, test mode on → **Connect** → Get started. Choose the platform /
+   marketplace model with **Express** accounts. Until this is done Stripe refuses to create accounts with "You can only create
+   new accounts if you've signed up for Connect", and Howlers shows that as "Stripe Connect isn't activated on the platform's
+   Stripe account yet".
+2. **Turn it on in Howlers.** Set `STRIPE_CONNECT_ENABLED=true` (with `FUNDING_PROVIDER=stripe` and a `sk_test_` key) in
+   `backend/.env.local`, `.env` or `deploy/.env`. Optional: `STRIPE_CONNECT_COUNTRY` (default `US`). The server refuses to start
+   with Connect on and any other provider. With a live key it also needs `STRIPE_CONNECT_LIVE=true`, on top of
+   `FUNDING_LIVE_MODE=true` and `FUNDING_COMPLIANCE_ACK` (D-034); with a test key `STRIPE_CONNECT_LIVE=true` is refused.
+3. **Webhook endpoints in the dashboard (deployed).** Developers → Webhooks → **Add endpoint**, URL
+   `https://<your domain>/api/v1/funding/webhooks/stripe` (the admin panel shows the URL it expects).
+   - **"Events on your account"** endpoint: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+     `checkout.session.async_payment_failed`, `checkout.session.expired`, `invoice.paid`, `invoice.payment_failed`,
+     `customer.subscription.deleted`, `charge.refunded`, `transfer.created`, `transfer.updated`, `transfer.reversed`.
+     Its signing secret goes in `STRIPE_WEBHOOK_SECRET`.
+   - **"Events on connected accounts"** endpoint (same URL): `account.updated`, `payout.paid`, `payout.failed`,
+     `payout.canceled`. Stripe gives it its own signing secret: put it in `STRIPE_CONNECT_WEBHOOK_SECRET`. A signature valid
+     for either secret is accepted; event ids are de-duplicated exactly as for Checkout events.
+4. **Local development with the Stripe CLI.** `stripe login`, then
+   `stripe listen --forward-to localhost:8080/api/v1/funding/webhooks/stripe --forward-connect-to localhost:8080/api/v1/funding/webhooks/stripe`
+   and use the one `whsec_…` it prints as `STRIPE_WEBHOOK_SECRET` (it signs both kinds; leave
+   `STRIPE_CONNECT_WEBHOOK_SECRET` empty). Webhooks are optional locally: returning from onboarding re-reads the account
+   from Stripe, and the funding job re-reads accounts that aren't enabled yet every 10 minutes.
+5. **Try it.** As a moderator, open **Moderator funding → See your payouts** (`/funding/payouts`) and press **Connect with
+   Stripe**. Stripe's test onboarding accepts test data (phone `000 000 0000`, SMS code `000000`, SSN `000-00-0000`, the test
+   bank account it offers). Back on Howlers the account shows "Payouts enabled". Close a pool: the share shows
+   "Paid out (test mode)" and the transparency report adds a PAYOUT ledger row and "allocated = paid out + held".
+6. **Platform balance in test mode.** Transfers need *available* balance. Card payments take days to become available, so a
+   fresh sandbox refuses transfers with `balance_insufficient`; Howlers marks the payout "Held: transfer failed, retrying"
+   and retries with backoff (an admin review is raised after 3 failures). Pay a test contribution with
+   `4000 0000 0000 0077` (funds available immediately) before closing the pool, or use **Run payouts now** afterwards.
+7. **What needs a person.** Refunds after a payout are never clawed back automatically, and reversed transfers are never
+   re-sent automatically: both appear under **Admin → Payments → Payout reviews**, where an admin records what was done.
+8. **Owner's live check (optional).** From `backend/`:
+   `./mvnw test -Dtest=StripeConnectLiveCheckTest -Dstripe.live=true -Dsurefire.excludedGroups=none -Dsurefire.failIfNoSpecifiedTests=false`
+   (add `-Dstripe.envFile=<path to .env.local>` if it isn't `backend/.env.local`). It refuses anything but a test key, creates
+   one Express account and one onboarding link, prints only the account id prefix and whether the link was created, deletes
+   the account again, and never creates a transfer.

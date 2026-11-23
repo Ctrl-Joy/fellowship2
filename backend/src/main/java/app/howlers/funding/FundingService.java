@@ -98,9 +98,11 @@ public class FundingService {
     private final UserRepository users;
     private final UserDirectory directory;
     private final RateLimiter limiter;
+    private final PayoutService payouts;
 
     public FundingService(JdbcClient jdbc, FundingRuntime runtime, CommunityRepository communities, CommunityAccess access,
-                          MembershipDao memberships, UserRepository users, UserDirectory directory, RateLimiter limiter) {
+                          MembershipDao memberships, UserRepository users, UserDirectory directory, RateLimiter limiter, PayoutService payouts) {
+        this.payouts = payouts;
         this.jdbc = jdbc;
         this.runtime = runtime;
         this.communities = communities;
@@ -119,8 +121,22 @@ public class FundingService {
             return new FundingStatus(false, null, true, Money.MODE_DEMO, Money.DEMO_LABEL, runtime.disabledReason(), null, PAYOUTS, currencies);
         }
         PaymentProvider p = runtime.provider();
-        return new FundingStatus(true, p.id(), p.demo(), p.mode(), p.label(), p.notice(), p.hostedCheckout() ? "hosted" : "instant", PAYOUTS,
-                currencies);
+        return new FundingStatus(true, p.id(), p.demo(), p.mode(), p.label(), p.notice(), p.hostedCheckout() ? "hosted" : "instant",
+                payoutsNotice(p), currencies);
+    }
+
+    /** What happens to allocations: recorded only (demo, or Stripe without Connect), or paid out through Stripe Connect (D-046). */
+    private String payoutsNotice(PaymentProvider p) {
+        if (!payouts.enabled() || !PayoutService.paysOut(p.id(), p.mode())) {
+            return PayoutService.paysOut(p.id(), p.mode())
+                    ? PAYOUTS + " Each Stripe pool's shares are held until payouts are enabled on this server."
+                    : PAYOUTS;
+        }
+        return Money.MODE_TEST.equals(p.mode())
+                ? "Paid out through Stripe Connect in test mode (no real money): when a pool closes, each moderator's share is transferred to "
+                + "their connected Stripe account. A moderator without one has their share held until they connect it."
+                : "Paid out through Stripe Connect: when a pool closes, each moderator's share is transferred to their connected Stripe account. "
+                + "A moderator without one has their share held until they connect it.";
     }
 
     // ------------------------------------------------------------------ community overview, policy
@@ -501,7 +517,8 @@ public class FundingService {
                 ? "Manual allocation: the owner enters each moderator's amount and a public note when the pool closes."
                 : plan.note();
         return new AllocationPreview(pol.policy(), money(total, p), plan.rows().stream()
-                .map(r -> new Allocation(u.get(r.moderatorId()), pol.policy(), money(r.amount(), p), r.score(), r.reports(), r.appeals(), null, null))
+                .map(r -> new Allocation(u.get(r.moderatorId()), pol.policy(), money(r.amount(), p), r.score(), r.reports(), r.appeals(), null, null,
+                        null))
                 .toList(), note, plan.from(), plan.to());
     }
 
@@ -573,6 +590,8 @@ public class FundingService {
         }
         long allocated = rows.stream().mapToLong(Planned::amount).sum();
         if (allocated != total) throw new IllegalStateException("Allocation of pool " + p.id() + " doesn't add up: " + allocated + " != " + total);
+        // Stripe pools: one payout per positive allocation, sent after this transaction commits (D-046).
+        payouts.createForPool(p.id(), p.provider(), p.mode());
         jdbc.sql("UPDATE funding_pools SET status = 'CLOSED', closed_policy = ?, closed_note = ?, closed_by = ?, closed_at = ? WHERE id = ?")
                 .params(pol.policy(), note, closedBy, Timestamp.from(now), p.id()).update();
     }
@@ -647,8 +666,9 @@ public class FundingService {
                         (Integer) rs.getObject(6), rs.getString(7), ts(rs, 8)))
                 .list();
         Map<Long, UserSummary> mods = directory.summaries(allocs.stream().map(A::modId).toList());
+        Map<Long, ConnectDtos.AllocationPayout> paid = payouts.forPool(p.id());
         List<Allocation> allocations = allocs.stream().map(a -> new Allocation(mods.get(a.modId()), a.policy(), money(a.amount(), p), a.score(),
-                a.reports(), a.appeals(), a.note(), a.at())).toList();
+                a.reports(), a.appeals(), a.note(), a.at(), paid.get(a.modId()))).toList();
         long allocated = allocs.stream().mapToLong(A::amount).sum();
 
         record L(long id, String type, String debit, String credit, long amount, Long contributionId, Instant at) {}
@@ -669,8 +689,8 @@ public class FundingService {
                     .param("ids", cids).query((rs, i) -> namedByContribution.put(rs.getLong(1), rs.getLong(2))).list();
         }
         Set<Long> userIds = new HashSet<>(namedByContribution.values());
-        ledgerRows.forEach(l -> Stream.of(l.debit(), l.credit()).filter(a -> a.startsWith("moderator:"))
-                .forEach(a -> userIds.add(Long.parseLong(a.substring("moderator:".length())))));
+        ledgerRows.forEach(l -> Stream.of(l.debit(), l.credit()).filter(a -> a.startsWith("moderator:") || a.startsWith("connected:"))
+                .forEach(a -> userIds.add(Long.parseLong(a.substring(a.indexOf(':') + 1)))));
         Map<Long, UserSummary> labels = directory.summaries(userIds);
         List<LedgerEntry> ledger = ledgerRows.stream().map(l -> {
             String debitLabel = l.contributionId() != null
@@ -685,7 +705,8 @@ public class FundingService {
         R refunds = jdbc.sql("SELECT count(*), coalesce(sum(amount_minor), 0) FROM funding_refunds WHERE pool_id = ?").param(p.id())
                 .query((rs, i) -> new R(rs.getLong(1), rs.getLong(2))).single();
         return new TransparencyReport(summary, money(t.sum() - refunds.sum(), p), t.count(), t.contributors(), t.contributors() - namedList.size(),
-                namedList, money(allocated, p), allocations, ledger, truncated, reconcile(p), p.closedNote(), money(refunds.sum(), p), refunds.count());
+                namedList, money(allocated, p), allocations, ledger, truncated, reconcile(p), p.closedNote(), money(refunds.sum(), p), refunds.count(),
+                payouts.reconcile(p.id(), p.provider(), p.mode(), p.status(), p.currency()));
     }
 
     /** Cross-checks the contribution, allocation and ledger tables against each other with independent sums. */
@@ -720,6 +741,10 @@ public class FundingService {
         if (account.startsWith("moderator:")) {
             UserSummary u = users.get(Long.parseLong(account.substring("moderator:".length())));
             return u == null ? "Moderator (account deleted)" : "u/" + u.username();
+        }
+        if (account.startsWith("connected:")) {
+            UserSummary u = users.get(Long.parseLong(account.substring("connected:".length())));
+            return (u == null ? "Moderator" : "u/" + u.username()) + "'s Stripe account" + (p.demo() ? " (test mode)" : "");
         }
         return account;
     }
