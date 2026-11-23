@@ -78,7 +78,7 @@ Optional:
 | `STRIPE_WEBHOOK_SECRET` | empty | signing secret of the webhook endpoint (`whsec_…`); required in production with Stripe |
 | `FUNDING_LIVE_MODE`, `FUNDING_COMPLIANCE_ACK` | `false`, empty | both needed before a live key is accepted; the acknowledgement records who signed off the compliance review (D-034) |
 | `SEED_DEMO_DATA` | `false` | fictional demo content |
-| `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGINS` | host and origin of `APP_PUBLIC_URL` | passkey relying party id and allowed origins (D-041); see section 12 before changing |
+| `WEBAUTHN_RP_ID`, `WEBAUTHN_ORIGINS` | host and origin of `APP_PUBLIC_URL` | passkey relying party id and allowed origins (D-041); see section 13 before changing |
 | `NEW_SIGNIN_ALERTS` | `true` | "New sign-in" emails for unfamiliar devices (users can also opt out) |
 | `DATABASE_POOL_SIZE` | 15 | Hikari pool size |
 | `FEED_CACHE_ENABLED`, `FEED_CACHE_TTL` | `true`, `PT30S` | first-page feed id cache (D-025) |

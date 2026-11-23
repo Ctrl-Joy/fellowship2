@@ -139,5 +139,5 @@ _Last updated: 2026-11-24 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | New-device sign-in email (device cookie + browser/OS family; not for the first known device; per-user opt-out, default on; only a keyed network-prefix hash stored) | ✅ `NewDeviceAlertIT` 4 (via the recorded mail transport), `UserAgentFamilyTest` 10 | ✅ "Sign-in alerts" switch |
 | Sessions: sign-in method per session, "Sign out everywhere else" | ✅ `NewDeviceAlertIT` | ✅ badges + button |
 | Signed-in `/auth/**` endpoints (sessions list, resend verification, revoke) were answering 401: the JWT filter skipped `/auth/` entirely; fixed (D-041) | ✅ covered by the ITs above | |
-| Admin reset of a user's 2FA, passkey autofill (conditional mediation), attestation/AAGUID allow-lists | ❌ not built (manual SQL for the reset in DEPLOYMENT.md section 12) | ❌ |
+| Admin reset of a user's 2FA, passkey autofill (conditional mediation), attestation/AAGUID allow-lists | ❌ not built (manual SQL for the reset in DEPLOYMENT.md section 13) | ❌ |
 | Real browser and real authenticator (platform passkey, phone, security key) and a real authenticator app | not verified: tests use a software authenticator and computed codes; no browser session was run | |
