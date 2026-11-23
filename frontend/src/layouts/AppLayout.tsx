@@ -1,6 +1,6 @@
 import * as RD from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom';
 import { BrandMark } from '@/design-system/BrandMark';
 import { DemoNotice } from '@/features/demo/DemoNotice';
@@ -12,12 +12,32 @@ import { usePlayer } from '@/store/player';
 import { cn } from '@/utils/format';
 import { TopBar } from './TopBar';
 
+/**
+ * These dialogs are opened from TopBar buttons rather than Radix triggers, so Radix has nothing to return focus to on
+ * close and focus fell back to <body>. Remember the element that had focus when the dialog opened and restore it.
+ */
+function useReturnFocus(open: boolean) {
+  const opener = useRef<HTMLElement | null>(null);
+  if (open && !opener.current && typeof document !== 'undefined') {
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+  }
+  return (e: Event) => {
+    const el = opener.current;
+    opener.current = null;
+    if (el && el.isConnected) {
+      e.preventDefault();
+      el.focus();
+    }
+  };
+}
+
 function Drawer({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const onCloseAutoFocus = useReturnFocus(open);
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         <RD.Overlay className="fixed inset-0 z-40 bg-black/50 md:hidden" />
-        <RD.Content className="fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] overflow-y-auto border-r border-border bg-surface md:hidden">
+        <RD.Content onCloseAutoFocus={onCloseAutoFocus} className="fixed inset-y-0 left-0 z-50 w-[280px] max-w-[85vw] overflow-y-auto border-r border-border bg-surface md:hidden">
           <div className="flex h-14 items-center justify-between border-b border-border px-4">
             <RD.Title asChild>
               <span><BrandMark withName /></span>
@@ -35,11 +55,12 @@ function Drawer({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boole
 }
 
 function MobileSearch({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const onCloseAutoFocus = useReturnFocus(open);
   return (
     <RD.Root open={open} onOpenChange={onOpenChange}>
       <RD.Portal>
         <RD.Overlay className="fixed inset-0 z-40 bg-black/50" />
-        <RD.Content className="fixed inset-x-0 top-0 z-50 border-b border-border bg-surface p-3">
+        <RD.Content onCloseAutoFocus={onCloseAutoFocus} className="fixed inset-x-0 top-0 z-50 border-b border-border bg-surface p-3">
           <RD.Title className="sr-only">Search</RD.Title>
           <RD.Description className="sr-only">Search communities, posts and people</RD.Description>
           <SearchBox onDone={() => onOpenChange(false)} />

@@ -85,7 +85,7 @@ export default function ModPage() {
           <button key={t.v} role="tab" type="button" aria-selected={tab === t.v} onClick={() => setParams({ tab: t.v }, { replace: true })}
             className={cn('inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-sm font-semibold', tab === t.v ? 'bg-surface-3 text-text' : 'text-muted hover:bg-surface-2')}>
             {t.label}
-            {!!t.badge && <span className="rounded-full bg-danger px-1.5 text-[11px] font-bold text-white">{t.badge}</span>}
+            {!!t.badge && <span className="rounded-full bg-danger px-1.5 text-[11px] font-bold text-danger-fg">{t.badge}</span>}
           </button>
         ))}
       </div>

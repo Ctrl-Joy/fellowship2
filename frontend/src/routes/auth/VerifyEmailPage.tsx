@@ -68,7 +68,7 @@ function ResendBlock() {
   if (!isAuthed) {
     return (
       <p>
-        <Link to="/login" className="text-accent hover:underline">Log in</Link> to get a new verification email
+        <Link to="/login" className="text-accent underline underline-offset-2 hover:no-underline">Log in</Link> to get a new verification email
         (Settings › Account).
       </p>
     );

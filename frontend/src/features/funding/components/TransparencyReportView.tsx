@@ -74,7 +74,7 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
             {r.pool.status === 'OPEN' ? 'Allocated when the period ends on ' + formatDate(r.pool.periodEnd) + '.' : r.pool.status === 'AWAITING_ALLOCATION' ? 'The period has ended; waiting for the owner’s manual allocation.' : 'Nothing was allocated.'}
           </p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Allocations table">
             <table className="w-full min-w-[420px] text-sm">
               <caption className="sr-only">Allocations per moderator</caption>
               <thead className="text-left text-xs text-muted">
@@ -98,7 +98,7 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
         {r.closedNote && <p className="mt-2 rounded-lg bg-surface-2 px-3 py-2 text-sm"><span className="font-semibold">Note: </span>{r.closedNote}</p>}
       </section>
@@ -109,7 +109,7 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
         {r.ledger.length === 0 ? (
           <p className="text-sm text-muted">No entries yet.</p>
         ) : (
-          <div className="overflow-x-auto">
+          <ScrollRegion label="Ledger table">
             <table className="w-full min-w-[520px] text-sm">
               <caption className="sr-only">Ledger entries</caption>
               <thead className="text-left text-xs text-muted">
@@ -133,10 +133,23 @@ export function TransparencyReportView({ r }: { r: TransparencyReport }) {
                 ))}
               </tbody>
             </table>
-          </div>
+          </ScrollRegion>
         )}
         {r.ledgerTruncated && <p className="mt-1 text-xs text-muted">Showing the first 1,000 entries.</p>}
       </section>
+    </div>
+  );
+}
+
+/**
+ * A horizontally scrollable table wrapper that keyboard users can focus and scroll (axe `scrollable-region-focusable`).
+ * A focusable named region is the documented pattern for this, so the non-interactive tabindex rule is waived here.
+ */
+function ScrollRegion({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex
+    <div className="overflow-x-auto rounded focus-visible:outline focus-visible:outline-2 focus-visible:outline-brand" tabIndex={0} role="region" aria-label={label}>
+      {children}
     </div>
   );
 }
