@@ -133,6 +133,26 @@ strata:
     quota-mb: ${FILE_QUOTA_MB:1024}
     # Salt for hashing visitor IPs in share access logs. Blank = random per start (hashes not linkable across restarts).
     visitor-salt: ${FILE_VISITOR_SALT:}
+  # Podcast audio from scripts (D-036). auto = ElevenLabs when ELEVENLABS_API_KEY is set (server-side only), else unavailable.
+  podcasts:
+    tts:
+      provider: ${TTS_PROVIDER:auto}
+      max-chars-per-request: ${TTS_MAX_CHARS_PER_REQUEST:2500}
+      max-chars-per-episode: ${TTS_MAX_CHARS_PER_EPISODE:60000}
+      # Per community, per UTC day. Failed/cancelled jobs count only what was actually sent.
+      daily-character-budget: ${TTS_DAILY_CHARACTER_BUDGET:100000}
+      turn-pause-ms: 350
+      elevenlabs:
+        api-key: ${ELEVENLABS_API_KEY:}
+        base-url: ${ELEVENLABS_BASE_URL:https://api.elevenlabs.io}
+        model: ${ELEVENLABS_MODEL:eleven_multilingual_v2}
+        output-format: ${ELEVENLABS_OUTPUT_FORMAT:mp3_44100_128}
+        # Premade ElevenLabs voices (no cloning). Defaults: Sarah (HOST A) and George (HOST B).
+        voice-a: ${ELEVENLABS_VOICE_A:EXAVITQu4vr4xnAQ5fpe}
+        voice-a-name: ${ELEVENLABS_VOICE_A_NAME:Sarah}
+        voice-b: ${ELEVENLABS_VOICE_B:JBFqnCBsd6RMkjVDRZzb}
+        voice-b-name: ${ELEVENLABS_VOICE_B_NAME:George}
+        request-timeout: PT2M
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
   seed:

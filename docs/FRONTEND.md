@@ -270,3 +270,12 @@ jar with the seed on, `AI_PROVIDER=offline` and an empty `ANTHROPIC_API_KEY`, se
 `vite preview --port 5174` (same proxy) with `CORS_ALLOWED_ORIGINS=http://localhost:5174`, waits for readiness and runs
 the suite. It references no repository secrets (every value is a throwaway CI-only string), checks out without persisted
 credentials, and uploads the report and traces only when it fails.
+
+## Podcast audio generation
+`features/podcasts/components/GenerateAudioPanel.tsx` appears in the studio editor only when `capabilities.audioGeneration`
+is true (otherwise the media panel keeps saying generation isn't configured). It shows the two voices, the estimated
+characters, requests and minutes from the saved script, the community's remaining daily budget and any blockers, then
+progress (polling `GET …/audio-generation` every 3 s while a job is active) with Cancel. When a job turns READY it refetches
+the episode, transcript and studio list. `AiVoiceBadge` is the persistent "AI-generated voice" label used on the episode
+page, the mini player (`PlayerTrack.aiVoice`), episode cards, the studio media panel and the review step; its full
+disclosure text (`aiVoiceDescription` in `features/podcasts/audioGeneration.ts`) is in the title and in screen-reader text.

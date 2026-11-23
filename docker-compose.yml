@@ -86,6 +86,11 @@ services:
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       AI_MODEL: ${AI_MODEL:-claude-opus-5-5}
       AI_EFFORT: ${AI_EFFORT:-medium}
+      ELEVENLABS_API_KEY: ${ELEVENLABS_API_KEY:-}
+      ELEVENLABS_MODEL: ${ELEVENLABS_MODEL:-eleven_multilingual_v2}
+      ELEVENLABS_VOICE_A: ${ELEVENLABS_VOICE_A:-EXAVITQu4vr4xnAQ5fpe}
+      ELEVENLABS_VOICE_B: ${ELEVENLABS_VOICE_B:-JBFqnCBsd6RMkjVDRZzb}
+      TTS_DAILY_CHARACTER_BUDGET: ${TTS_DAILY_CHARACTER_BUDGET:-100000}
     volumes:
       - uploads:/app/data/uploads
     restart: unless-stopped

@@ -11,6 +11,9 @@ import { toast } from '@/components/ui/Toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { podcastApi, useCapabilities, useEpisode, useEpisodeMutation } from '@/features/podcasts/api';
 import { EPISODE_TYPES, STATUS_LABEL } from '@/features/podcasts/helpers';
+import { AiVoiceBadge } from '@/features/podcasts/components/AiVoiceBadge';
+import { GenerateAudioPanel } from '@/features/podcasts/components/GenerateAudioPanel';
+import { aiVoiceDescription } from '@/features/podcasts/audioGeneration';
 import { ChaptersPanel, MediaPanel, Panel, ScriptPanel, SourcesPanel, ThumbnailPanel, TranscriptPanelEditor } from '@/features/podcasts/components/StudioPanels';
 import { useDocumentTitle } from '@/hooks/useDocumentTitle';
 import { ApiError, errorMessage } from '@/services/apiError';
@@ -136,6 +139,15 @@ export default function StudioEditorPage() {
           </div>
         </div>
         {e.status === 'IN_REVIEW' && !ready && <p className="mt-3 text-xs text-warning">Publishing needs uploaded media and a transcript.</p>}
+        {e.audioOrigin === 'AI_TTS' && (
+          <div className="mt-3 flex flex-wrap items-start gap-2 rounded-xl border border-warning/30 bg-warning/10 px-3 py-2 text-xs">
+            <AiVoiceBadge provider={e.audioProvider} model={e.audioModel} />
+            <span className="min-w-0 flex-1">
+              {aiVoiceDescription(e.audioProvider, e.audioModel)} Listen to it in full before publishing: the episode page, player and API
+              show this label to everyone.
+            </span>
+          </div>
+        )}
         {e.publishedBy && e.status === 'PUBLISHED' && <p className="mt-3 text-xs text-muted">Published by u/{e.publishedBy.username}.</p>}
       </section>
 
@@ -147,6 +159,7 @@ export default function StudioEditorPage() {
         </div>
         <div className="space-y-5">
           <MediaPanel e={e} caps={caps.data} locked={locked} />
+          {caps.data?.audioGeneration && <GenerateAudioPanel e={e} locked={locked} />}
           <TranscriptPanelEditor e={e} locked={locked} />
           <SourcesPanel e={e} />
         </div>

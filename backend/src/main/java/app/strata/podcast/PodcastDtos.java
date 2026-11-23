@@ -21,7 +21,7 @@ public final class PodcastDtos {
 
     public record EpisodeSummary(long id, CommunityRef community, String title, String summary, String type, String mediaKind,
                                  Integer durationSeconds, String thumbnailUrl, String status, Instant publishedAt, Instant createdAt,
-                                 int playCount, boolean saved, Progress progress, int chapterCount) {}
+                                 int playCount, boolean saved, Progress progress, int chapterCount, String audioOrigin) {}
 
     public record Chapter(long id, int startSeconds, String title) {}
 
@@ -35,7 +35,8 @@ public final class PodcastDtos {
                                 String mediaUrl, String mediaContentType, boolean allowDownload, List<Chapter> chapters,
                                 List<SourceRef> sources, boolean hasTranscript, String transcriptVttUrl, String script,
                                 String scriptStatus, String scriptSource, String scriptError, UserSummary createdBy,
-                                UserSummary publishedBy, EpisodeViewer viewer) {}
+                                UserSummary publishedBy, EpisodeViewer viewer, String audioOrigin, String audioProvider,
+                                String audioModel) {}
 
     public record Segment(long id, double startSeconds, double endSeconds, String speaker, String text) {}
 
@@ -61,4 +62,21 @@ public final class PodcastDtos {
     public record ProgressInput(@NotNull @Min(0) @Max(86_400) Integer positionSeconds, Boolean completed) {}
 
     public record DraftRequest(@NotBlank @Size(max = 300) String topic, @NotNull @Min(10) @Max(90) Integer targetMinutes) {}
+
+    // ------------------------------------------------------------------ audio generation (D-036)
+
+    public record AudioVoice(String speaker, String voiceId, String name) {}
+
+    /** Computed from the saved script: what a generation would send to the provider. */
+    public record AudioEstimate(int characters, int chunks, int turns, int sections, int perRequestLimit, int maxCharacters) {}
+
+    /** Per-community daily character budget (UTC day). */
+    public record AudioBudget(int dailyLimit, int usedToday, int remaining, Instant resetsAt) {}
+
+    public record AudioJob(long id, String status, String provider, String model, int characters, int charactersSent, int chunksTotal,
+                           int chunksDone, Double durationSeconds, String error, boolean cancelRequested, Instant createdAt,
+                           Instant startedAt, Instant finishedAt) {}
+
+    public record AudioGeneration(boolean available, String provider, String providerLabel, String model, List<AudioVoice> voices,
+                                  AudioEstimate estimate, AudioBudget budget, AudioJob job, List<String> blockers) {}
 }

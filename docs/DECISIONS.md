@@ -98,6 +98,10 @@ nudge (D-017), with a 15 s poll only while the socket is down.
 - **Listening state.** One row per user and episode holds resume position, completion and history. Play count increments on a
   user's first play only. The player is a single app-wide `<audio>` element, so listening continues across navigation.
 - **Known limit.** Media URLs are unguessable but not access-controlled, the same as images. Private file access arrives with Phase 7.
+- **Status (updated by D-036 and D-037).** Upload-first still holds. A text-to-speech provider (ElevenLabs) is now
+  supported: when `ELEVENLABS_API_KEY` is configured, a moderator can turn a reviewed script into audio, which is always
+  labelled as an AI-generated voice. Without a key, scripts still never become audio and the studio says so. Video
+  generation is still not built.
 
 **D-017 Real-time is a thin STOMP layer over REST, on a single node for now.** Direct messages and live updates use STOMP over
 a plain WebSocket at `/ws` with Spring's in-memory simple broker.
@@ -420,3 +424,51 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   but `/me/mod-actions/{id}` and the appeal response still returned `action.moderator`, and the page printed
   "by u/name". Both now return `moderator: null` to the affected user; moderators still see it in the log and appeals.
 
+**D-036 Podcast audio from scripts with ElevenLabs text-to-speech.** Closes the TTS gap left by D-016.
+- **Provider.** `TtsProvider` with one real implementation, `ElevenLabsTtsProvider`: `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128`
+  with the `xi-api-key` header and `{text, model_id}`, over the JDK `HttpClient` (no SDK). `strata.podcasts.tts.provider`
+  is `auto` (ElevenLabs when `ELEVENLABS_API_KEY` is set), `elevenlabs` (refuses to start without a key) or `none`. Model
+  default `eleven_multilingual_v2` (`ELEVENLABS_MODEL`); base URL and output format are configurable, and the output must be
+  MP3. 429/5xx are retried twice with backoff. Errors shown to moderators carry the HTTP status and ElevenLabs' short status
+  code only, never the key or the raw body, and the key is masked in every `toString`. The key lives in the git-ignored
+  `backend/.env.local` or the deployment `.env`, never in the frontend.
+- **Voices.** HOST A and HOST B map to two premade ElevenLabs voices by id: Sarah (`EXAVITQu4vr4xnAQ5fpe`) and George
+  (`JBFqnCBsd6RMkjVDRZzb`), overridable with `ELEVENLABS_VOICE_A`/`_B` (and display names). There is no voice cloning and
+  no way to upload anyone's voice; only stock voices the operator configures are used.
+- **Pipeline.** `SpeechScript` reads only `HOST A:`/`HOST B:` lines of the `ScriptDrafter` format (title, summary, outline,
+  notes and sources are skipped; citations, links and Markdown are stripped). Turns longer than
+  `max-chars-per-request` (default 2,500, under every current model's limit) are cut at sentence boundaries, then at
+  spaces. Each chunk is one request. `Mp3.Writer` joins the parts by copying MPEG frames: ID3v2/ID3v1/APE tags and
+  Xing/Info/VBRI header frames are dropped (a per-part Xing header would make players misreport the total length), mixed
+  sample rates are refused, and turns are separated by about 350 ms of silent frames. Durations come from counting frames
+  (samples per frame over sample rate), not from text, so each transcript segment is timed from the real audio. The plain
+  endpoint is used rather than `/with-timestamps`, since chunk-level timing from the frames is exact enough for a
+  transcript and keeps the response binary. `##` sections become chapters at their first chunk.
+- **Storage.** Audio is written to a temp file, then stored through `StorageService.put(stream)` under
+  `podcasts/<random>.mp3` and attached exactly like an upload, so Range serving and deletion behave the same. The previous
+  media object is deleted after the episode row is committed.
+- **Jobs.** `podcast_tts_jobs` (V16): QUEUED → GENERATING → READY | FAILED | CANCELLED, at most one active per episode
+  (partial unique index). Jobs run on `PodcastJobs`, the two-thread executor now shared with script drafting. Cancel sets a
+  flag checked between chunks and interrupts the in-flight request. A restart marks in-flight jobs FAILED. Generation is
+  refused for published episodes, a script that changed since queueing, or an episode published mid-generation, and media
+  uploads are refused while a job runs.
+- **Cost control.** Before starting, the studio shows the exact character count the provider will bill (spoken text only),
+  the number of requests and the community's remaining daily budget. `daily-character-budget` (default 100,000 per
+  community per UTC day) counts queued, running and finished jobs at full size and failed or cancelled jobs at what was
+  actually sent. Starts are serialised per community with an advisory lock. There is also a per-generation cap
+  (`max-chars-per-episode`, 60,000) and a 10/day/user rate limit.
+- **Tests.** No test calls ElevenLabs. `Mp3Test` uses real silent MPEG frames (plus tags and an Info frame);
+  `SpeechScriptTest` covers speaker splitting, cleaning and chunking; `ElevenLabsTtsProviderTest` checks the request
+  contract and error mapping against a loopback HTTP server; `PodcastAudioIT` runs the whole job with a fake provider.
+  `ElevenLabsLiveCheck` (tag `live`, excluded by default) synthesises one short sentence per host when a key is present.
+
+**D-037 Generated voices are always disclosed.** Following "never fake generated media":
+- Every episode records `audio_origin` (`UPLOADED` or `AI_TTS`) with the provider and model. The API returns
+  `audioOrigin` on summaries and details, plus `audioProvider`/`audioModel` for generated audio.
+- The UI shows a persistent "AI-generated voice" label on the episode page (with a sentence naming the provider and
+  model and saying the voices aren't recordings of real people), in the mini player, on episode cards and in the studio.
+  The publishing review step shows the same disclosure before a moderator publishes. The label isn't dismissible.
+- Uploading real media switches the label off, because the label describes the current file. There is no RSS feed yet;
+  when one is added it must carry the disclosure in the item description.
+- The voices are stock voices, not imitations of members or public figures, and scripts still go through the
+  DRAFT → IN_REVIEW → PUBLISHED review: nothing is generated or published automatically.

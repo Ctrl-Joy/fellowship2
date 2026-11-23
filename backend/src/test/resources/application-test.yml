@@ -17,6 +17,13 @@ strata:
   files:
     max-file-mb: 2
     quota-mb: 4
+  podcasts:
+    tts:
+      # Never call ElevenLabs from tests, even if a developer has ELEVENLABS_API_KEY in backend/.env.local.
+      # PodcastAudioIT swaps in a fake provider.
+      provider: none
+      elevenlabs:
+        api-key: ""
 management:
   health:
     redis:

@@ -14,6 +14,7 @@ export type EpisodeType =
 
 export type EpisodeStatus = 'DRAFT' | 'IN_REVIEW' | 'PUBLISHED' | 'ARCHIVED';
 export type MediaKind = 'AUDIO' | 'VIDEO';
+export type AudioOrigin = 'UPLOADED' | 'AI_TTS';
 export type ScriptStatus = 'NONE' | 'GENERATING' | 'READY' | 'FAILED';
 
 export interface EpisodeProgress {
@@ -37,6 +38,8 @@ export interface EpisodeSummary {
   saved: boolean;
   progress: EpisodeProgress | null;
   chapterCount: number;
+  /** Where the media came from (null until there is media). AI_TTS = generated voice, always labelled. */
+  audioOrigin: AudioOrigin | null;
 }
 
 export interface Chapter {
@@ -70,6 +73,9 @@ export interface EpisodeDetail extends EpisodeSummary {
   createdBy: UserSummary | null;
   publishedBy: UserSummary | null;
   viewer: { canManage: boolean };
+  /** Set only for AI_TTS audio, e.g. "elevenlabs" and "eleven_multilingual_v2". */
+  audioProvider: string | null;
+  audioModel: string | null;
 }
 
 export interface TranscriptSegment {
@@ -82,7 +88,7 @@ export interface TranscriptSegment {
 
 export interface PodcastCapabilities {
   aiScriptDrafting: boolean;
-  audioGeneration: false;
+  audioGeneration: boolean;
   videoGeneration: false;
   maxUploadMb: number;
   audioTypes: string[];
@@ -112,3 +118,35 @@ export interface EpisodePatch {
 }
 
 export type TranscriptFormat = 'vtt' | 'srt' | 'timestamped';
+
+/** Audio generation from the script with a TTS provider (docs/API.md → "Podcast audio generation"). */
+export type AudioJobStatus = 'QUEUED' | 'GENERATING' | 'READY' | 'FAILED' | 'CANCELLED';
+
+export interface AudioJob {
+  id: number;
+  status: AudioJobStatus;
+  provider: string;
+  model: string;
+  characters: number;
+  charactersSent: number;
+  chunksTotal: number;
+  chunksDone: number;
+  durationSeconds: number | null;
+  error: string | null;
+  cancelRequested: boolean;
+  createdAt: string;
+  startedAt: string | null;
+  finishedAt: string | null;
+}
+
+export interface AudioGeneration {
+  available: boolean;
+  provider: string | null;
+  providerLabel: string | null;
+  model: string | null;
+  voices: { speaker: 'HOST A' | 'HOST B'; voiceId: string; name: string }[];
+  estimate: { characters: number; chunks: number; turns: number; sections: number; perRequestLimit: number; maxCharacters: number };
+  budget: { dailyLimit: number; usedToday: number; remaining: number; resetsAt: string };
+  job: AudioJob | null;
+  blockers: string[];
+}

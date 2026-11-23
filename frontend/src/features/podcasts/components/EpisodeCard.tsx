@@ -1,6 +1,7 @@
 import { Clapperboard, Headphones, Play } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { Badge } from '@/components/ui/Display';
+import { AiVoiceBadge } from './AiVoiceBadge';
 import type { EpisodeSummary } from '@/types/podcasts';
 import { cn, compactNumber, timeAgo } from '@/utils/format';
 import { STATUS_LABEL, formatDuration, progressPercent, typeLabel } from '../helpers';
@@ -37,6 +38,7 @@ export function EpisodeRow({ e, studio }: { e: EpisodeSummary; studio?: boolean 
           <span className="font-semibold text-text">c/{e.community.slug}</span>
           <span>•</span>
           <span>{typeLabel(e.type)}</span>
+          {e.audioOrigin === 'AI_TTS' && <AiVoiceBadge size="xs" />}
           {studio && <Badge tone={e.status === 'PUBLISHED' ? 'accent' : e.status === 'IN_REVIEW' ? 'warning' : 'neutral'} className="rounded-full px-2">{STATUS_LABEL[e.status]}</Badge>}
         </div>
         <h3 className="mt-0.5 line-clamp-2 font-semibold leading-snug group-hover:underline">{e.title}</h3>
@@ -76,7 +78,10 @@ export function EpisodeFeature({ e }: { e: EpisodeSummary }) {
     <Link to={`/podcasts/${e.id}`} className="group flex flex-col gap-4 rounded-2xl border border-border bg-gradient-to-br from-brand/10 to-transparent p-4 sm:flex-row sm:items-center">
       <Art e={e} className="h-40 w-40 self-start" />
       <div className="min-w-0">
-        <Badge tone="info" className="rounded-full px-2">{typeLabel(e.type)}</Badge>
+        <span className="flex flex-wrap items-center gap-1.5">
+          <Badge tone="info" className="rounded-full px-2">{typeLabel(e.type)}</Badge>
+          {e.audioOrigin === 'AI_TTS' && <AiVoiceBadge />}
+        </span>
         <h3 className="mt-2 text-xl font-bold leading-tight group-hover:underline">{e.title}</h3>
         {e.summary && <p className="mt-1 line-clamp-3 text-sm text-muted">{e.summary}</p>}
         <p className="mt-2 text-xs text-faint">c/{e.community.slug} · {formatDuration(e.durationSeconds)} · {compactNumber(e.playCount)} plays</p>

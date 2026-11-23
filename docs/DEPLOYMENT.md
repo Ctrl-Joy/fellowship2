@@ -63,6 +63,9 @@ Optional:
 | Variable | Default | Meaning |
 |---|---|---|
 | `ANTHROPIC_API_KEY`, `AI_MODEL`, `AI_EFFORT` | empty, `claude-opus-5-5`, `medium` | Community AI; without a key, answers are offline cited summaries |
+| `ELEVENLABS_API_KEY` | empty | podcast audio generation (D-036); without it the studio says generation is unavailable. Server-side only |
+| `ELEVENLABS_MODEL`, `ELEVENLABS_VOICE_A`, `ELEVENLABS_VOICE_B` | `eleven_multilingual_v2`, Sarah `EXAVITQu4vr4xnAQ5fpe`, George `JBFqnCBsd6RMkjVDRZzb` | TTS model and the premade voices for HOST A / HOST B |
+| `TTS_PROVIDER`, `TTS_DAILY_CHARACTER_BUDGET`, `TTS_MAX_CHARS_PER_EPISODE` | `auto`, `100000`, `60000` | `auto`/`elevenlabs`/`none`; characters per community per UTC day; cap per generation |
 | `FUNDING_ENABLED` | `true` | moderator funding (demo provider only) |
 | `SEED_DEMO_DATA` | `false` | fictional demo content |
 | `DATABASE_POOL_SIZE` | 15 | Hikari pool size |
