@@ -791,3 +791,48 @@ now moves it to private storage too, so the response and events carry signed URL
   accounts, even with an unexpired access token. The session's role is read from the account.
 - When an account is suspended, deactivated, deleted or has its role changed, its open WebSockets on the node are
   closed at once with close code 1008 ("Account access revoked"). Clients should treat this like a revoked session.
+
+## Moderator payouts with Stripe Connect (D-046, D-047)
+Test mode only unless live Connect is explicitly allowed. Off unless `STRIPE_CONNECT_ENABLED=true` (with
+`FUNDING_PROVIDER=stripe`); while off, Stripe pools still create payouts, which stay HELD with the reason
+"Payouts aren't enabled on this server yet…". Every amount is a `Money` with its mode label. No bank or identity detail
+ever appears in the API: Stripe's hosted onboarding collects it.
+
+```ts
+ConnectAccount { status: "NOT_STARTED"|"PENDING"|"REQUIREMENTS_DUE"|"ENABLED", accountHint: "acct_…1234"|null, detailsSubmitted,
+                 payoutsEnabled, transfersActive, requirementsDue /* count of requirements.currently_due */, disabledReason|null,
+                 message /* what to do next */, lastPayoutStatus|null /* last bank payout of the connected account */,
+                 lastPayoutAt|null, syncedAt|null }
+Payout { id, pool: PoolRef, amount: Money, status: "HELD"|"FAILED"|"PAID"|"REVERSED",
+         label /* "Paid out (test mode)" | "Held: connect your account" | "Held: payouts not enabled yet" |
+                  "Held: transfer failed, retrying" | "Reversed: held for review" | "Paid out (test mode), partly reversed" */,
+         reason|null, transferred: Money /* net of reversals */, reversed: Money, paidAt|null, createdAt }
+MyPayouts { connectEnabled, mode: "test"|"live"|null, label|null, notice, eligible /* moderates a community or has payouts */,
+            account: ConnectAccount, payouts: Payout[], held: Money[], paid: Money[] /* per currency */ }
+OnboardingLink { url /* Stripe-hosted, single use */, expiresAt /* epoch seconds */ }
+AllocationPayout { status, label, paidAt|null }                       // FundingAllocation.payout, closed Stripe pools only
+PayoutReconciliation { applicable, allocated, transferred, held, reversed: Money, reconciles }  // TransparencyReport.payouts
+```
+
+| Method | Path | Auth | Notes |
+|---|---|---|---|
+| GET | `/me/funding/payouts` | user | The caller's account status and payouts. |
+| POST | `/me/funding/connect/onboarding` | moderator (of any community, or anyone with payouts) | Creates the caller's Express account the first time (idempotent), returns a fresh `OnboardingLink`. 403 for non-moderators, 503 `CONNECT_DISABLED` when off, 502 `PAYMENT_PROVIDER_ERROR` with Stripe's reason (e.g. Connect not activated on the platform). Stripe returns the browser to `/funding/payouts?connect=return`, or `?connect=refresh` when the link expired. |
+| POST | `/me/funding/connect/refresh` | user | Re-reads the caller's account from Stripe; if it is ENABLED, held payouts are sent right after. Returns `MyPayouts`. |
+| GET | `/admin/funding/stripe` | admin | `StripeStatus { fundingEnabled, provider, mode, label, secretKeySet, webhookSecretSet, connectWebhookSecretSet, lastWebhook: { type, outcome, receivedAt }\|null, webhooksLast24h, connectEnabled, connectNote\|null, connectCountry\|null, webhookUrl, platformEvents[], connectEvents[], connectedAccounts, accountsEnabled, payoutsHeld, payoutsFailed, payoutsPaid, payoutsReversed, openReviews }`. Never a secret value. |
+| GET | `/admin/funding/reviews?open=true` | admin | `ReviewFlag[] { id, kind: "REFUND_AFTER_PAYOUT"\|"TRANSFER_REVERSED"\|"TRANSFER_FAILING", pool: PoolRef, payoutId\|null, moderator\|null, amount: Money, detail, createdAt, resolvedAt\|null, resolvedBy\|null, resolutionNote\|null }` |
+| POST | `/admin/funding/reviews/{id}/resolve` | admin | `{ note }` (5-500 chars). Marks the flag handled and writes `RESOLVE_PAYOUT_REVIEW` to the admin audit log. |
+| POST | `/admin/funding/payouts/run` | admin | Runs the payout job now: `{ attempted, paid, stillHeld, failed }`. 503 when Connect is off. |
+
+**Webhooks.** `POST /funding/webhooks/stripe` also handles `account.updated` (status flags; releases held payouts when the
+account becomes ENABLED), `transfer.created` / `transfer.updated` (records a transfer whose API response was lost, matched by
+`metadata.howlers_payout_id`, destination and amount; books reversals), `transfer.reversed` (cumulative `amount_reversed` → one
+PAYOUT_REVERSAL row per state, payout REVERSED when fully reversed, review flag), and `payout.paid` / `payout.failed` /
+`payout.canceled` on connected accounts (the event's top-level `account`; shown as "last bank payout"). Signatures are checked
+with `STRIPE_WEBHOOK_SECRET` or, if set, `STRIPE_CONNECT_WEBHOOK_SECRET`; event ids are de-duplicated as before.
+
+**Ledger.** Two new append-only entry types: `PAYOUT` (`moderator:{id}` → `connected:{id}`, label "u/name's Stripe account
+(test mode)") and `PAYOUT_REVERSAL` (back). The pool's own reconciliation is unchanged (they don't touch `pool:{id}`).
+`TransparencyReport.payouts` checks allocated = transferred + held against the PAYOUT rows and the payout rows.
+`FundingStatus.payouts` describes what happens to allocations (recorded only, held until payouts are enabled, or paid out
+through Stripe Connect).

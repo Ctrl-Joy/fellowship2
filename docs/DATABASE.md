@@ -46,6 +46,7 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 | V11 | moderator funding: `funding_policies`, `funding_pools`, `funding_subscriptions`, `funding_contributions`, `funding_allocations`, `funding_ledger` (append-only via triggers), `funding_webhook_events` (D-022) |
 | V13 | privacy hardening: `user_files.scan_engine` (STRUCTURAL / CLAMAV), `maintenance_runs` (one row per run of a one-time job such as the legacy DM image move) (D-029, D-030) |
 | V12 | infrastructure: `media_assets.variant_widths` (image variants), index `dm_message_media (media_id)` for private DM image grants (D-023, D-024) |
+| V20 | Stripe Connect payouts: `funding_connected_accounts` (account id and status flags only), `funding_payouts` (one per positive allocation of a Stripe pool: HELD / FAILED / PAID / REVERSED, transfer id, idempotency attempt), `funding_review_flags` (refund after payout, reversed or failing transfers), ledger entry types `PAYOUT` / `PAYOUT_REVERSAL` with `payout_id` and unique `external_ref` (D-046, D-047) |
 
 Future phases add tables (reports, moderation_actions, collections, pulses, digests, ai_*, podcasts, files,
 funding_*) as new migrations — never by editing applied ones.

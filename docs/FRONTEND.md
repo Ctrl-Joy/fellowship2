@@ -349,3 +349,19 @@ landing stays in the axe audit (`08-accessibility`).
   - the control-character regex in `safeFileName`.
 - **Live sockets.** A suspended, deactivated or deleted account's socket is closed by the server (1008) and reconnects
   are refused. The existing client keeps retrying with backoff, and its next REST call gets 401/403, which signs it out.
+
+## Moderator payouts (Stripe Connect, D-046, D-047)
+- **`/funding/payouts`** (`routes/funding/PayoutsPage.tsx`, linked from the funding hub): `ConnectAccountCard` shows the
+  account status from the API with one next step ("Connect with Stripe", "Resume onboarding", "Check status"). Starting
+  onboarding fetches a single-use URL and only follows it if it is an `https://…stripe.com` address (`isStripeOnboardingUrl`).
+  Stripe sends the browser back with `?connect=return` (the page re-reads the account through the server) or
+  `?connect=refresh` (the link expired; the page says so and offers a new one). When Connect is off on the server the card
+  says so in the server's words, with no button. `PayoutList` lists each allocation with its label ("Paid out (test mode)",
+  "Held: connect your account", …) and amount badge; totals are per currency, from the server.
+- **Transparency report**: closed Stripe pools show each allocation's payout badge, the payout reconciliation line
+  (allocated = paid out + held), and PAYOUT / reversed-transfer ledger rows. Demo pools keep "Allocated, not paid out".
+- **Admin → Payments** (`features/admin/components/PaymentsTab.tsx`): `StripeStatusPanel` (mode, which secrets are set,
+  last webhook, Connect on/off, counts, endpoint URL with copy button and the two event lists, "Run payouts now") and
+  `PayoutReviews` (refunds after payout, reversed or failing transfers; resolve with a note).
+- Pure helpers and tests: `features/funding/payouts.ts` / `payouts.test.ts`; API hooks in `features/funding/payoutsApi.ts`;
+  types in `types/payouts.ts`.

@@ -72,6 +72,7 @@ export const router = createBrowserRouter([
       { path: '/soon/messages', element: <Navigate to="/messages" replace /> },
       { path: '/funding', element: authed(page(() => import('@/routes/funding/FundingPage'))) },
       { path: '/funding/pools/:id', element: page(() => import('@/routes/funding/PoolReportPage')) },
+      { path: '/funding/payouts', element: authed(page(() => import('@/routes/funding/PayoutsPage'))) },
       { path: '/soon/funding', element: <Navigate to="/funding" replace /> },
       { path: '/leaderboard', element: page(() => import('@/routes/leaderboard/LeaderboardPage')) },
       { path: '/topics/:slug/leaders', element: page(() => import('@/routes/leaderboard/TopicLeadersPage')) },

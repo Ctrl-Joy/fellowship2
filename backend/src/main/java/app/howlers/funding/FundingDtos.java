@@ -71,8 +71,9 @@ public final class FundingDtos {
     public record MyFunding(FundingStatus status, List<Contribution> contributions, List<SubscriptionDto> subscriptions,
                             List<PoolSummary> openPools) {}
 
+    /** {@code payout} is set for closed Stripe pools (Connect payouts, D-046): whether the share was paid out or is held. */
     public record Allocation(UserSummary moderator, String policy, Money amount, Integer activityScore, Integer reportsResolved,
-                             Integer appealsHandled, String note, Instant createdAt) {}
+                             Integer appealsHandled, String note, Instant createdAt, ConnectDtos.AllocationPayout payout) {}
 
     public record LedgerEntry(long id, String entryType, String debitAccount, String debitLabel, String creditAccount,
                               String creditLabel, Money amount, Instant createdAt) {}
@@ -87,7 +88,8 @@ public final class FundingDtos {
     public record TransparencyReport(PoolSummary pool, Money raised, long contributionCount, long contributorCount,
                                      long anonymousContributors, List<UserSummary> namedContributors, Money allocated,
                                      List<Allocation> allocations, List<LedgerEntry> ledger, boolean ledgerTruncated,
-                                     Reconciliation reconciliation, String closedNote, Money refunded, long refundCount) {}
+                                     Reconciliation reconciliation, String closedNote, Money refunded, long refundCount,
+                                     ConnectDtos.PayoutReconciliation payouts) {}
 
     /** What closing the pool now would allocate. Nothing is written. */
     public record AllocationPreview(String policy, Money total, List<Allocation> allocations, String note,

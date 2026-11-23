@@ -1,4 +1,5 @@
 import type { CommunityRef, UserSummary } from './api';
+import type { AllocationPayout, PayoutReconciliation } from './payouts';
 
 /** demo: simulated; test: Stripe test mode; live: real money. */
 export type FundingMode = 'demo' | 'test' | 'live';
@@ -147,11 +148,13 @@ export interface FundingAllocation {
   appealsHandled: number | null;
   note: string | null;
   createdAt: string | null;
+  /** Closed Stripe pools only: whether this share was paid out through Stripe Connect or is held. */
+  payout?: AllocationPayout | null;
 }
 
 export interface LedgerEntry {
   id: number;
-  entryType: 'CONTRIBUTION' | 'ALLOCATION' | 'REFUND';
+  entryType: 'CONTRIBUTION' | 'ALLOCATION' | 'REFUND' | 'PAYOUT' | 'PAYOUT_REVERSAL';
   debitAccount: string;
   debitLabel: string;
   creditAccount: string;
@@ -187,6 +190,8 @@ export interface TransparencyReport {
   closedNote: string | null;
   refunded: Money;
   refundCount: number;
+  /** allocated = transferred + held, for closed Stripe pools (Connect payouts). */
+  payouts?: PayoutReconciliation;
 }
 
 export interface AllocationPreview {

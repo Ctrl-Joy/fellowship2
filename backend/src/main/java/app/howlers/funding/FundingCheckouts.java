@@ -57,8 +57,13 @@ public class FundingCheckouts {
     private final JdbcClient jdbc;
     private final RateLimiter limiter;
     private final String publicUrl;
+    private final PayoutService payouts;
+    private final ConnectService connect;
 
-    public FundingCheckouts(FundingService funding, FundingRuntime runtime, JdbcClient jdbc, RateLimiter limiter, AppProperties props) {
+    public FundingCheckouts(FundingService funding, FundingRuntime runtime, JdbcClient jdbc, RateLimiter limiter, AppProperties props,
+                            PayoutService payouts, ConnectService connect) {
+        this.payouts = payouts;
+        this.connect = connect;
         this.funding = funding;
         this.runtime = runtime;
         this.jdbc = jdbc;
@@ -301,6 +306,10 @@ public class FundingCheckouts {
             case "invoice.payment_failed" -> onInvoiceFailed(event.data(), provider);
             case "customer.subscription.deleted" -> onSubscriptionDeleted(event.data(), provider);
             case "charge.refunded" -> onChargeRefunded(event.data(), provider);
+            // Stripe Connect payouts (D-046, D-047): same signature check, same event-id de-duplication.
+            case "account.updated" -> connect.onAccountUpdated(event.data());
+            case "transfer.created", "transfer.updated", "transfer.reversed" -> payouts.onTransferEvent(event.data());
+            case "payout.paid", "payout.failed", "payout.canceled" -> connect.onPayoutEvent(event);
             default -> "ignored";
         };
         funding.recordOutcome(provider.id(), event.id(), outcome);
@@ -392,6 +401,7 @@ public class FundingCheckouts {
         String own = jdbc.sql("SELECT currency FROM funding_contributions WHERE id = ?").param(cid).query(String.class).single();
         if (currency != null && !currency.equalsIgnoreCase(own)) return "currency mismatch, not recorded";
         Long rid = funding.recordRefund(cid, refunded - funding.refundedOf(cid), "stripe:" + chargeId + ":" + refunded);
+        if (rid != null) payouts.flagRefund(rid); // after a payout nothing is clawed back automatically: an admin reviews it
         return rid == null ? "refund already recorded" : "refund recorded";
     }
 

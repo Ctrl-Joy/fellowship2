@@ -20,11 +20,15 @@ public class FundingJobs {
     private final FundingService funding;
     private final FundingRuntime runtime;
     private final FundingProperties props;
+    private final PayoutService payouts;
+    private final ConnectService connect;
 
-    public FundingJobs(FundingService funding, FundingRuntime runtime, FundingProperties props) {
+    public FundingJobs(FundingService funding, FundingRuntime runtime, FundingProperties props, PayoutService payouts, ConnectService connect) {
         this.funding = funding;
         this.runtime = runtime;
         this.props = props;
+        this.payouts = payouts;
+        this.connect = connect;
     }
 
     @Scheduled(fixedDelayString = "${howlers.funding.job-interval-ms:60000}", initialDelay = 30_000)
@@ -33,6 +37,22 @@ public class FundingJobs {
         Instant now = Instant.now();
         chargeDue(now);
         closeDue(now);
+        payoutsDue(now);
+    }
+
+    /**
+     * Stripe Connect (D-046): re-reads connected accounts that aren't enabled yet (so onboarding completes without
+     * webhooks), then sends held shares of moderators whose account is ready and retries failed transfers when due.
+     * Returns the number of transfers made.
+     */
+    public int payoutsDue(Instant now) {
+        if (!payouts.enabled()) return 0;
+        try {
+            connect.syncStale(now);
+        } catch (RuntimeException e) {
+            log.warn("Syncing connected accounts failed: {}", e.toString());
+        }
+        return payouts.releaseDue(now).paid();
     }
 
     /** Charges every subscription due at {@code now}. Returns the number of new charges. */

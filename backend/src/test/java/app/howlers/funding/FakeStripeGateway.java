@@ -75,6 +75,118 @@ public class FakeStripeGateway implements StripeGateway {
         return s;
     }
 
+    // ------------------------------------------------------------------ Connect
+
+    public final Map<String, ConnectedAccount> accounts = new ConcurrentHashMap<>();
+    public final Map<String, String> accountByIdempotencyKey = new ConcurrentHashMap<>();
+    public final List<AccountLink> links = new ArrayList<>();
+    public final List<String> linkReturnUrls = new ArrayList<>();
+    public final Map<String, Transfer> transfers = new ConcurrentHashMap<>();
+    public final Map<String, String> transferByIdempotencyKey = new ConcurrentHashMap<>();
+    /** Every createTransfer call, including ones answered from the idempotency cache. */
+    public final List<String> transferCalls = new ArrayList<>();
+    /** The next N transfer calls are refused by Stripe (e.g. balance_insufficient). */
+    public volatile int refuseTransfers;
+    /** The next transfer is made, but the response is lost (network error after Stripe acted). */
+    public volatile boolean loseNextTransferResponse;
+    /** Account creation fails the way Stripe answers a platform that hasn't activated Connect. */
+    public volatile boolean connectNotActivated;
+
+    @Override
+    public synchronized ConnectedAccount createExpressAccount(String country, Map<String, String> metadata, String idempotencyKey) {
+        if (connectNotActivated) {
+            throw new StripeGatewayException("Stripe couldn't create a connected account: You can only create new accounts if you've signed up for "
+                    + "Connect, which you can learn how to do at https://stripe.com/docs/connect.", null, false, null);
+        }
+        String existing = accountByIdempotencyKey.get(idempotencyKey);
+        if (existing != null) return accounts.get(existing);
+        String id = "acct_test" + SEQ.incrementAndGet();
+        ConnectedAccount a = new ConnectedAccount(id, false, false, false, "inactive", 5, "requirements.past_due");
+        accounts.put(id, a);
+        accountByIdempotencyKey.put(idempotencyKey, id);
+        return a;
+    }
+
+    @Override
+    public ConnectedAccount retrieveAccount(String accountId) {
+        ConnectedAccount a = accounts.get(accountId);
+        if (a == null) throw new StripeGatewayException("No such account", null);
+        return a;
+    }
+
+    @Override
+    public void deleteAccount(String accountId) {
+        accounts.remove(accountId);
+    }
+
+    @Override
+    public synchronized AccountLink createAccountLink(String accountId, String refreshUrl, String returnUrl) {
+        retrieveAccount(accountId);
+        AccountLink l = new AccountLink("https://connect.stripe.com/setup/e/" + accountId + "/" + SEQ.incrementAndGet(), 1_900_000_000L);
+        links.add(l);
+        linkReturnUrls.add(returnUrl);
+        return l;
+    }
+
+    /** What Stripe onboarding does: details submitted, but something still due. */
+    public ConnectedAccount submitWithRequirements(String accountId) {
+        ConnectedAccount a = new ConnectedAccount(accountId, true, false, false, "pending", 2, null);
+        accounts.put(accountId, a);
+        return a;
+    }
+
+    /** Onboarding finished and verified: transfers active, payouts enabled. */
+    public ConnectedAccount enable(String accountId) {
+        ConnectedAccount a = new ConnectedAccount(accountId, true, true, true, "active", 0, null);
+        accounts.put(accountId, a);
+        return a;
+    }
+
+    @Override
+    public synchronized Transfer createTransfer(TransferRequest r) {
+        transferCalls.add(r.idempotencyKey());
+        String cached = transferByIdempotencyKey.get(r.idempotencyKey());
+        if (cached != null) return transfers.get(cached);
+        if (refuseTransfers > 0) {
+            refuseTransfers--;
+            throw new StripeGatewayException("Stripe couldn't create the transfer: You have insufficient available funds in your Stripe account.",
+                    null, false, "balance_insufficient");
+        }
+        if (!accounts.containsKey(r.destination())) throw new StripeGatewayException("No such destination", null, false, "resource_missing");
+        String id = "tr_test" + SEQ.incrementAndGet();
+        Transfer t = new Transfer(id, r.amountMinor(), 0, r.currency().toLowerCase(), r.destination(), r.transferGroup(), Map.copyOf(r.metadata()));
+        transfers.put(id, t);
+        transferByIdempotencyKey.put(r.idempotencyKey(), id);
+        if (loseNextTransferResponse) {
+            loseNextTransferResponse = false;
+            throw new StripeGatewayException("Stripe couldn't create the transfer: connection reset", null, true, null);
+        }
+        return t;
+    }
+
+    @Override
+    public Transfer retrieveTransfer(String transferId) {
+        return transfers.get(transferId);
+    }
+
+    @Override
+    public List<Transfer> transfersInGroup(String transferGroup) {
+        return transfers.values().stream().filter(t -> transferGroup.equals(t.transferGroup())).toList();
+    }
+
+    /** A reversal made in the Stripe dashboard. Returns the updated transfer. */
+    public Transfer reverse(String transferId, long amount) {
+        Transfer t = transfers.get(transferId);
+        Transfer r = new Transfer(t.id(), t.amountMinor(), Math.min(t.amountMinor(), t.amountReversed() + amount), t.currency(), t.destination(),
+                t.transferGroup(), t.metadata());
+        transfers.put(transferId, r);
+        return r;
+    }
+
+    public long transfersTo(String accountId) {
+        return transfers.values().stream().filter(t -> accountId.equals(t.destination())).count();
+    }
+
     public String sessionFor(long pendingId) {
         return requests.entrySet().stream().filter(e -> e.getValue().clientReferenceId().equals(Long.toString(pendingId)))
                 .map(Map.Entry::getKey).findFirst().orElseThrow();

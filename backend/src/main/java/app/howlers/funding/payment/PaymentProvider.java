@@ -116,8 +116,15 @@ public interface PaymentProvider {
         }
     }
 
-    /** A verified webhook. {@code data} is the event's object (for Stripe, {@code data.object}). */
-    record WebhookEvent(String id, String type, Map<String, Object> data) {}
+    /**
+     * A verified webhook. {@code data} is the event's object (for Stripe, {@code data.object}). {@code account} is the
+     * connected account an event happened on (Stripe Connect events such as {@code payout.paid}), or null.
+     */
+    record WebhookEvent(String id, String type, Map<String, Object> data, String account) {
+        public WebhookEvent(String id, String type, Map<String, Object> data) {
+            this(id, type, data, null);
+        }
+    }
 
     class WebhookVerificationException extends RuntimeException {
         public WebhookVerificationException(String message) {

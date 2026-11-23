@@ -134,8 +134,9 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
 
 **D-022 Moderator funding runs in demo mode behind a `PaymentProvider` abstraction; no real money until a compliance review.**
 - **Status (updated by D-034, D-035):** demo stays the default. A real provider now exists, Stripe hosted Checkout, in
-  **test mode**; live keys are refused unless the compliance acknowledgement below is configured. Payouts to moderators are
-  still not built: allocations are recorded obligations ("Allocated, not paid out").
+  **test mode**; live keys are refused unless the compliance acknowledgement below is configured. Payouts to moderators exist
+  through Stripe Connect in test mode, off by default (D-046, D-047); otherwise allocations are recorded obligations
+  ("Allocated, not paid out").
 - **Demo only.** `DemoPaymentProvider` is the only provider. Charges succeed instantly and carry `demo = true` on every row (pool,
   contribution, subscription, allocation, ledger). Every API amount is a `Money` with the label "DEMO, no real money". The UI shows a
   banner on every funding view and a DEMO badge next to every amount. If `FUNDING_PROVIDER` is anything other than `demo`, the
@@ -582,7 +583,7 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   `client_reference_id` and metadata (pool, contributor, pending contribution, anonymity, kind), an idempotency key per pending
   contribution, and expire within 24 h (sooner if the pool's period ends).
 - **Payouts are out of scope.** No Stripe Connect. The UI says "Allocated, not paid out", and `FundingStatus.payouts` carries
-  the same sentence.
+  the same sentence. *(Superseded by D-046: Connect payouts exist in test mode, off by default.)*
 - **Tests never call Stripe.** All Stripe calls go through `StripeGateway`; `SdkStripeGateway` is the SDK implementation and the
   suite uses `FakeStripeGateway`. Webhook signatures are tested with headers built in the test from Stripe's documented scheme.
   `StripeLiveCheckTest` (tag `stripe-live`, excluded, and only with `-Dstripe.live=true`) is the owner's manual check against
@@ -704,3 +705,56 @@ a plain WebSocket at `/ws` with Spring's in-memory simple broker.
   so the "last chunk" AAD flag still catches truncation. A failure aborts the writable, which discards the partial file.
   The save dialog needs a user gesture, so it comes after a second click ("Choose where to save"), once the key and
   metadata are verified. Other browsers use the in-memory path, and above 500 MB they show a warning first.
+
+**D-046 Moderator payouts through Stripe Connect Express accounts and Transfers; test mode first, off by default.**
+- **Model.** Separate charges and transfers: contributions are charged on the platform (D-034), and when a Stripe pool closes
+  each allocation with a positive amount becomes one payout row and, once the moderator's account is ready, one Stripe
+  **Transfer** from the platform balance to their **Express** account. Express keeps onboarding, identity checks, bank
+  details, the payout schedule and the moderator's dashboard on Stripe; Howlers stores only the account id and status flags
+  (`details_submitted`, `charges_enabled`, `payouts_enabled`, the `transfers` capability, the count of
+  `requirements.currently_due`, `disabled_reason`, the last bank payout's status). Accounts are created with
+  `type=express`, `capabilities.transfers.requested=true`, the configured country and only Howlers' user id as metadata.
+- **Status.** ENABLED when payouts are enabled and the `transfers` capability is active; REQUIREMENTS_DUE when details were
+  submitted but something is due or the account is disabled; otherwise PENDING. It is read from Stripe on return from
+  onboarding, from `account.updated`, and by the funding job every 10 minutes for accounts that aren't enabled (so local
+  development works without webhooks).
+- **Who.** Only the signed-in user, for themselves (`/me/...`), and only if they moderate a community or already have payouts.
+  Account links are single use and return to `/funding/payouts?connect=return|refresh`.
+- **Held, then released.** A payout is HELD (shown as "Held: connect your account") until the account is ENABLED, then sent
+  by the first of: `account.updated`, the return page, or the job. It is "Paid out (test mode)" afterwards. Connect off means
+  every Stripe payout stays HELD with a message saying payouts aren't enabled yet; demo pools never get payouts.
+- **No double transfers.** The payout row is locked (`FOR UPDATE SKIP LOCKED`) and each payout is sent in its own transaction
+  after the close commits. The idempotency key is `howlers-payout-{id}-{attempt}`; the attempt only moves on after a
+  definitive refusal from Stripe, never after an unknown outcome (network error, 5xx). Before retrying after any failure the
+  transfer group `howlers-payout-{id}` is listed, so a transfer whose response was lost is recorded instead of repeated,
+  and `transfer.created` can record it too (matched by `metadata.howlers_payout_id`, destination and amount). Transfer ids and
+  ledger references are unique.
+- **Ledger.** New append-only entry types PAYOUT (`moderator:{id}` → `connected:{id}`) and PAYOUT_REVERSAL (back), keyed by
+  `transfer:{id}` and `reversal:{transfer}:{cumulative}`. The transparency report checks allocated = transferred (PAYOUT minus
+  PAYOUT_REVERSAL rows, cross-checked with the payout rows) + held, and that every positive allocation has exactly one payout.
+- **Webhooks.** Same endpoint, same verification and event-id de-duplication. A dashboard "connected accounts" endpoint has
+  its own signing secret (`STRIPE_CONNECT_WEBHOOK_SECRET`); a signature valid for either secret is accepted. The Stripe CLI
+  signs both kinds with one secret (`--forward-connect-to`).
+- **Not done here.** Payouts are in the pool's currency; cross-border accounts, currency conversion, payout schedules, tax forms
+  and moderator-facing Express dashboard login links are left to Stripe's defaults. The owner must activate Connect in the
+  Stripe dashboard; the live check on 2026-11-24 confirmed it isn't yet ("You can only create new accounts if you've signed
+  up for Connect").
+
+**D-047 Failures, reversals and refunds after payout go to a person; live Connect needs its own flag.**
+- **Failures.** A refused transfer (in test mode usually `balance_insufficient`, because card funds aren't available yet)
+  marks the payout FAILED ("Held: transfer failed, retrying") and retries with backoff (30 min doubling, capped at a day;
+  5 min after an unknown outcome). After 3 failures a TRANSFER_FAILING review flag is raised.
+- **Reversals.** `transfer.reversed` / `transfer.updated` carry the cumulative `amount_reversed`; each new state becomes one
+  PAYOUT_REVERSAL row and a TRANSFER_REVERSED flag. A fully reversed payout is REVERSED ("Reversed: held for review") and is
+  never re-sent automatically; the amount counts as held again.
+- **Refunds after payout.** A refund of a contribution to a closed pool with payouts is recorded as before (D-035,
+  shortfall) and raises one REFUND_AFTER_PAYOUT flag. Nothing is clawed back automatically: reversing a transfer takes
+  money back from a person, which should be a human decision (and Stripe can't reverse what the moderator already paid out to
+  their bank). Admins see every flag under Admin → Payments → Payout reviews and resolve it with a note, which is also
+  written to the admin audit log.
+- **Live mode.** D-034's refusal stays. On top of `FUNDING_LIVE_MODE=true` and `FUNDING_COMPLIANCE_ACK`, live Connect needs
+  `STRIPE_CONNECT_LIVE=true`, or the server refuses to start; that flag with a test key is refused too. Sending real money to
+  people adds obligations a review must cover first (KYC is Stripe's for Express accounts, but tax reporting of moderator
+  income, the platform's liability for negative balances, and the terms moderators accept are the platform's).
+- **Admin panel.** `GET /admin/funding/stripe` shows mode, whether each secret is set (never its value), the last webhook
+  received, Connect on/off and counts, plus the endpoint URL and event lists to paste into the dashboard.

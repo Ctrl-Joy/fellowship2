@@ -86,7 +86,8 @@ _Last updated: 2026-11-24 (Phases 0–2, layout pass, Phase 3 moderation core, P
   and AI-suggested stances for unlabelled comments, with the extractive engine and rule-based stances as the stated
   fallback. Without a key (and in tests) they stay offline, and on the seeded threads most comments are then "neutral"
   until readers label them. Verified with a fake model in tests and one manual live run; not checked in a browser.
-- Not built yet: podcast video generation, and payouts to moderators (Stripe Connect). Moderator funding has a real
+- Not built yet: podcast video generation. Payouts to moderators run through Stripe Connect in test mode (D-046/D-047),
+  off until the owner activates Connect in the Stripe dashboard and sets `STRIPE_CONNECT_ENABLED=true`. Moderator funding has a real
   provider (Stripe hosted Checkout, test mode by default, D-034/D-035); live mode needs an explicit compliance
   acknowledgement.
 - Podcast audio generation (ElevenLabs TTS, D-036/D-037) runs only when `ELEVENLABS_API_KEY` is set. No RSS feed
@@ -114,8 +115,23 @@ _Last updated: 2026-11-24 (Phases 0–2, layout pass, Phase 3 moderation core, P
 | Item | Backend | Frontend |
 |---|---|---|
 | `FUNDING_PROVIDER=stripe`: hosted Checkout (payment mode once, subscription mode monthly with inline `price_data`), pending contributions, confirm on return (server retrieves the session) and by webhook, `Stripe-Signature` verification, invoice cycles, failed renewals, provider cancellation, refunds as reversing ledger rows, mode (`demo`/`test`/`live`) on every money row, live keys refused without `FUNDING_LIVE_MODE` + `FUNDING_COMPLIANCE_ACK` | ✅ `StripeFundingIT` 9, `StripeProviderTest` 5, `FundingUnitTest`/`FundingIT` updated | ✅ redirect to Checkout, return banner polling the confirm endpoint (success / pending / cancelled / expired / failed), mode labels from the API, "Allocated, not paid out" |
-| Payouts to moderators (Stripe Connect), live mode, automatic refund of payments that arrive after a pool closed | ❌ not built (obligations only) | ❌ |
+| Payouts to moderators: built with Stripe Connect in test mode (see "Stripe Connect payouts" below). Still not built: automatic refund of payments that arrive after a pool closed | ✅ (D-046) / ❌ | ✅ / ❌ |
 | Live test-mode check (`StripeLiveCheckTest`, excluded from the suite) | not run: no `STRIPE_SECRET_KEY` in `backend/.env.local` at the time of writing | |
 - ElevenLabs live check run on 2026-11-24 against the owner's account with a TTS-only restricted key: Matilda (HOST A) 3.06 s / 821 ms and George (HOST B) 3.76 s / 436 ms, joined to 7.18 s. The original HOST A default (Sarah, `EXAVITQu4vr4xnAQ5fpe`) returned `voice_not_found` on this account, so the default is now Matilda.
 - Brevo live check run on 2026-11-24 with the owner's restricted key (Transactional email only): Brevo accepted one verification-style email (message id returned). The sender is a Gmail address, which Brevo flags as not authenticated for sending through Brevo, so delivery may land in spam until a custom domain is verified.
 - Stripe live test-mode check run on 2026-11-24 with the owner's sandbox key: `StripeLiveCheckTest` created a 5.00 USD Checkout Session (`cs_test_…`) and returned its hosted URL. No webhook secret is configured locally; payments are confirmed when the buyer returns from Checkout.
+
+## Stripe Connect payouts to moderators (D-046, D-047)
+| Item | Backend | Frontend |
+|---|---|---|
+| Express connected accounts: create via the API (`type=express`, `transfers` requested), single-use account links (refresh/return to `/funding/payouts`), status NOT_STARTED / PENDING / REQUIREMENTS_DUE / ENABLED from Stripe's flags (on return, `account.updated`, and a 10-minute sync job); only the account id and flags are stored; only moderators onboard, only themselves | ✅ `StripeConnectIT` (onboarding, permissions), `ConnectConfigTest` | ✅ `/funding/payouts`: account card (Connect with Stripe / Resume onboarding / Check status), return and expired-link handling |
+| Payouts: one per positive allocation of a closed Stripe pool; a Transfer per payout (idempotency key per payout and attempt, transfer group lookup before retries), held until the account is ENABLED, released by `account.updated`, the return page and the job; failures retried with backoff; append-only PAYOUT / PAYOUT_REVERSAL ledger rows; reconciliation allocated = transferred + held | ✅ `StripeConnectIT` (transfer on close, held then released, refused and lost responses, webhook replays, reversal, reconciliation) | ✅ labels "Paid out (test mode)" and "Held: connect your account" in the transparency report and on the payouts page; PAYOUT rows in the ledger |
+| Connect webhooks (`account.updated`, `transfer.created/updated/reversed`, `payout.paid/failed/canceled`) with the same signature check and event-id de-duplication; optional second signing secret for a connected-accounts endpoint | ✅ | n/a |
+| Refunds after a payout flagged for manual review (no claw-back); reversed transfers never re-sent automatically; transfers failing 3 times flagged | ✅ | ✅ Admin → Payments → Payout reviews (resolve with a note, written to the audit log) |
+| Admin "Stripe status" panel: mode, secrets set (never values), last webhook, Connect on/off, counts, endpoint URL and event lists | ✅ admins only | ✅ Admin → Payments |
+| Live Connect | refused unless `STRIPE_CONNECT_LIVE=true` on top of D-034's live acknowledgement; not exercised | |
+- Live test-mode check (`StripeConnectLiveCheckTest`, tag `live`, excluded) run on 2026-11-24 with the owner's sandbox key: Stripe
+  refused the account creation with "You can only create new accounts if you've signed up for Connect, which you can do at
+  https://dashboard.stripe.com/connect." (no error code). This is an owner step: activate Connect in the dashboard, then rerun
+  the check. No account was created, so nothing had to be deleted. No transfer was attempted.
+- Not verified in a browser.
