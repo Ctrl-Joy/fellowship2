@@ -1,7 +1,13 @@
 package app.howlers.auth;
 
 import app.howlers.auth.dto.AuthDtos.AuthResponse;
+import app.howlers.auth.device.KnownDeviceService;
+import app.howlers.auth.dto.AuthDtos.Issued;
 import app.howlers.auth.dto.AuthDtos.IssuedSession;
+import app.howlers.auth.dto.AuthDtos.LoginOutcome;
+import app.howlers.auth.dto.AuthDtos.MfaRequired;
+import app.howlers.auth.dto.AuthDtos.SecondStep;
+import app.howlers.auth.mfa.TwoFactorService;
 import app.howlers.auth.dto.AuthDtos.RegisterRequest;
 import app.howlers.auth.dto.AuthDtos.SessionDto;
 import app.howlers.auth.dto.AuthDtos.UsernameAvailability;
@@ -39,6 +45,8 @@ public class AuthService {
     private final PasswordEncoder encoder;
     private final JwtService jwt;
     private final MailService mail;
+    private final TwoFactorService twoFactor;
+    private final KnownDeviceService devices;
     static final Duration VERIFY_TTL = Duration.ofHours(24);
     static final Duration RESET_TTL = Duration.ofHours(1);
     private final Duration refreshTtl;
@@ -46,13 +54,16 @@ public class AuthService {
     private final String dummyHash;
 
     public AuthService(UserRepository users, RefreshTokenRepository refreshTokens, EmailTokenRepository emailTokens,
-                       PasswordEncoder encoder, JwtService jwt, MailService mail, AppProperties props) {
+                       PasswordEncoder encoder, JwtService jwt, MailService mail, AppProperties props,
+                       TwoFactorService twoFactor, KnownDeviceService devices) {
         this.users = users;
         this.refreshTokens = refreshTokens;
         this.emailTokens = emailTokens;
         this.encoder = encoder;
         this.jwt = jwt;
         this.mail = mail;
+        this.twoFactor = twoFactor;
+        this.devices = devices;
         this.refreshTtl = props.jwt().refreshTtl();
         this.dummyHash = encoder.encode(Tokens.random(16));
     }
@@ -68,6 +79,12 @@ public class AuthService {
 
     @Transactional
     public IssuedSession register(RegisterRequest req, String userAgent, String ip) {
+        return register(req, userAgent, ip, null);
+    }
+
+    /** Registration signs the new account in; its device becomes the first known one (no new-device email). */
+    @Transactional
+    public IssuedSession register(RegisterRequest req, String userAgent, String ip, String deviceId) {
         UsernameAvailability a = usernameAvailability(req.username());
         if (!a.available()) throw ApiException.conflict("username", a.reason());
         if (users.existsByEmailIgnoreCase(req.email())) {
@@ -81,11 +98,30 @@ public class AuthService {
             throw ApiException.conflict("username", "That name or email is already registered");
         }
         sendVerification(user);
-        return issue(user, UUID.randomUUID(), userAgent, ip);
+        IssuedSession s = issue(user, UUID.randomUUID(), userAgent, ip, METHOD_PASSWORD);
+        if (deviceId != null) devices.recordSignIn(user, deviceId, userAgent, ip, METHOD_PASSWORD);
+        return s;
     }
 
+    public static final String METHOD_PASSWORD = "PASSWORD";
+    public static final String METHOD_PASSWORD_TOTP = "PASSWORD_TOTP";
+    public static final String METHOD_PASSWORD_RECOVERY = "PASSWORD_RECOVERY";
+    public static final String METHOD_PASSKEY = "PASSKEY";
+
+    /** Password login for callers that never deal with a second step; refuses accounts that have 2FA on. */
     @Transactional
     public IssuedSession login(String login, String password, String userAgent, String ip) {
+        LoginOutcome o = passwordLogin(login, password, userAgent, ip, null);
+        if (o instanceof Issued i) return i.session();
+        throw new ApiException(HttpStatus.UNAUTHORIZED, "MFA_REQUIRED", "This account needs a two-factor code");
+    }
+
+    /**
+     * Step one of signing in. Without 2FA this issues the session. With 2FA on (D-042) the password is checked first,
+     * then a short-lived second-step token is returned instead; nothing else is granted until the code is verified.
+     */
+    @Transactional
+    public LoginOutcome passwordLogin(String login, String password, String userAgent, String ip, String deviceId) {
         User user = (login.contains("@") ? users.findByEmailIgnoreCase(login.trim()) : users.findByUsernameIgnoreCase(login.trim()))
                 .orElse(null);
         if (user == null) {
@@ -101,10 +137,46 @@ public class AuthService {
         if (User.Status.SUSPENDED.name().equals(user.getStatus())) {
             throw ApiException.forbidden("This account is suspended");
         }
+        if (twoFactor.isEnabled(user.getId())) {
+            String token = twoFactor.startLoginChallenge(user.getId());
+            return new SecondStep(new MfaRequired(true, token, twoFactor.loginTokenTtl().toSeconds(), List.of("totp", "recovery")));
+        }
+        return new Issued(signIn(user, METHOD_PASSWORD, userAgent, ip, deviceId));
+    }
+
+    /** Step two: the second-step token plus an authenticator or recovery code. */
+    @Transactional(noRollbackFor = ApiException.class)
+    public IssuedSession completeMfaLogin(String mfaToken, String code, String userAgent, String ip, String deviceId) {
+        TwoFactorService.LoginStep step = twoFactor.completeLoginChallenge(mfaToken, code);
+        User user = users.findById(step.userId()).orElseThrow(() -> ApiException.unauthorized("Session expired"));
+        String method = step.method() == TwoFactorService.Method.RECOVERY ? METHOD_PASSWORD_RECOVERY : METHOD_PASSWORD_TOTP;
+        return signIn(user, method, userAgent, ip, deviceId);
+    }
+
+    /**
+     * A verified passkey assertion. It satisfies 2FA on its own: the passkey is something you have, unlocked on the
+     * device with user verification (PIN or biometric), which the server requires (D-041).
+     */
+    @Transactional
+    public IssuedSession passkeyLogin(long userId, String userAgent, String ip, String deviceId) {
+        User user = users.findById(userId).orElseThrow(() -> ApiException.unauthorized("Passkey not recognised"));
+        return signIn(user, METHOD_PASSKEY, userAgent, ip, deviceId);
+    }
+
+    /** The one place a fresh session is issued after authentication, whatever the method. */
+    private IssuedSession signIn(User user, String method, String userAgent, String ip, String deviceId) {
+        if (User.Status.DELETED.name().equals(user.getStatus())) {
+            throw ApiException.unauthorized("Incorrect username or password");
+        }
+        if (User.Status.SUSPENDED.name().equals(user.getStatus())) {
+            throw ApiException.forbidden("This account is suspended");
+        }
         if (User.Status.DEACTIVATED.name().equals(user.getStatus())) {
             user.setStatus(User.Status.ACTIVE); // logging in reactivates
         }
-        return issue(user, UUID.randomUUID(), userAgent, ip);
+        IssuedSession s = issue(user, UUID.randomUUID(), userAgent, ip, method);
+        if (deviceId != null) devices.recordSignIn(user, deviceId, userAgent, ip, method);
+        return s;
     }
 
     /**
@@ -126,7 +198,7 @@ public class AuthService {
         User user = users.findById(current.getUserId()).filter(User::isActive)
                 .orElseThrow(() -> ApiException.unauthorized("Session expired"));
         current.markRotated(now);
-        return issue(user, current.getFamilyId(), userAgent, ip);
+        return issue(user, current.getFamilyId(), userAgent, ip, current.getAuthMethod());
     }
 
     @Transactional
@@ -141,8 +213,19 @@ public class AuthService {
         String currentHash = currentRawToken == null ? null : Tokens.sha256(currentRawToken);
         return refreshTokens.findActiveSessions(userId, Instant.now()).stream()
                 .map(t -> new SessionDto(t.getId(), t.getUserAgent(), t.getIp(), t.getCreatedAt(), t.getLastUsedAt(),
-                        t.getTokenHash().equals(currentHash)))
+                        t.getTokenHash().equals(currentHash), t.getAuthMethod()))
                 .toList();
+    }
+
+    /** Signs out every other session of the user, keeping the one whose refresh cookie came with the request. */
+    @Transactional
+    public int revokeOtherSessions(long userId, String currentRawToken) {
+        RefreshToken current = currentRawToken == null || currentRawToken.isBlank() ? null
+                : refreshTokens.findByTokenHash(Tokens.sha256(currentRawToken)).filter(t -> t.getUserId() == userId).orElse(null);
+        if (current == null) {
+            throw ApiException.badRequest("This browser's session couldn't be identified. Sign in again, then retry.");
+        }
+        return refreshTokens.revokeAllExceptFamily(userId, current.getFamilyId(), Instant.now());
     }
 
     @Transactional
@@ -229,10 +312,10 @@ public class AuthService {
         mail.sendVerification(u.getEmail(), u.getUsername(), token, VERIFY_TTL);
     }
 
-    private IssuedSession issue(User user, UUID family, String userAgent, String ip) {
+    private IssuedSession issue(User user, UUID family, String userAgent, String ip, String method) {
         String raw = Tokens.random(48);
         refreshTokens.save(new RefreshToken(user.getId(), family, Tokens.sha256(raw), Instant.now().plus(refreshTtl),
-                truncate(userAgent, 300), truncate(ip, 64)));
+                truncate(userAgent, 300), truncate(ip, 64), method));
         String access = jwt.issueAccessToken(user.getId(), user.getUsername(), user.getRole());
         return new IssuedSession(new AuthResponse(access, jwt.accessTtlSeconds(), UserMapper.toMe(user)), raw);
     }

@@ -47,6 +47,7 @@ users ─┬─< refresh_tokens          (family_id = one device session)
 | V13 | privacy hardening: `user_files.scan_engine` (STRUCTURAL / CLAMAV), `maintenance_runs` (one row per run of a one-time job such as the legacy DM image move) (D-029, D-030) |
 | V19 | web push: `push_subscriptions` (one row per user device: unique `endpoint`, `p256dh`/`auth` keys, per-device `categories`, `failure_count`, `last_used_at`; cascades with the user) (D-040) |
 | V12 | infrastructure: `media_assets.variant_widths` (image variants), index `dm_message_media (media_id)` for private DM image grants (D-023, D-024) |
+| V18 | account security: `account_security`, `totp_recovery_codes`, `mfa_login_challenges`, `user_passkeys`, `webauthn_challenges`, `known_devices`, `refresh_tokens.auth_method` (D-041, D-042) |
 
 Future phases add tables (reports, moderation_actions, collections, pulses, digests, ai_*, podcasts, files,
 funding_*) as new migrations — never by editing applied ones.
@@ -68,3 +69,17 @@ funding_*) as new migrations — never by editing applied ones.
 - Legacy DM images are marked private the same way new ones are: their `media_assets.storage_key` moves from `media/` to
   `private/<same name>` (variants follow the key).
 - Image originals in storage carry no EXIF/XMP/IPTC/text metadata (stripped before storing). Private files are byte-exact.
+
+## Account security (V18, D-041, D-042)
+- `account_security` (1:1 with `users`, created lazily): `webauthn_user_handle` (32 random bytes), `totp_secret_enc` /
+  `totp_pending_enc` (AES-GCM ciphertext `v1:…`), `totp_enabled_at`, `totp_last_step` (replay guard),
+  `mfa_failed_attempts`, `mfa_locked_until`, `new_signin_alerts` (default true).
+- `totp_recovery_codes`: SHA-256 of (user id, code), `used_at`.
+- `mfa_login_challenges`: hash of the second-step token, `attempts`, `expires_at`, `used_at`.
+- `user_passkeys`: `credential_id` (unique), `public_key_cose`, `sign_count`, `name`, `transports`, `discoverable`,
+  `backup_eligible`, `backed_up`, `flagged_at`, `last_used_at`.
+- `webauthn_challenges`: `request_id`, `kind` (`REGISTER`/`AUTHENTICATE`), `user_id`, `binding_hash` (hash of the
+  `howlers_wac` cookie), the library's request JSON, `expires_at`, `used_at`. Purged an hour after expiry.
+- `known_devices`: `device_hash` (keyed hash of device cookie + browser family + OS family), `browser_family`,
+  `os_family`, `network_hash` (12 hex chars of a keyed hash of the /24 or /48 prefix), first/last seen. Unique per user.
+- `refresh_tokens.auth_method` (nullable): how the session signed in, carried through rotation.

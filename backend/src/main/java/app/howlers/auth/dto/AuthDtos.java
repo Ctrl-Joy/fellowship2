@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import java.time.Instant;
+import java.util.List;
 
 public final class AuthDtos {
     private AuthDtos() {}
@@ -38,7 +39,24 @@ public final class AuthDtos {
                                        @Pattern(regexp = PASSWORD_REGEX, message = "must contain a letter and a digit")
                                        String newPassword) {}
 
-    public record SessionDto(long id, String userAgent, String ip, Instant createdAt, Instant lastUsedAt, boolean current) {}
+    /** authMethod: PASSWORD, PASSWORD_TOTP, PASSWORD_RECOVERY, PASSKEY, or null for sessions from before D-041. */
+    public record SessionDto(long id, String userAgent, String ip, Instant createdAt, Instant lastUsedAt, boolean current,
+                             String authMethod) {}
+
+    /**
+     * Returned by /auth/login instead of a session when the account has two-factor authentication on (D-042). The token
+     * only works on /auth/login/2fa, expires in {@code expiresIn} seconds and dies after a few wrong codes.
+     */
+    public record MfaRequired(boolean mfaRequired, String mfaToken, long expiresIn, List<String> methods) {}
+
+    public record MfaLoginRequest(@NotBlank @Size(max = 200) String mfaToken, @NotBlank @Size(max = 40) String code) {}
+
+    /** Internal: either a session or the second-step challenge. */
+    public sealed interface LoginOutcome permits Issued, SecondStep {}
+
+    public record Issued(IssuedSession session) implements LoginOutcome {}
+
+    public record SecondStep(MfaRequired challenge) implements LoginOutcome {}
 
     /** Internal result: what the controller needs to set the cookie. */
     public record IssuedSession(AuthResponse response, String refreshToken) {}

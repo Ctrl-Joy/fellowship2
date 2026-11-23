@@ -12,7 +12,8 @@ import org.springframework.stereotype.Component;
 
 /**
  * Refuses to start the {@code prod} profile with development defaults (D-026): the dev JWT secret, the dev funding
- * webhook secret, a default or empty database password, no visitor salt, insecure cookies, demo MinIO credentials,
+ * webhook secret, a default or empty database password, no visitor salt, no account secrets key (D-042), insecure
+ * cookies, demo MinIO credentials,
  * or a Prometheus endpoint exposed on the public port. Every problem is listed at once, so a deploy needs one fix-up.
  */
 @Component
@@ -68,6 +69,12 @@ public class ProductionSafetyCheck implements InitializingBean {
         }
         if (env.getProperty("howlers.files.visitor-salt", "").isBlank()) {
             out.add("FILE_VISITOR_SALT is unset (share-link visitor hashes need a stable server secret)");
+        }
+        String accountKey = env.getProperty("howlers.account-security.secrets-key", "");
+        if (accountKey.isBlank()) {
+            out.add("ACCOUNT_SECRETS_KEY is unset (encrypts two-factor secrets; generate one: openssl rand -base64 32)");
+        } else if (app.howlers.auth.mfa.AccountSecretsCipher.decodeKey(accountKey) == null) {
+            out.add("ACCOUNT_SECRETS_KEY must be base64 of exactly 32 random bytes (openssl rand -base64 32)");
         }
         if (!env.getProperty("howlers.cookie.secure", Boolean.class, false)) {
             out.add("howlers.cookie.secure must be true behind HTTPS (COOKIE_SECURE=true)");

@@ -1,7 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { BlockedUsersCard } from '@/features/moderation/components/BlockControls';
 import { Laptop, MailWarning } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useNavigate } from 'react-router-dom';
 import { z } from 'zod';
@@ -22,6 +22,9 @@ import { passwordSchema } from '@/utils/validation';
 import { usersApi } from '../api';
 import { useChangePassword } from '../hooks';
 import { useQueryClient } from '@tanstack/react-query';
+import { SecuritySettings } from '@/features/accountSecurity/components/SecuritySettings';
+import { useRevokeOtherSessions } from '@/features/accountSecurity/hooks';
+import { authMethodLabel, isMultiFactor } from '@/features/accountSecurity/logic';
 
 const pwSchema = z
   .object({ currentPassword: z.string().min(1, 'Enter your current password'), newPassword: passwordSchema, confirm: z.string() })
@@ -67,9 +70,30 @@ function PasswordCard() {
 function SessionsCard() {
   const q = useSessions();
   const revoke = useRevokeSession();
+  const others = useRevokeOtherSessions();
+  const hasOthers = (q.data ?? []).some((s) => !s.current);
   return (
     <Card>
-      <CardHeader title="Active sessions" />
+      <CardHeader
+        title="Active sessions"
+        action={
+          hasOthers ? (
+            <Button
+              variant="outline"
+              size="sm"
+              loading={others.isPending}
+              onClick={() =>
+                others.mutate(undefined, {
+                  onSuccess: (r) => toast.success(r.revoked === 1 ? 'Signed out 1 other session' : `Signed out ${r.revoked} other sessions`),
+                  onError: (e) => toast.error(errorMessage(e)),
+                })
+              }
+            >
+              Sign out everywhere else
+            </Button>
+          ) : undefined
+        }
+      />
       {q.isPending && <div className="space-y-2 p-4"><Skeleton className="h-10" /><Skeleton className="h-10" /></div>}
       {q.isError && <ErrorState error={q.error} onRetry={() => q.refetch()} />}
       {q.data && (
@@ -78,7 +102,12 @@ function SessionsCard() {
             <li key={s.id} className="flex items-center gap-3 px-4 py-3">
               <Laptop size={18} className="shrink-0 text-muted" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm">{s.userAgent ?? 'Unknown device'}</div>
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="truncate text-sm">{s.userAgent ?? 'Unknown device'}</span>
+                  {authMethodLabel(s.authMethod) && (
+                    <Badge tone={isMultiFactor(s.authMethod) ? 'info' : 'neutral'}>{authMethodLabel(s.authMethod)}</Badge>
+                  )}
+                </div>
                 <div className="text-xs text-faint">
                   {s.ip ?? 'unknown IP'} · signed in {timeAgo(s.createdAt)} ago{s.lastUsedAt ? ` · active ${timeAgo(s.lastUsedAt)}` : ''}
                 </div>
@@ -210,11 +239,21 @@ function EmailCard({ me }: { me: Me }) {
 }
 
 export function AccountSettings({ me }: { me: Me }) {
+  // Emails link to #sessions; the card renders after the route, so scroll once it exists.
+  useEffect(() => {
+    if (window.location.hash !== '#sessions') return;
+    const t = window.setTimeout(() => document.getElementById('sessions')?.scrollIntoView({ block: 'start' }), 300);
+    return () => window.clearTimeout(t);
+  }, []);
   return (
     <div className="space-y-4">
       <EmailCard me={me} />
       <PasswordCard />
-      <SessionsCard />
+      <SecuritySettings me={me} />
+      {/* Target of the "Review sessions" link in new-sign-in emails. */}
+      <div id="sessions" className="scroll-mt-20">
+        <SessionsCard />
+      </div>
       <BlockedUsersCard />
       <DangerCard />
     </div>

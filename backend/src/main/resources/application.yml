@@ -182,6 +182,22 @@ howlers:
         voice-b: ${ELEVENLABS_VOICE_B:JBFqnCBsd6RMkjVDRZzb}
         voice-b-name: ${ELEVENLABS_VOICE_B_NAME:George}
         request-timeout: PT2M
+  # Stronger accounts (D-041, D-042): passkeys, TOTP two-factor authentication, new-sign-in emails.
+  account-security:
+    # base64 of 32 random bytes (openssl rand -base64 32); encrypts TOTP secrets at rest. Required in prod; changing it
+    # makes existing authenticator enrolments unreadable. Blank in development: derived from JWT_SECRET, with a warning.
+    secrets-key: ${ACCOUNT_SECRETS_KEY:}
+    webauthn:
+      # Blank = the host of APP_PUBLIC_URL (localhost in dev). Passkeys are bound to it: changing it orphans them.
+      rp-id: ${WEBAUTHN_RP_ID:}
+      rp-name: Howlers
+      # Comma-separated exact origins (scheme://host[:port]) allowed to use passkeys. Blank = the origin of APP_PUBLIC_URL.
+      origins: ${WEBAUTHN_ORIGINS:}
+    mfa:
+      login-token-ttl: PT5M
+      max-attempts: 5
+      lockout: PT5M
+    new-signin-alerts: ${NEW_SIGNIN_ALERTS:true}
   rate-limit:
     enabled: ${RATE_LIMIT_ENABLED:true}
   seed:
